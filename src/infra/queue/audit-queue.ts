@@ -1,7 +1,6 @@
 import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
+import type { PgBoss } from 'pg-boss';
 import { ENV, type Environment } from '../../common/config/environment';
-
-type Boss = import('pg-boss').PgBoss;
 
 export const AUDIT_QUEUE = 'audit-lot';
 export const AUDIT_RETRY_LIMIT = 5;
@@ -12,7 +11,7 @@ export interface AuditJob {
 
 @Injectable()
 export class AuditQueue implements OnModuleDestroy {
-  private boss: Boss | null = null;
+  private boss: PgBoss | null = null;
 
   constructor(@Inject(ENV) private readonly env: Environment) {}
 
@@ -39,7 +38,7 @@ export class AuditQueue implements OnModuleDestroy {
     await this.boss?.stop();
   }
 
-  private async client(): Promise<Boss> {
+  private async client(): Promise<PgBoss> {
     if (this.boss) {
       return this.boss;
     }
