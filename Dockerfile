@@ -11,6 +11,7 @@ RUN npm ci
 
 FROM node:24-alpine AS builder
 WORKDIR /app
+RUN apk add --no-cache openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build && npm prune --omit=dev
@@ -19,7 +20,7 @@ FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
-RUN addgroup -S app && adduser -S app -G app
+RUN apk add --no-cache openssl && addgroup -S app && adduser -S app -G app
 COPY --from=builder --chown=app:app /app/node_modules ./node_modules
 COPY --from=builder --chown=app:app /app/dist ./dist
 COPY --from=builder --chown=app:app /app/package.json ./package.json

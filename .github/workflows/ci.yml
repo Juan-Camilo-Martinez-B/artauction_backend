@@ -9,8 +9,58 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: artauction
+          POSTGRES_PASSWORD: artauction
+          POSTGRES_DB: artauction
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U artauction -d artauction"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://artauction:artauction@localhost:5432/artauction?schema=public
+      MONGODB_URI: mongodb://localhost:27017/artauction
+      JWT_ACCESS_SECRET: ci-access-secret-value
+      JWT_REFRESH_SECRET: ci-refresh-secret-value
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 7d
+      CORS_ORIGINS: http://localhost:3000
+      STORAGE_DRIVER: local
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # TODO(fase-2): npm ci, eslint, tsc --noEmit, jest (pujas y auditoría).
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Push schema
+        run: npx prisma db push
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test:cov
