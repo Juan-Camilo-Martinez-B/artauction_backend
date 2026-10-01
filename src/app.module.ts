@@ -8,6 +8,7 @@ import { PostgresModule } from './infra/postgres/postgres.module';
 import { AuditoriaModule } from './modules/auditoria-ia/auditoria.module';
 import { CatalogoModule } from './modules/catalogo/catalogo.module';
 import { IdentidadModule } from './modules/identidad/identidad.module';
+import { SubastasModule } from './modules/subastas/subastas.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { IdentidadModule } from './modules/identidad/identidad.module';
     IdentidadModule,
     CatalogoModule,
     AuditoriaModule,
+    SubastasModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
