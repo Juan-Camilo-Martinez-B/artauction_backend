@@ -5,6 +5,7 @@ import { EnvModule } from './common/config/env.module';
 import { HealthModule } from './health/health.module';
 import { MongoModule } from './infra/mongo/mongo.module';
 import { PostgresModule } from './infra/postgres/postgres.module';
+import { AuditoriaModule } from './modules/auditoria-ia/auditoria.module';
 import { CatalogoModule } from './modules/catalogo/catalogo.module';
 import { IdentidadModule } from './modules/identidad/identidad.module';
 
@@ -19,6 +20,7 @@ import { IdentidadModule } from './modules/identidad/identidad.module';
     HealthModule,
     IdentidadModule,
     CatalogoModule,
+    AuditoriaModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
