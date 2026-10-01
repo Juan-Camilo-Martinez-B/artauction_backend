@@ -1,0 +1,44 @@
+# Dependencias
+node_modules/
+.pnp
+.pnp.js
+.yarn/
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Compilación NestJS y cobertura
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Entorno. El ejemplo sí se versiona.
+.env
+.env.*
+!.env.example
+
+# Registros
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+
+# Editores y sistema
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# Cachés locales
+.turbo/
+*.local
+.eslintcache
+
+# Artefactos de Prisma generados en este servicio
+src/generated/
