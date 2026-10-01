@@ -7,6 +7,7 @@ module.exports = {
     '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
   },
   testEnvironment: 'node',
+  setupFiles: ['reflect-metadata'],
   collectCoverageFrom: [
     'src/modules/subastas/**/*.ts',
     'src/modules/auditoria-ia/**/*.ts',
