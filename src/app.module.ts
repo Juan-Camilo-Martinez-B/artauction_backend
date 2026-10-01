@@ -7,6 +7,7 @@ import { MongoModule } from './infra/mongo/mongo.module';
 import { PostgresModule } from './infra/postgres/postgres.module';
 import { AuditoriaModule } from './modules/auditoria-ia/auditoria.module';
 import { CatalogoModule } from './modules/catalogo/catalogo.module';
+import { GaleriasModule } from './modules/galerias-social/galerias.module';
 import { IdentidadModule } from './modules/identidad/identidad.module';
 import { SubastasModule } from './modules/subastas/subastas.module';
 
@@ -23,6 +24,7 @@ import { SubastasModule } from './modules/subastas/subastas.module';
     CatalogoModule,
     AuditoriaModule,
     SubastasModule,
+    GaleriasModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
