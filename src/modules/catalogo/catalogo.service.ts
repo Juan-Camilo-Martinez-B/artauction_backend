@@ -48,14 +48,21 @@ export class CatalogoService {
     return this.prisma.lot.findMany({
       where: { visibility: 'PUBLIC', status: { in: PUBLIC_STATUSES } },
       orderBy: { createdAt: 'desc' },
-      include: { images: { orderBy: { position: 'asc' } } },
+      include: {
+        images: { orderBy: { position: 'asc' } },
+        auction: { select: { id: true, status: true, currentPrice: true, endsAt: true } },
+      },
     });
   }
 
   async getForViewer(lotId: string, viewerId: string | null) {
     const lot = await this.prisma.lot.findUnique({
       where: { id: lotId },
-      include: { images: { orderBy: { position: 'asc' } }, auditSummaries: { orderBy: { createdAt: 'desc' }, take: 1 } },
+      include: {
+        images: { orderBy: { position: 'asc' } },
+        auditSummaries: { orderBy: { createdAt: 'desc' }, take: 1 },
+        auction: { select: { id: true, status: true, currentPrice: true, endsAt: true } },
+      },
     });
     if (!lot || !canViewLot(lot, viewerId)) {
       throw new NotFoundException('Obra no encontrada');
