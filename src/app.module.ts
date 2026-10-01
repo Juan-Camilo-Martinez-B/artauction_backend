@@ -9,6 +9,7 @@ import { AuditoriaModule } from './modules/auditoria-ia/auditoria.module';
 import { CatalogoModule } from './modules/catalogo/catalogo.module';
 import { GaleriasModule } from './modules/galerias-social/galerias.module';
 import { IdentidadModule } from './modules/identidad/identidad.module';
+import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
 import { SubastasModule } from './modules/subastas/subastas.module';
 
 @Module({
@@ -25,6 +26,7 @@ import { SubastasModule } from './modules/subastas/subastas.module';
     AuditoriaModule,
     SubastasModule,
     GaleriasModule,
+    NotificacionesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
