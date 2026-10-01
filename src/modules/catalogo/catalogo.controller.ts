@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../identidad/auth.service';
 import { CurrentUser } from '../identidad/current-user.decorator';
+import { OptionalJwtAuthGuard } from '../identidad/optional-jwt.guard';
 import { Roles, RolesGuard } from '../identidad/roles.guard';
 import { CatalogoService } from './catalogo.service';
 import { CreateLotDto, HashImageDto, RegisterImageDto, SignUploadDto } from './dto';
@@ -17,6 +18,7 @@ export class CatalogoController {
     return this.catalogo.listPublic();
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
   getOne(@Param('id') id: string, @CurrentUser() user?: AuthUser) {
     return this.catalogo.getForViewer(id, user?.userId ?? null);
