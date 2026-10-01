@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../identidad/auth.service';
 import { CurrentUser } from '../identidad/current-user.decorator';
+import { OptionalJwtAuthGuard } from '../identidad/optional-jwt.guard';
 import { GaleriasService } from './galerias.service';
 
 @ApiTags('galerias')
@@ -10,6 +11,7 @@ import { GaleriasService } from './galerias.service';
 export class GaleriasController {
   constructor(private readonly galerias: GaleriasService) {}
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('galleries/:ownerId')
   list(@Param('ownerId') ownerId: string, @CurrentUser() user?: AuthUser) {
     return this.galerias.listForViewer(ownerId, user?.userId ?? null);

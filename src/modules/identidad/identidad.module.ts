@@ -9,6 +9,7 @@ import { RefreshSession, RefreshSessionSchema } from '../../infra/mongo/refresh-
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { OptionalJwtAuthGuard } from './optional-jwt.guard';
 import { RolesGuard } from './roles.guard';
 import { UsersRepository } from './users.repository';
 
@@ -26,7 +27,7 @@ import { UsersRepository } from './users.repository';
     MongooseModule.forFeature([{ name: RefreshSession.name, schema: RefreshSessionSchema }]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, UsersRepository, JwtStrategy, RolesGuard],
-  exports: [AuthService, RolesGuard, JwtModule],
+  providers: [AuthService, UsersRepository, JwtStrategy, RolesGuard, OptionalJwtAuthGuard],
+  exports: [AuthService, RolesGuard, OptionalJwtAuthGuard, JwtModule],
 })
 export class IdentidadModule {}
