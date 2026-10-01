@@ -5,6 +5,7 @@ import { EnvModule } from './common/config/env.module';
 import { HealthModule } from './health/health.module';
 import { MongoModule } from './infra/mongo/mongo.module';
 import { PostgresModule } from './infra/postgres/postgres.module';
+import { AdministracionModule } from './modules/administracion/administracion.module';
 import { AuditoriaModule } from './modules/auditoria-ia/auditoria.module';
 import { CatalogoModule } from './modules/catalogo/catalogo.module';
 import { GaleriasModule } from './modules/galerias-social/galerias.module';
@@ -27,6 +28,7 @@ import { SubastasModule } from './modules/subastas/subastas.module';
     SubastasModule,
     GaleriasModule,
     NotificacionesModule,
+    AdministracionModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
