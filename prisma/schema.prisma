@@ -1,4 +1,4 @@
-// Vendored from artauction-database tag v0.2.0.
+// Vendored from artauction-database tag v0.3.0.
 // This service does not import the sibling repository. Update this file only
 // when that tag changes.
 
@@ -31,6 +31,7 @@ model User {
   sales     Transaction[] @relation("TransactionSeller")
   following Follow[] @relation("Follows")
   followers Follow[] @relation("FollowedBy")
+  personalGallery PersonalGallery?
 
   @@map("users")
 }
@@ -46,6 +47,7 @@ model Lot {
   heightCm          Decimal? @map("height_cm") @db.Decimal(8, 2)
   depthCm           Decimal? @map("depth_cm") @db.Decimal(8, 2)
   provenance        String?
+  representationKind String? @map("representation_kind")
   status            String   @default("BORRADOR")
   visibility        String   @default("PRIVATE")
   authenticityScore Int?     @map("authenticity_score") @db.SmallInt
@@ -60,6 +62,8 @@ model Lot {
   auction Auction?
   transactions Transaction[]
   auditSummaries AuditSummary[]
+  categories LotCategory[]
+  galleryPlacements PersonalGalleryArtwork[]
 
 
   @@index([sellerId], map: "lots_seller_id_idx")
@@ -180,4 +184,72 @@ model Follow {
 
   @@id([followerId, followeeId])
   @@map("follows")
+}
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String
+  imageKey    String?  @map("image_key")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  lots LotCategory[]
+
+  @@map("categories")
+}
+
+model LotCategory {
+  lotId      String  @map("lot_id") @db.Uuid
+  categoryId String  @map("category_id") @db.Uuid
+  isPrimary  Boolean @default(false) @map("is_primary")
+
+  lot      Lot      @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@id([lotId, categoryId])
+  @@index([categoryId], map: "lot_categories_category_id_idx")
+  @@map("lot_categories")
+}
+
+model PersonalGallery {
+  id                   String   @id @default(uuid()) @db.Uuid
+  ownerId              String   @unique @map("owner_id") @db.Uuid
+  name                 String
+  description          String?
+  preferences          Json     @default("{}")
+  suggestedConfig      Json?    @map("suggested_config")
+  appliedConfig        Json?    @map("applied_config")
+  configVersion        Int      @default(1) @map("config_version")
+  customizationStatus  String   @default("SIN_PERSONALIZAR") @map("customization_status")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner    User                     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  artworks PersonalGalleryArtwork[]
+
+  @@map("personal_galleries")
+}
+
+model PersonalGalleryArtwork {
+  id        String   @id @default(uuid()) @db.Uuid
+  galleryId String   @map("gallery_id") @db.Uuid
+  lotId     String   @map("lot_id") @db.Uuid
+  posX      Float    @default(0) @map("pos_x")
+  posY      Float    @default(1.5) @map("pos_y")
+  posZ      Float    @default(-3.8) @map("pos_z")
+  rotY      Float    @default(0) @map("rot_y")
+  scale     Float    @default(1)
+  support   String   @default("WALL")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  gallery PersonalGallery @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  lot     Lot             @relation(fields: [lotId], references: [id], onDelete: Restrict)
+
+  @@unique([galleryId, lotId])
+  @@index([lotId], map: "personal_gallery_artworks_lot_id_idx")
+  @@map("personal_gallery_artworks")
 }

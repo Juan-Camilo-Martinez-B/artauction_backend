@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
 
 export class CreateLotDto {
   @ApiProperty()
@@ -30,6 +30,16 @@ export class CreateLotDto {
   @IsString()
   @MinLength(2)
   materials!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  categorySlug?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsIn(['TWO_D', 'THREE_D', 'OTHER'])
+  representationKind?: 'TWO_D' | 'THREE_D' | 'OTHER';
 }
 
 export class RegisterImageDto {
@@ -67,4 +77,35 @@ export class SignUploadDto {
   @IsInt()
   @Min(0)
   position!: number;
+}
+
+export class ListLotsQuery {
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsIn(['TWO_D', 'THREE_D', 'OTHER'])
+  representation?: 'TWO_D' | 'THREE_D' | 'OTHER';
+
+  @IsOptional()
+  @IsIn(['recent', 'title', 'score'])
+  sort?: 'recent' | 'title' | 'score';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(24)
+  pageSize?: number;
 }

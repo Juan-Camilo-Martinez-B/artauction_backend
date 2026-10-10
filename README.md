@@ -58,6 +58,12 @@ Argon2 para contraseñas. Access token corto y refresh rotativo. Validación de 
 
 `Dockerfile` multi-stage. El proceso escucha en el puerto `8080`. En el MVP de Cloud Run, `max-instances=1` para que la sala Socket.IO no se parta entre instancias.
 
+## Catálogo y galería personal
+
+`GET /lots` responde `{ items, total, page, pageSize }` y filtra por `q`, `category`, `representation` y `sort`. Las categorías viven en `GET /lots/categories`.
+
+`/me/gallery` es la sala 3D de quien inicia sesión. El identificador sale del access token. `POST /me/gallery/generate` convierte el cuestionario en una configuración validada. Sin `GEMINI_API_KEY` lo hace el adaptador local, el mismo criterio que la auditoría.
+
 ## Estado
 
-Fase 0: andamiaje. El bootstrap de NestJS y los módulos llegan en la fase de backend.
+Fase 0: andamiaje. El bootstrap de NestJS y los módulos llegan en la fase de backend. El catálogo filtrable y la galería personal ya están en el servicio.

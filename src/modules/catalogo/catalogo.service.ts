@@ -13,9 +13,15 @@ import { PrismaService } from '../../infra/postgres/prisma.service';
 import { AuditQueue } from '../../infra/queue/audit-queue';
 import { STORAGE, type StoragePort } from '../../infra/storage/storage.port';
 import { ImageHashPool } from '../../infra/workers/image-hash.pool';
-import type { CreateLotDto, RegisterImageDto } from './dto';
+import type { CreateLotDto, ListLotsQuery, RegisterImageDto } from './dto';
 
 const PUBLIC_STATUSES = ['APROBADO', 'EN_SUBASTA', 'CERRADO'];
+
+const lotCardInclude = {
+  images: { orderBy: { position: 'asc' as const } },
+  auction: { select: { id: true, status: true, currentPrice: true, endsAt: true } },
+  categories: { include: { category: true } },
+} satisfies Prisma.LotInclude;
 
 @Injectable()
 export class CatalogoService {
@@ -28,6 +34,12 @@ export class CatalogoService {
   ) {}
 
   async create(sellerId: string, input: CreateLotDto) {
+    const category = input.categorySlug
+      ? await this.prisma.category.findFirst({ where: { slug: input.categorySlug, active: true } })
+      : null;
+    if (input.categorySlug && !category) {
+      throw new BadRequestException('La categoría no existe.');
+    }
     const lot = await this.prisma.lot.create({
       data: {
         sellerId,
@@ -36,22 +48,80 @@ export class CatalogoService {
         artistName: input.artistName?.trim(),
         creationYear: input.creationYear,
         materials: input.materials.trim(),
+        representationKind: input.representationKind,
         status: 'BORRADOR',
         visibility: 'PRIVATE',
+        categories: category ? { create: { categoryId: category.id, isPrimary: true } } : undefined,
       },
     });
     await this.grants?.grantOwnLot({ ownerId: sellerId, lotId: lot.id });
     return lot;
   }
 
-  async listPublic() {
+  listCategories() {
+    return this.prisma.category.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
+  }
+
+  async listPublic(query: ListLotsQuery = {}) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 12;
+    const where: Prisma.LotWhereInput = {
+      visibility: 'PUBLIC',
+      status: { in: PUBLIC_STATUSES },
+    };
+    const text = query.q?.trim();
+    if (text) {
+      where.OR = [
+        { title: { contains: text, mode: 'insensitive' } },
+        { artistName: { contains: text, mode: 'insensitive' } },
+        { materials: { contains: text, mode: 'insensitive' } },
+        { description: { contains: text, mode: 'insensitive' } },
+      ];
+    }
+    if (query.representation) {
+      where.representationKind = query.representation;
+    }
+    if (query.category) {
+      where.categories = { some: { category: { slug: query.category, active: true } } };
+    }
+    const orderBy: Prisma.LotOrderByWithRelationInput =
+      query.sort === 'title'
+        ? { title: 'asc' }
+        : query.sort === 'score'
+          ? { authenticityScore: 'desc' }
+          : { createdAt: 'desc' };
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.lot.count({ where }),
+      this.prisma.lot.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: lotCardInclude,
+      }),
+    ]);
+    return { items, total, page, pageSize };
+  }
+
+  async related(lotId: string) {
+    const lot = await this.prisma.lot.findUnique({
+      where: { id: lotId },
+      include: { categories: { where: { isPrimary: true } } },
+    });
+    const categoryId = lot?.categories[0]?.categoryId;
+    if (!lot || !categoryId || lot.visibility !== 'PUBLIC') {
+      return [];
+    }
     return this.prisma.lot.findMany({
-      where: { visibility: 'PUBLIC', status: { in: PUBLIC_STATUSES } },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        images: { orderBy: { position: 'asc' } },
-        auction: { select: { id: true, status: true, currentPrice: true, endsAt: true } },
+      where: {
+        id: { not: lotId },
+        visibility: 'PUBLIC',
+        status: { in: PUBLIC_STATUSES },
+        categories: { some: { categoryId } },
       },
+      take: 4,
+      orderBy: { authenticityScore: 'desc' },
+      include: lotCardInclude,
     });
   }
 
@@ -62,6 +132,7 @@ export class CatalogoService {
         images: { orderBy: { position: 'asc' } },
         auditSummaries: { orderBy: { createdAt: 'desc' }, take: 1 },
         auction: { select: { id: true, status: true, currentPrice: true, endsAt: true } },
+        categories: { include: { category: true } },
       },
     });
     if (!lot || !canViewLot(lot, viewerId)) {

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../identidad/auth.service';
@@ -6,7 +6,7 @@ import { CurrentUser } from '../identidad/current-user.decorator';
 import { OptionalJwtAuthGuard } from '../identidad/optional-jwt.guard';
 import { Roles, RolesGuard } from '../identidad/roles.guard';
 import { CatalogoService } from './catalogo.service';
-import { CreateLotDto, HashImageDto, RegisterImageDto, SignUploadDto } from './dto';
+import { CreateLotDto, HashImageDto, ListLotsQuery, RegisterImageDto, SignUploadDto } from './dto';
 
 @ApiTags('catalogo')
 @Controller('lots')
@@ -14,8 +14,18 @@ export class CatalogoController {
   constructor(private readonly catalogo: CatalogoService) {}
 
   @Get()
-  listPublic() {
-    return this.catalogo.listPublic();
+  listPublic(@Query() query: ListLotsQuery) {
+    return this.catalogo.listPublic(query);
+  }
+
+  @Get('categories')
+  categories() {
+    return this.catalogo.listCategories();
+  }
+
+  @Get(':id/related')
+  related(@Param('id') id: string) {
+    return this.catalogo.related(id);
   }
 
   @UseGuards(OptionalJwtAuthGuard)
