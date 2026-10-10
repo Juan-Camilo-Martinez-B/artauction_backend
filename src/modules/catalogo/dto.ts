@@ -106,6 +106,6 @@ export class ListLotsQuery {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
-  @Max(24)
+  @Max(60)
   pageSize?: number;
 }

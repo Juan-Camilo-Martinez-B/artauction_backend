@@ -1,10 +1,10 @@
-import { Body, Controller, Get, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { AuthService, type AuthUser } from './auth.service';
+import { AuthService, type AccountView, type AuthUser } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
-import { LoginDto, RefreshDto, RegisterDto } from './dto';
+import { LoginDto, RefreshDto, RegisterDto, UpdateProfileDto } from './dto';
 
 @ApiTags('identidad')
 @Controller('auth')
@@ -32,7 +32,14 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
   @Get('me')
-  me(@CurrentUser() user: AuthUser): AuthUser {
-    return user;
+  me(@CurrentUser() user: AuthUser): Promise<AccountView> {
+    return this.auth.profile(user.userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('me')
+  update(@CurrentUser() user: AuthUser, @Body() body: UpdateProfileDto): Promise<AccountView> {
+    return this.auth.updateProfile(user.userId, body.displayName, body.avatarUrl);
   }
 }

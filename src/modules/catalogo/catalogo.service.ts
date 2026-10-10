@@ -14,6 +14,7 @@ import { AuditQueue } from '../../infra/queue/audit-queue';
 import { STORAGE, type StoragePort } from '../../infra/storage/storage.port';
 import { ImageHashPool } from '../../infra/workers/image-hash.pool';
 import type { CreateLotDto, ListLotsQuery, RegisterImageDto } from './dto';
+import { LotPresenter } from './public-object-url';
 
 const PUBLIC_STATUSES = ['APROBADO', 'EN_SUBASTA', 'CERRADO'];
 
@@ -100,7 +101,7 @@ export class CatalogoService {
         include: lotCardInclude,
       }),
     ]);
-    return { items, total, page, pageSize };
+    return { items: LotPresenter.collection(items), total, page, pageSize };
   }
 
   async related(lotId: string) {
@@ -112,7 +113,7 @@ export class CatalogoService {
     if (!lot || !categoryId || lot.visibility !== 'PUBLIC') {
       return [];
     }
-    return this.prisma.lot.findMany({
+    return LotPresenter.collection(await this.prisma.lot.findMany({
       where: {
         id: { not: lotId },
         visibility: 'PUBLIC',
@@ -122,7 +123,7 @@ export class CatalogoService {
       take: 4,
       orderBy: { authenticityScore: 'desc' },
       include: lotCardInclude,
-    });
+    }));
   }
 
   async getForViewer(lotId: string, viewerId: string | null) {
@@ -138,7 +139,7 @@ export class CatalogoService {
     if (!lot || !canViewLot(lot, viewerId)) {
       throw new NotFoundException('Obra no encontrada');
     }
-    return lot;
+    return LotPresenter.withPublicImages(lot);
   }
 
   signUpload(lotId: string, sellerId: string, contentType: string, position: number) {

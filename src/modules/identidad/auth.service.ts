@@ -3,8 +3,10 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as argon2 from 'argon2';
@@ -13,12 +15,18 @@ import { ENV, type Environment } from '../../common/config/environment';
 import { durationToMs } from '../../common/time/duration';
 import { RefreshSession } from '../../infra/mongo/refresh-session.schema';
 import type { RegisterDto } from './dto';
+import { ProfileAvatar } from './profile-avatar';
 import { UsersRepository } from './users.repository';
 
 export interface AuthUser {
   userId: string;
   email: string;
   role: string;
+}
+
+export interface AccountView extends AuthUser {
+  displayName: string;
+  avatarUrl: string | null;
 }
 
 export interface TokenPair {
@@ -48,7 +56,41 @@ export class AuthService {
       displayName: input.displayName.trim(),
       role: input.role ?? 'USER',
     });
-    return { userId: user.id, email: user.email, role: user.role };
+    return this.toAccount(user);
+  }
+
+  async profile(userId: string): Promise<AccountView> {
+    const user = await this.users.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('La sesión no es válida');
+    }
+    return this.toAccount(user);
+  }
+
+  async updateProfile(userId: string, displayName: string, avatarUrl: string | undefined): Promise<AccountView> {
+    const data: { displayName: string; avatarUrl?: string | null } = { displayName: displayName.trim() };
+    if (avatarUrl !== undefined) {
+      data.avatarUrl = ProfileAvatar.parse(avatarUrl);
+    }
+    try {
+      const user = await this.users.updateProfile(userId, data);
+      return this.toAccount(user);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException('La cuenta no existe');
+      }
+      throw error;
+    }
+  }
+
+  private toAccount(user: { id: string; email: string; role: string; displayName: string; avatarUrl: string | null }): AccountView {
+    return {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+    };
   }
 
   async login(email: string, password: string): Promise<TokenPair> {

@@ -17,4 +17,8 @@ export class UsersRepository {
   create(data: Prisma.UserCreateInput): Promise<User> {
     return this.prisma.user.create({ data });
   }
+
+  updateProfile(id: string, data: { displayName: string; avatarUrl?: string | null }): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data });
+  }
 }
