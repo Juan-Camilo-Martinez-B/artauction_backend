@@ -31,15 +31,42 @@ export class CreateLotDto {
   @MinLength(2)
   materials!: string;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  categorySlug?: string;
+  @MinLength(2)
+  categorySlug!: string;
+
+  @ApiProperty({ enum: ['TWO_D', 'THREE_D'] })
+  @IsIn(['TWO_D', 'THREE_D'])
+  representationKind!: 'TWO_D' | 'THREE_D';
+
+  @ApiProperty({ description: 'Ancho en centímetros' })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.1)
+  @Max(2000)
+  widthCm!: number;
+
+  @ApiProperty({ description: 'Alto en centímetros' })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.1)
+  @Max(2000)
+  heightCm!: number;
+
+  @ApiProperty({ required: false, description: 'Profundidad en centímetros. Obligatoria en objetos tridimensionales.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.1)
+  @Max(2000)
+  depthCm?: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsIn(['TWO_D', 'THREE_D', 'OTHER'])
-  representationKind?: 'TWO_D' | 'THREE_D' | 'OTHER';
+  @IsString()
+  @MinLength(3)
+  provenance?: string;
 }
 
 export class RegisterImageDto {

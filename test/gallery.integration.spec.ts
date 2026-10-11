@@ -144,6 +144,11 @@ describe('galería personal y catálogo', () => {
       title: `borrador-${marker}`,
       description: 'No debe entrar en ninguna sala.',
       materials: 'bronce',
+      categorySlug: 'escultura',
+      representationKind: 'THREE_D',
+      widthCm: 20,
+      heightCm: 30,
+      depthCm: 15,
     });
     lotIds.push(hidden.id);
     await expect(galleries.addArtwork(owner.id, hidden.id)).rejects.toBeInstanceOf(NotFoundException);
@@ -154,6 +159,9 @@ describe('galería personal y catálogo', () => {
       materials: 'bronce',
       categorySlug: 'escultura',
       representationKind: 'THREE_D',
+      widthCm: 40,
+      heightCm: 60,
+      depthCm: 25,
     });
     lotIds.push(sculpture.id);
     await prisma.lot.update({

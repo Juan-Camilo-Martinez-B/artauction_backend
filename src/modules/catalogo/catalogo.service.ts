@@ -38,21 +38,28 @@ export class CatalogoService {
     const category = input.categorySlug
       ? await this.prisma.category.findFirst({ where: { slug: input.categorySlug, active: true } })
       : null;
-    if (input.categorySlug && !category) {
+    if (!category) {
       throw new BadRequestException('La categoría no existe.');
+    }
+    if (input.representationKind === 'THREE_D' && input.depthCm == null) {
+      throw new BadRequestException('Un objeto tridimensional necesita profundidad.');
     }
     const lot = await this.prisma.lot.create({
       data: {
         sellerId,
         title: input.title.trim(),
         description: input.description.trim(),
-        artistName: input.artistName?.trim(),
+        artistName: input.artistName?.trim() || null,
         creationYear: input.creationYear,
         materials: input.materials.trim(),
         representationKind: input.representationKind,
+        widthCm: input.widthCm,
+        heightCm: input.heightCm,
+        depthCm: input.depthCm ?? null,
+        provenance: input.provenance?.trim() || null,
         status: 'BORRADOR',
         visibility: 'PRIVATE',
-        categories: category ? { create: { categoryId: category.id, isPrimary: true } } : undefined,
+        categories: { create: { categoryId: category.id, isPrimary: true } },
       },
     });
     await this.grants?.grantOwnLot({ ownerId: sellerId, lotId: lot.id });

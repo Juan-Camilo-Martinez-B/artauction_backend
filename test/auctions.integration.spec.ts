@@ -237,6 +237,10 @@ describe('pujas, auditoría y obras privadas', () => {
       title: 'Boceto privado',
       description: 'Esta obra no debe aparecer para otros usuarios.',
       materials: 'grafito',
+      categorySlug: 'pinturas',
+      representationKind: 'TWO_D',
+      widthCm: 21,
+      heightCm: 29.7,
     });
     lotIds.push(lot.id);
     await expect(catalogo.getForViewer(lot.id, stranger.id)).rejects.toBeInstanceOf(NotFoundException);
