@@ -143,19 +143,22 @@ describe('pujas, auditoría y obras privadas', () => {
       },
     });
     lotIds.push(lot.id);
+    const startsAt = new Date(Date.now() + 60_000).toISOString();
+    const endsAt = new Date(Date.now() + 3_600_000).toISOString();
     const auction = await auctions.open(seller.id, {
       lotId: lot.id,
       startPrice: '80.00',
       minIncrement: '5.00',
-      startsAt: new Date(Date.now() - 1_000).toISOString(),
-      endsAt: new Date(Date.now() + 3_600_000).toISOString(),
+      startsAt,
+      endsAt,
     });
     auctionIds.push(auction.id);
     const view = await auctions.getOne(auction.id);
-    expect(view.auction.status).toBe('ACTIVA');
+    expect(view.auction.status).toBe('PROGRAMADA');
     expect(view.serverTime).toEqual(expect.any(String));
+    expect(auction.startsAt.getTime()).toBeGreaterThan(Date.now());
     await expect(prisma.lot.findUniqueOrThrow({ where: { id: lot.id } })).resolves.toMatchObject({
-      status: 'EN_SUBASTA',
+      status: 'APROBADO',
     });
   });
 
@@ -276,9 +279,15 @@ describe('pujas, auditoría y obras privadas', () => {
     await worker.process(acrylic.id);
     const approved = await prisma.lot.findUniqueOrThrow({ where: { id: oil.id } });
     const manual = await prisma.lot.findUniqueOrThrow({ where: { id: acrylic.id } });
-    expect(approved.status).toBe('APROBADO');
+    expect(approved.status).toBe('PUBLICADA');
     expect(approved.visibility).toBe('PUBLIC');
     expect(approved.authenticityScore).toBe(82);
+    const scheduled = await prisma.auction.findUnique({ where: { lotId: oil.id } });
+    expect(scheduled?.status).toBe('PROGRAMADA');
+    expect(scheduled && scheduled.startsAt.getTime()).toBeGreaterThan(Date.now());
+    if (scheduled) {
+      auctionIds.push(scheduled.id);
+    }
     expect(manual.status).toBe('REVISION_MANUAL');
     expect(manual.visibility).toBe('PRIVATE');
     expect(await prisma.auditSummary.count({ where: { lotId: { in: [oil.id, acrylic.id] } } })).toBe(2);
@@ -319,7 +328,7 @@ describe('pujas, auditoría y obras privadas', () => {
     const closedLot = await prisma.lot.findUniqueOrThrow({ where: { id: lot.id } });
     expect(stored.status).toBe('CERRADA');
     expect(stored.winnerId).toBe(bidder.id);
-    expect(closedLot.status).toBe('CERRADO');
+    expect(closedLot.status).toBe('VENDIDA');
     expect(await prisma.transaction.count({ where: { auctionId: auction.id } })).toBe(1);
   });
 });

@@ -3,6 +3,7 @@ import { ENV, type Environment } from '../../common/config/environment';
 import { GALLERY_GRANTS, OUTCOME_NOTIFIER, type GalleryGrants, type OutcomeNotifier } from '../../common/outcomes';
 import { PrismaService } from '../../infra/postgres/prisma.service';
 import { AuctionBus } from './auction-bus';
+import { scheduleWindow } from './auction-policy';
 import { centsToMoney, moneyToCents } from './bid-rules';
 
 interface LockedClose {
@@ -13,6 +14,8 @@ interface LockedClose {
   seller_id: string;
   current_price: { toFixed(digits: number): string } | string;
   currency: string;
+  start_price: { toFixed(digits: number): string } | string;
+  duration_minutes: number;
 }
 
 @Injectable()
@@ -56,7 +59,7 @@ export class AuctionCloser implements OnModuleInit, OnModuleDestroy {
       await this.prisma.$transaction(async (tx) => {
         const current = await tx.auction.findUnique({ where: { id: auction.id } });
         const lot = current ? await tx.lot.findUnique({ where: { id: current.lotId } }) : null;
-        if (!current || current.status !== 'PROGRAMADA' || !lot || lot.status !== 'APROBADO') {
+        if (!current || current.status !== 'PROGRAMADA' || !lot || !['APROBADO', 'PUBLICADA'].includes(lot.status)) {
           return;
         }
         await tx.auction.update({ where: { id: current.id }, data: { status: 'ACTIVA' } });
@@ -82,6 +85,8 @@ export class AuctionCloser implements OnModuleInit, OnModuleDestroy {
                a.status,
                a.ends_at,
                a.current_price,
+               a.start_price,
+               a.duration_minutes,
                a.currency,
                l.id::text AS lot_id,
                l.seller_id::text AS seller_id
@@ -95,47 +100,80 @@ export class AuctionCloser implements OnModuleInit, OnModuleDestroy {
         return null;
       }
       const winning = await tx.bid.findFirst({
-        where: { auctionId },
+        where: { auctionId, active: true },
         orderBy: [{ amount: 'desc' }, { createdAt: 'asc' }],
       });
-      const amount = centsToMoney(moneyToCents(winning ? winning.amount : row.current_price));
+      if (!winning) {
+        await tx.$executeRaw`SELECT set_config('artauction.allow_auction_rewind', 'on', true)`;
+        const window = scheduleWindow(now, row.duration_minutes);
+        await tx.bid.updateMany({ where: { auctionId, active: true }, data: { active: false } });
+        await tx.auction.update({
+          where: { id: auctionId },
+          data: {
+            status: 'PROGRAMADA',
+            currentPrice: centsToMoney(moneyToCents(row.start_price)),
+            startsAt: window.startsAt,
+            endsAt: window.endsAt,
+            initialEndsAt: window.endsAt,
+            extensionCount: 0,
+            winnerId: null,
+            winningBidId: null,
+          },
+        });
+        await tx.lot.update({
+          where: { id: row.lot_id },
+          data: { status: 'PUBLICADA', visibility: 'PUBLIC' },
+        });
+        return {
+          auctionId,
+          lotId: row.lot_id,
+          sellerId: row.seller_id,
+          winnerId: null,
+          amount: centsToMoney(moneyToCents(row.start_price)),
+          rescheduled: true,
+        };
+      }
+      const amount = centsToMoney(moneyToCents(winning.amount));
       await tx.auction.update({
         where: { id: auctionId },
         data: {
           status: 'CERRADA',
-          winnerId: winning?.bidderId,
-          winningBidId: winning?.id,
+          winnerId: winning.bidderId,
+          winningBidId: winning.id,
           currentPrice: amount,
         },
       });
-      await tx.lot.update({ where: { id: row.lot_id }, data: { status: 'CERRADO' } });
-      if (winning) {
-        await tx.transaction.create({
-          data: {
-            auctionId,
-            lotId: row.lot_id,
-            buyerId: winning.bidderId,
-            sellerId: row.seller_id,
-            amount: winning.amount,
-            currency: row.currency,
-            status: 'PENDIENTE',
-          },
-        });
-      }
+      await tx.lot.update({
+        where: { id: row.lot_id },
+        data: { status: 'VENDIDA', visibility: 'PRIVATE' },
+      });
+      await tx.transaction.create({
+        data: {
+          auctionId,
+          lotId: row.lot_id,
+          buyerId: winning.bidderId,
+          sellerId: row.seller_id,
+          amount: winning.amount,
+          currency: row.currency,
+          status: 'COMPLETADA',
+        },
+      });
       return {
         auctionId,
         lotId: row.lot_id,
         sellerId: row.seller_id,
-        winnerId: winning?.bidderId ?? null,
+        winnerId: winning.bidderId,
         amount,
+        rescheduled: false,
       };
     });
     if (!closed) {
       return false;
     }
-    if (closed.winnerId) {
-      await this.grants?.grantWonLot({ ownerId: closed.winnerId, lotId: closed.lotId });
+    if (closed.rescheduled || !closed.winnerId) {
+      return true;
     }
+    await this.grants?.grantWonLot({ ownerId: closed.winnerId, lotId: closed.lotId });
     await this.notifier?.auctionClosed(closed);
     this.bus.auctionClosed({
       version: 1,
