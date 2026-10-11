@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional, type OnModuleDestroy, type OnModuleInit }
 import { ENV, type Environment } from '../../common/config/environment';
 import { GALLERY_GRANTS, OUTCOME_NOTIFIER, type GalleryGrants, type OutcomeNotifier } from '../../common/outcomes';
 import { PrismaService } from '../../infra/postgres/prisma.service';
+import { settleHolds } from '../bolsillo/ledger';
 import { AuctionBus } from './auction-bus';
 import { scheduleWindow } from './auction-policy';
 import { centsToMoney, moneyToCents } from './bid-rules';
@@ -124,6 +125,7 @@ export class AuctionCloser implements OnModuleInit, OnModuleDestroy {
           where: { id: row.lot_id },
           data: { status: 'PUBLICADA', visibility: 'PUBLIC' },
         });
+        await settleHolds(tx, { auctionId, winnerId: null });
         return {
           auctionId,
           lotId: row.lot_id,
@@ -147,6 +149,7 @@ export class AuctionCloser implements OnModuleInit, OnModuleDestroy {
         where: { id: row.lot_id },
         data: { status: 'VENDIDA', visibility: 'PRIVATE' },
       });
+      await settleHolds(tx, { auctionId, winnerId: winning.bidderId });
       await tx.transaction.create({
         data: {
           auctionId,

@@ -40,4 +40,11 @@ export class AuctionsController {
       idempotencyKey: body.idempotencyKey,
     });
   }
+
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard('jwt'))
+  @Post(':id/withdraw')
+  withdraw(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.bids.withdraw({ auctionId: id, bidderId: user.userId });
+  }
 }
