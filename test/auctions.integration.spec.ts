@@ -69,6 +69,8 @@ describe('pujas, auditoría y obras privadas', () => {
         data: { winningBidId: null, winnerId: null },
       });
       await prisma.transaction.deleteMany({ where: { auctionId: { in: auctionIds } } });
+      await prisma.bidHold.deleteMany({ where: { auctionId: { in: auctionIds } } });
+      await prisma.walletEntry.deleteMany({ where: { auctionId: { in: auctionIds } } });
       await prisma.bid.deleteMany({ where: { auctionId: { in: auctionIds } } });
       await prisma.auction.deleteMany({ where: { id: { in: auctionIds } } });
     }
@@ -78,6 +80,10 @@ describe('pujas, auditoría y obras privadas', () => {
       await prisma.lot.deleteMany({ where: { id: { in: lotIds } } });
     }
     if (userIds.length > 0) {
+      await prisma.bidHold.deleteMany({ where: { bidderId: { in: userIds } } });
+      await prisma.walletEntry.deleteMany({ where: { userId: { in: userIds } } });
+      await prisma.paymentOrder.deleteMany({ where: { userId: { in: userIds } } });
+      await prisma.wallet.deleteMany({ where: { userId: { in: userIds } } });
       await prisma.follow.deleteMany({
         where: { OR: [{ followerId: { in: userIds } }, { followeeId: { in: userIds } }] },
       });
@@ -127,6 +133,12 @@ describe('pujas, auditoría y obras privadas', () => {
       },
     });
     auctionIds.push(auction.id);
+    await prisma.wallet.createMany({
+      data: [
+        { userId: bidder.id, balance: 100_000 },
+        { userId: other.id, balance: 100_000 },
+      ],
+    });
     return { seller, bidder, other, lot, auction };
   }
 
