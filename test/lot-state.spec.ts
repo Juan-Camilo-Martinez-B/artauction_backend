@@ -3,12 +3,13 @@ import { assertTransition, canTransition } from '../src/common/domain/lot-state'
 describe('ciclo de vida del lote', () => {
   it('permite el camino feliz hasta el cierre', () => {
     expect(canTransition('BORRADOR', 'PENDIENTE_AUDITORIA')).toBe(true);
-    expect(canTransition('PENDIENTE_AUDITORIA', 'APROBADO')).toBe(true);
+    expect(canTransition('PENDIENTE_AUDITORIA', 'PUBLICADA')).toBe(true);
     expect(canTransition('PENDIENTE_AUDITORIA', 'REVISION_MANUAL')).toBe(true);
-    expect(canTransition('REVISION_MANUAL', 'APROBADO')).toBe(true);
-    expect(canTransition('REVISION_MANUAL', 'BORRADOR')).toBe(true);
+    expect(canTransition('REVISION_MANUAL', 'PUBLICADA')).toBe(true);
+    expect(canTransition('PUBLICADA', 'EN_SUBASTA')).toBe(true);
     expect(canTransition('APROBADO', 'EN_SUBASTA')).toBe(true);
-    expect(canTransition('EN_SUBASTA', 'CERRADO')).toBe(true);
+    expect(canTransition('EN_SUBASTA', 'VENDIDA')).toBe(true);
+    expect(canTransition('EN_SUBASTA', 'PUBLICADA')).toBe(true);
   });
 
   it('rechaza saltos y estados desconocidos', () => {

@@ -106,6 +106,8 @@ model Auction {
   winnerId       String?  @map("winner_id") @db.Uuid
   winningBidId   String?  @unique @map("winning_bid_id") @db.Uuid
   extensionCount Int      @default(0) @map("extension_count")
+  durationMinutes Int     @default(60) @map("duration_minutes")
+  saleDescription String? @map("sale_description")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -125,6 +127,7 @@ model Bid {
   bidderId       String   @map("bidder_id") @db.Uuid
   amount         Decimal  @db.Decimal(12, 2)
   idempotencyKey String   @unique @map("idempotency_key")
+  active         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   auction Auction @relation("AuctionBids", fields: [auctionId], references: [id], onDelete: Restrict)

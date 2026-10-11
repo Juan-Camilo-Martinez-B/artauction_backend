@@ -2,20 +2,24 @@ export const LOT_STATUSES = [
   'BORRADOR',
   'PENDIENTE_AUDITORIA',
   'APROBADO',
+  'PUBLICADA',
   'REVISION_MANUAL',
   'EN_SUBASTA',
   'CERRADO',
+  'VENDIDA',
 ] as const;
 
 export type LotStatus = (typeof LOT_STATUSES)[number];
 
 const EDGES: Record<LotStatus, readonly LotStatus[]> = {
   BORRADOR: ['PENDIENTE_AUDITORIA'],
-  PENDIENTE_AUDITORIA: ['APROBADO', 'REVISION_MANUAL'],
-  REVISION_MANUAL: ['APROBADO', 'BORRADOR'],
-  APROBADO: ['EN_SUBASTA'],
-  EN_SUBASTA: ['CERRADO'],
+  PENDIENTE_AUDITORIA: ['APROBADO', 'PUBLICADA', 'REVISION_MANUAL'],
+  REVISION_MANUAL: ['APROBADO', 'PUBLICADA', 'BORRADOR'],
+  APROBADO: ['PUBLICADA', 'EN_SUBASTA'],
+  PUBLICADA: ['EN_SUBASTA'],
+  EN_SUBASTA: ['CERRADO', 'VENDIDA', 'PUBLICADA'],
   CERRADO: [],
+  VENDIDA: [],
 };
 
 export function canTransition(from: string, to: string): boolean {

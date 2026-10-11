@@ -11,6 +11,6 @@ import { BidsService } from './bids.service';
   imports: [IdentidadModule],
   controllers: [AuctionsController],
   providers: [AuctionBus, AuctionsService, BidsService, AuctionCloser, AuctionGateway],
-  exports: [AuctionBus, BidsService, AuctionCloser],
+  exports: [AuctionBus, BidsService, AuctionCloser, AuctionsService],
 })
 export class SubastasModule {}

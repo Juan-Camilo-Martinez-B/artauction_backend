@@ -10,6 +10,7 @@ import { PrismaService } from '../../infra/postgres/prisma.service';
 import { AUDIT_RETRY_LIMIT, AuditQueue } from '../../infra/queue/audit-queue';
 import { AuditReport } from './audit-report.schema';
 import { decideVerdict } from './score';
+import { AuctionsService } from '../subastas/auctions.service';
 
 @Injectable()
 export class AuditWorker implements OnModuleInit {
@@ -21,6 +22,7 @@ export class AuditWorker implements OnModuleInit {
     @Inject(AI_AUDIT_PORT) private readonly ai: AiAuditPort,
     @InjectModel(AuditReport.name) private readonly reports: Model<AuditReport>,
     @Inject(ENV) private readonly env: Environment,
+    private readonly auctions: AuctionsService,
     @Optional() @Inject(OUTCOME_NOTIFIER) private readonly notifier?: OutcomeNotifier,
   ) {}
 
@@ -65,6 +67,7 @@ export class AuditWorker implements OnModuleInit {
     const result = await this.ai.audit(input);
     const critical = result.critical || result.findings.some((finding) => finding.severity === 'CRITICAL');
     const verdict = decideVerdict(result.score, critical);
+    const lotStatus = verdict === 'APROBADO' ? 'PUBLICADA' : verdict;
     const summaryId = randomUUID();
     const report = await this.reports.create({
       lotId: lot.id,
@@ -83,7 +86,7 @@ export class AuditWorker implements OnModuleInit {
         const changed = await tx.lot.updateMany({
           where: { id: lot.id, status: 'PENDIENTE_AUDITORIA' },
           data: {
-            status: verdict,
+            status: lotStatus,
             visibility: verdict === 'APROBADO' ? 'PUBLIC' : 'PRIVATE',
             authenticityScore: result.score,
             suggestedPriceMin: result.priceMin.toFixed(2),
@@ -92,6 +95,16 @@ export class AuditWorker implements OnModuleInit {
         });
         if (changed.count !== 1) {
           return false;
+        }
+        if (verdict === 'APROBADO') {
+          await this.auctions.scheduleApproved(tx, {
+            lotId: lot.id,
+            title: lot.title,
+            score: result.score,
+            priceMin: result.priceMin,
+            priceMax: result.priceMax,
+            rationale: result.findings.map((finding) => finding.message).join(' '),
+          });
         }
         await tx.auditSummary.create({
           data: {

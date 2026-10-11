@@ -16,11 +16,11 @@ import { ImageHashPool } from '../../infra/workers/image-hash.pool';
 import type { CreateLotDto, ListLotsQuery, RegisterImageDto } from './dto';
 import { LotPresenter } from './public-object-url';
 
-const PUBLIC_STATUSES = ['APROBADO', 'EN_SUBASTA', 'CERRADO'];
+const PUBLIC_STATUSES = ['APROBADO', 'PUBLICADA', 'EN_SUBASTA'];
 
 const lotCardInclude = {
   images: { orderBy: { position: 'asc' as const } },
-  auction: { select: { id: true, status: true, currentPrice: true, endsAt: true } },
+  auction: { select: { id: true, status: true, currentPrice: true, startsAt: true, endsAt: true, saleDescription: true, currency: true } },
   categories: { include: { category: true } },
 } satisfies Prisma.LotInclude;
 
@@ -139,7 +139,7 @@ export class CatalogoService {
       include: {
         images: { orderBy: { position: 'asc' } },
         auditSummaries: { orderBy: { createdAt: 'desc' }, take: 1 },
-        auction: { select: { id: true, status: true, currentPrice: true, endsAt: true } },
+        auction: { select: { id: true, status: true, currentPrice: true, startsAt: true, endsAt: true, saleDescription: true, currency: true } },
         categories: { include: { category: true } },
       },
     });
@@ -201,7 +201,7 @@ export class CatalogoService {
     if (!lot || lot.sellerId !== sellerId) {
       throw new NotFoundException('Obra no encontrada');
     }
-    if (lot.status === 'CERRADO') {
+    if (lot.status === 'CERRADO' || lot.status === 'VENDIDA') {
       throw new BadRequestException('El lote está cerrado');
     }
     return lot;

@@ -10,7 +10,7 @@ import {
 } from './gallery-design';
 import { GALLERY_DESIGN, preferencesFromBody, type GalleryDesignPort } from './gallery-design.port';
 
-const PUBLIC_STATUSES = ['APROBADO', 'EN_SUBASTA', 'CERRADO'];
+const PUBLIC_STATUSES = ['APROBADO', 'PUBLICADA', 'EN_SUBASTA'];
 const galleryInclude = {
   artworks: {
     orderBy: { createdAt: 'asc' as const },

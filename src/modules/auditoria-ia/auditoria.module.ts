@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { SubastasModule } from '../subastas/subastas.module';
 import { ENV, type Environment } from '../../common/config/environment';
 import { AI_AUDIT_PORT, type AiAuditPort } from '../../infra/ai/ai-audit.port';
 import { FakeAiAuditAdapter } from '../../infra/ai/fake-ai-audit.adapter';
@@ -9,7 +10,10 @@ import { AuditReport, AuditReportSchema } from './audit-report.schema';
 import { AuditWorker } from './audit.worker';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: AuditReport.name, schema: AuditReportSchema }])],
+  imports: [
+    MongooseModule.forFeature([{ name: AuditReport.name, schema: AuditReportSchema }]),
+    SubastasModule,
+  ],
   providers: [
     AuditQueue,
     AuditWorker,

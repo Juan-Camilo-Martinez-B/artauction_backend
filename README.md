@@ -21,7 +21,7 @@ No hay dependencias circulares. Cada módulo sigue controller → service → re
 
 ## Reglas de dominio que este servicio garantiza
 
-**Ciclo de vida del lote.** `BORRADOR → PENDIENTE_AUDITORIA → APROBADO | REVISION_MANUAL → EN_SUBASTA → CERRADO`.
+**Ciclo de vida del lote.** `BORRADOR → PENDIENTE_AUDITORIA → PUBLICADA | REVISION_MANUAL → EN_SUBASTA → VENDIDA`. Si nadie puja, vuelve a `PUBLICADA`.
 
 **Auditoría.** Nunca corre dentro de una petición HTTP. El alta de una obra encola un trabajo pg-boss. El worker llama al puerto `AiAuditPort` (adaptador Gemini o adaptador fake). Reintentos con backoff exponencial, concurrencia limitada y circuit breaker. Si el proveedor falla, la plataforma sigue operando y el lote permanece auditable. El informe completo (modelo, versión de prompt, entrada y fecha) queda en Mongo; el resumen y el score, en Postgres.
 
