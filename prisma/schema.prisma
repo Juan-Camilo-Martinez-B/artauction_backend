@@ -32,6 +32,10 @@ model User {
   following Follow[] @relation("Follows")
   followers Follow[] @relation("FollowedBy")
   personalGallery PersonalGallery?
+  wallet Wallet?
+  walletEntries WalletEntry[]
+  bidHolds BidHold[]
+  paymentOrders PaymentOrder[]
 
   @@map("users")
 }
@@ -110,6 +114,8 @@ model Auction {
   winningBid Bid?  @relation("WinningBid", fields: [winningBidId], references: [id], onDelete: Restrict)
   bids       Bid[] @relation("AuctionBids")
   transaction Transaction?
+  holds BidHold[]
+  walletEntries WalletEntry[]
 
   @@map("auctions")
 }
@@ -252,4 +258,62 @@ model PersonalGalleryArtwork {
   @@unique([galleryId, lotId])
   @@index([lotId], map: "personal_gallery_artworks_lot_id_idx")
   @@map("personal_gallery_artworks")
+}
+
+model Wallet {
+  userId    String   @id @map("user_id") @db.Uuid
+  balance   Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@map("wallets")
+}
+
+model PaymentOrder {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  coins       Int
+  amountCents Int      @map("amount_cents")
+  currency    String   @default("USD") @db.Char(3)
+  status      String
+  cardBrand   String   @map("card_brand")
+  cardLast4   String   @map("card_last4") @db.Char(4)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  entries WalletEntry[]
+
+  @@index([userId], map: "payment_orders_user_id_idx")
+  @@map("payment_orders")
+}
+
+model WalletEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  kind           String
+  coins          Int
+  auctionId      String?  @map("auction_id") @db.Uuid
+  paymentOrderId String?  @map("payment_order_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  auction Auction? @relation(fields: [auctionId], references: [id], onDelete: Restrict)
+  paymentOrder PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt(sort: Desc)], map: "wallet_entries_user_id_created_at_idx")
+  @@map("wallet_entries")
+}
+
+model BidHold {
+  auctionId String @map("auction_id") @db.Uuid
+  bidderId  String @map("bidder_id") @db.Uuid
+  coins     Int
+
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Restrict)
+  bidder  User    @relation(fields: [bidderId], references: [id], onDelete: Restrict)
+
+  @@id([auctionId, bidderId])
+  @@index([bidderId], map: "bid_holds_bidder_id_idx")
+  @@map("bid_holds")
 }
