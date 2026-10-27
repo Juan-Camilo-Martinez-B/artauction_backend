@@ -1,0 +1,89 @@
+// Solo el esquema `catalog`. La URL lleva ?schema=catalog y el usuario
+// catalog_svc no tiene permisos sobre otros esquemas. El DDL vive en
+// artauction_bd: este servicio no ejecuta migraciones. outbox e inbox se usan
+// con SQL parametrizado desde @artauction/platform.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Lot {
+  id                 String   @id @default(uuid()) @db.Uuid
+  sellerId           String   @map("seller_id") @db.Uuid
+  title              String
+  description        String
+  artistName         String?  @map("artist_name")
+  creationYear       Int?     @map("creation_year")
+  materials          String
+  widthCm            Decimal? @map("width_cm") @db.Decimal(8, 2)
+  heightCm           Decimal? @map("height_cm") @db.Decimal(8, 2)
+  depthCm            Decimal? @map("depth_cm") @db.Decimal(8, 2)
+  provenance         String?
+  representationKind String?  @map("representation_kind")
+  status             String   @default("BORRADOR")
+  visibility         String   @default("PRIVATE")
+  authenticityScore  Int?     @map("authenticity_score") @db.SmallInt
+  suggestedPriceMin  Decimal? @map("suggested_price_min") @db.Decimal(12, 2)
+  suggestedPriceMax  Decimal? @map("suggested_price_max") @db.Decimal(12, 2)
+  currency           String   @default("USD") @db.Char(3)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  images     LotImage[]
+  categories LotCategory[]
+
+  @@index([sellerId], map: "lots_seller_id_idx")
+  @@index([status], map: "lots_status_idx")
+  @@map("lots")
+}
+
+model LotImage {
+  id             String   @id @default(uuid()) @db.Uuid
+  lotId          String   @map("lot_id") @db.Uuid
+  objectKey      String   @map("object_key")
+  position       Int
+  perceptualHash String?  @map("perceptual_hash")
+  widthPx        Int?     @map("width_px")
+  heightPx       Int?     @map("height_px")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  lot Lot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@unique([lotId, position])
+  @@index([lotId], map: "lot_images_lot_id_idx")
+  @@map("lot_images")
+}
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String
+  imageKey    String?  @map("image_key")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  lots LotCategory[]
+
+  @@map("categories")
+}
+
+model LotCategory {
+  lotId      String  @map("lot_id") @db.Uuid
+  categoryId String  @map("category_id") @db.Uuid
+  isPrimary  Boolean @default(false) @map("is_primary")
+
+  lot      Lot      @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@id([lotId, categoryId])
+  @@index([categoryId], map: "lot_categories_category_id_idx")
+  @@map("lot_categories")
+}
