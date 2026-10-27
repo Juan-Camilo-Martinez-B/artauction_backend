@@ -10,6 +10,12 @@ export class Environment {
   @Min(1)
   PORT = 3001;
 
+  // Transitorio: servidor gRPC que expone al monolito como consumidor de eventos
+  // de los microservicios mientras sus servicios dueños no existen. 0 lo apaga.
+  @IsInt()
+  @Min(0)
+  LEGACY_GRPC_PORT = 0;
+
   @IsString()
   @MinLength(1)
   DATABASE_URL!: string;
@@ -92,6 +98,7 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
     {
       NODE_ENV: source['NODE_ENV'] ?? 'development',
       PORT: source['PORT'] !== undefined ? Number(source['PORT']) : 3001,
+      LEGACY_GRPC_PORT: source['LEGACY_GRPC_PORT'] !== undefined ? Number(source['LEGACY_GRPC_PORT']) : 0,
       DATABASE_URL: source['DATABASE_URL'],
       MONGODB_URI: source['MONGODB_URI'],
       JWT_ACCESS_SECRET: source['JWT_ACCESS_SECRET'],

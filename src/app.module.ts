@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { EnvModule } from './common/config/env.module';
 import { HealthModule } from './health/health.module';
+import { LegacyGrpcModule } from './legacy-grpc/legacy-grpc.module';
 import { MongoModule } from './infra/mongo/mongo.module';
 import { PostgresModule } from './infra/postgres/postgres.module';
 import { AdministracionModule } from './modules/administracion/administracion.module';
@@ -33,6 +34,7 @@ import { SubastasModule } from './modules/subastas/subastas.module';
     GaleriaPersonalModule,
     NotificacionesModule,
     AdministracionModule,
+    LegacyGrpcModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
