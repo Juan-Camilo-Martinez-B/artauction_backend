@@ -53,3 +53,14 @@ for (const service of SERVICES) {
 }
 lines.push('', '# Para identity-service: solo huellas, nunca los secretos.', `SERVICE_CLIENTS=${digests.join(',')}`, '');
 write(clientsPath, lines.join('\n'));
+
+// Secretos del nodo Garage (almacenamiento S3 de imagenes).
+write(
+  path.join(secrets, 'garage.env'),
+  [
+    '# Secretos del nodo Garage. No compartir ni versionar.',
+    `GARAGE_RPC_SECRET=${randomBytes(32).toString('hex')}`,
+    `GARAGE_ADMIN_TOKEN=${randomBytes(32).toString('base64url')}`,
+    '',
+  ].join('\n'),
+);
