@@ -7,6 +7,8 @@ export * from './errors/domain-error';
 export * from './grpc/credentials';
 export * from './grpc/status-mapping';
 export * from './logger/structured-logger';
+export * from './outbox/outbox';
+export * from './outbox/outbox-relay';
 export * from './resilience/circuit-breaker';
 export * from './resilience/retry';
 export * from './time/duration';
