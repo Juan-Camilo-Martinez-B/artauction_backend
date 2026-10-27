@@ -13,7 +13,9 @@ describe('tabla de rutas migradas', () => {
     expect(isMigrated('/auth/login')).toBe(true);
     expect(isMigrated('/auth?x=1')).toBe(true);
     expect(isMigrated('/authors')).toBe(false);
-    expect(isMigrated('/lots/123')).toBe(false);
+    expect(isMigrated('/lots/123/related')).toBe(true);
+    expect(isMigrated('/admin/lots/1/resolve')).toBe(true);
+    expect(isMigrated('/wallet/top-ups')).toBe(false);
   });
 });
 
