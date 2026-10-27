@@ -6,14 +6,22 @@
   "engines": {
     "node": ">=24"
   },
+  "workspaces": [
+    "packages/*",
+    "services/*"
+  ],
   "scripts": {
     "build": "prisma generate && nest build",
     "start": "nest start",
     "start:prod": "node dist/main.js",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint:workspaces": "eslint --no-error-on-unmatched-pattern \"packages/*/src/**/*.ts\" \"packages/*/test/**/*.ts\" \"services/*/src/**/*.ts\" \"services/*/test/**/*.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "jest --passWithNoTests",
-    "test:cov": "jest --coverage --passWithNoTests",
+    "build:workspaces": "npm run build --workspaces --if-present",
+    "typecheck:workspaces": "npm run typecheck --workspaces --if-present",
+    "test": "jest --passWithNoTests --testPathIgnorePatterns packages services",
+    "test:cov": "jest --coverage --passWithNoTests --testPathIgnorePatterns packages services",
+    "test:workspaces": "npm run test --workspaces --if-present",
     "prepare": "husky"
   },
   "dependencies": {
