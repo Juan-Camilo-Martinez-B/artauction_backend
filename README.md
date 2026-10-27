@@ -7,12 +7,28 @@ API y tiempo real de **ArtAuction AI**. Monolito modular en NestJS: identidad, c
 La rama `feat/microservices` convierte este repositorio en un monorepo de microservicios que se comunican por gRPC sobre HTTP/2. El monolito de `src/` sigue funcionando mientras dura la migración: el gateway le reenvía las rutas que todavía no se han migrado (Strangler Fig).
 
 ```
-packages/platform     utilidades técnicas compartidas (logger, config, errores, resiliencia)
+packages/platform     utilidades técnicas (logger, config, errores, resiliencia, verificación JWT RS256)
 packages/contracts    contratos .proto versionados y código generado con ts-proto
+packages/service-kit  capa api común: servidor gRPC con health, handlers, clientes con deadline
 services/<servicio>   un microservicio por contexto, con capas internal y api
+scripts/              generate-keys.mjs: claves RS256 y secretos de clientes en secrets/
 docs/arquitectura     plan, mapa de contextos y decisiones (ADR)
 src/                  monolito, se retira en la fase F9
 ```
+
+Estado: migrados `identity-service` y `api-gateway`. El resto de rutas lo atiende el monolito detrás del gateway.
+
+### Levantar la pila en local
+
+```bash
+node scripts/generate-keys.mjs                 # una vez: secrets/jwt y secrets/service-clients.env
+npm run build:workspaces
+npm start -w @artauction/identity-service      # gRPC :50051
+npx nest start                                 # monolito :3002 (PORT=3002 y JWT_PUBLIC_KEY_PATH en .env)
+npm start -w @artauction/api-gateway           # HTTP y Socket.IO :3001, el frontend no cambia
+```
+
+Cada servicio tiene su `.env.example`. Las contraseñas de base de datos de cada servicio se crean con `npm run roles` en `artauction_bd`.
 
 Lectura recomendada: [plan](docs/arquitectura/plan-microservicios.md), [mapa de contextos](docs/arquitectura/contextos.md) y [ADR](docs/arquitectura/adr).
 
