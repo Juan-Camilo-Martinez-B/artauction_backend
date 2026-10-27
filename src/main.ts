@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AppLogger } from './common/logger/app-logger';
@@ -8,8 +9,11 @@ import { ENV, type Environment } from './common/config/environment';
 
 async function bootstrap(): Promise<void> {
   const logger = new AppLogger();
-  const app = await NestFactory.create(AppModule, { logger });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger });
   const env = app.get<Environment>(ENV);
+  // Transitorio: detras del api-gateway, la IP real llega en X-Forwarded-For.
+  // Solo se confia en un proxy local para que el rate limit no comparta cupo.
+  app.set('trust proxy', 'loopback');
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

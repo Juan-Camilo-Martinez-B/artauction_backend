@@ -53,7 +53,12 @@ export class AuctionGateway implements OnGatewayInit {
       return;
     }
     try {
-      const payload: unknown = this.jwt.verify(token, { secret: this.env.JWT_ACCESS_SECRET });
+      // JwtService prioriza el secret del modulo sobre options.publicKey; por eso
+      // la clave publica RS256 se pasa como options.secret, que va primero.
+      const publicKey = this.env.identityPublicKey;
+      const payload: unknown = publicKey
+        ? this.jwt.verify(token, { secret: publicKey, algorithms: ['RS256'] })
+        : this.jwt.verify(token, { secret: this.env.JWT_ACCESS_SECRET, algorithms: ['HS256'] });
       if (!isAccessPayload(payload)) {
         client.disconnect();
         return;

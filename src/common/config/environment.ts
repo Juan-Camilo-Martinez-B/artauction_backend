@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { plainToInstance } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Min, MinLength, validateSync } from 'class-validator';
 
@@ -32,6 +33,12 @@ export class Environment {
   @IsString()
   @MinLength(2)
   JWT_REFRESH_TTL = '7d';
+
+  // Transitorio mientras dura la migracion a microservicios: con la clave
+  // publica de identity-service, el monolito acepta sus access tokens RS256.
+  @IsOptional()
+  @IsString()
+  JWT_PUBLIC_KEY_PATH = '';
 
   @IsOptional()
   @IsString()
@@ -69,6 +76,12 @@ export class Environment {
   get geminiConfigured(): boolean {
     return this.GEMINI_API_KEY.trim().length > 0;
   }
+
+  /** Clave publica RS256 de identity-service, o null si el monolito sigue con HS256. */
+  get identityPublicKey(): string | null {
+    const path = this.JWT_PUBLIC_KEY_PATH.trim();
+    return path.length > 0 ? readFileSync(path, 'utf8') : null;
+  }
 }
 
 export const ENV = Symbol('ENV');
@@ -85,6 +98,7 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
       JWT_ACCESS_TTL: source['JWT_ACCESS_TTL'] ?? '15m',
       JWT_REFRESH_SECRET: source['JWT_REFRESH_SECRET'],
       JWT_REFRESH_TTL: source['JWT_REFRESH_TTL'] ?? '7d',
+      JWT_PUBLIC_KEY_PATH: source['JWT_PUBLIC_KEY_PATH'] ?? '',
       GEMINI_API_KEY: source['GEMINI_API_KEY'] ?? '',
       GEMINI_MODEL: source['GEMINI_MODEL'] ?? 'gemini-2.5-flash',
       GCS_BUCKET: source['GCS_BUCKET'] ?? 'artauction-images-dev',

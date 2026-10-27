@@ -13,10 +13,13 @@ interface AccessPayload {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(@Inject(ENV) env: Environment) {
+    // Con la clave publica de identity-service solo se aceptan sus tokens RS256.
+    const publicKey = env.identityPublicKey;
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: env.JWT_ACCESS_SECRET,
+      secretOrKey: publicKey ?? env.JWT_ACCESS_SECRET,
+      algorithms: publicKey ? ['RS256'] : ['HS256'],
     });
   }
 
