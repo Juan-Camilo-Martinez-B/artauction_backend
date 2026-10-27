@@ -11,7 +11,14 @@ const otherServices = {
   message: 'Un servicio no importa codigo de otro servicio. Usa su contrato gRPC desde la capa api.',
 };
 const transport = {
-  group: ['@artauction/contracts', '@artauction/contracts/**', '@grpc/*', '@nestjs/microservices'],
+  group: [
+    '@artauction/contracts',
+    '@artauction/contracts/**',
+    '@artauction/service-kit',
+    '@artauction/service-kit/**',
+    '@grpc/*',
+    '@nestjs/microservices',
+  ],
   message: 'La capa internal no conoce el transporte. Define un puerto en application y implementalo en api.',
 };
 const apiLayer = {
@@ -19,7 +26,7 @@ const apiLayer = {
   message: 'La capa internal no depende de la capa api (inversion de dependencias).',
 };
 const frameworks = {
-  group: ['@nestjs/*', '@prisma/*', 'mongoose', 'pg-boss', 'socket.io'],
+  group: ['@nestjs/*', '@prisma/*', 'mongoose', 'pg-boss', 'socket.io', '**/generated/prisma', '**/generated/prisma/**'],
   message: 'El dominio es TypeScript puro: sin frameworks ni persistencia.',
 };
 const outerInternalLayers = {
@@ -31,7 +38,7 @@ const infrastructureLayer = {
   message: 'application depende de puertos, no de su implementacion.',
 };
 const persistence = {
-  group: ['@prisma/*', 'mongoose', 'pg-boss'],
+  group: ['@prisma/*', 'mongoose', 'pg-boss', '**/generated/prisma', '**/generated/prisma/**'],
   message: 'application usa puertos de repositorio; la persistencia vive en infrastructure.',
 };
 

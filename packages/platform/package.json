@@ -11,8 +11,13 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@grpc/grpc-js": "1.14.6",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "jsonwebtoken": "9.0.3",
     "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "9.0.10"
   }
 }
