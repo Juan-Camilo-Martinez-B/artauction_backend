@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package artauction.ai.v1;
+
+import "google/protobuf/struct.proto";
+
+// Fachada de modelos generativos. Es el unico servicio que conoce la clave de
+// Gemini; sin clave responde con adaptadores locales deterministas.
+service AiService {
+  rpc AuditArtwork(AuditArtworkRequest) returns (AuditArtworkResponse);
+  rpc DesignGallery(DesignGalleryRequest) returns (DesignGalleryResponse);
+}
+
+enum FindingSeverity {
+  FINDING_SEVERITY_UNSPECIFIED = 0;
+  FINDING_SEVERITY_INFO = 1;
+  FINDING_SEVERITY_WARNING = 2;
+  FINDING_SEVERITY_CRITICAL = 3;
+}
+
+message Finding {
+  string code = 1;
+  FindingSeverity severity = 2;
+  string message = 3;
+}
+
+message AuditArtworkRequest {
+  string lot_id = 1;
+  string title = 2;
+  string description = 3;
+  string materials = 4;
+  optional int32 creation_year = 5;
+  repeated string image_hashes = 6;
+}
+
+message AuditArtworkResponse {
+  string model = 1;
+  string prompt_version = 2;
+  int32 score = 3;
+  bool critical = 4;
+  int32 price_min = 5;
+  int32 price_max = 6;
+  repeated Finding findings = 7;
+}
+
+message DesignGalleryRequest {
+  google.protobuf.Struct preferences = 1;
+}
+
+message DesignGalleryResponse {
+  // Configuracion propuesta. gallery-service la valida antes de guardarla.
+  google.protobuf.Struct config = 1;
+  string source = 2;
+}

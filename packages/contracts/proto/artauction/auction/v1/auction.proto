@@ -1,0 +1,158 @@
+syntax = "proto3";
+
+package artauction.auction.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Subastas y pujas en artacoins. El reloj es el del servidor: cada respuesta
+// que importa al countdown lleva `server_time`.
+service AuctionService {
+  rpc GetAuction(GetAuctionRequest) returns (GetAuctionResponse);
+  rpc OpenAuction(OpenAuctionRequest) returns (OpenAuctionResponse);
+  rpc PlaceBid(PlaceBidRequest) returns (PlaceBidResponse);
+  rpc WithdrawBid(WithdrawBidRequest) returns (WithdrawBidResponse);
+  rpc BatchGetAuctionSummaries(BatchGetAuctionSummariesRequest) returns (BatchGetAuctionSummariesResponse);
+  // Solo con token de servicio. Lo usa wallet antes de liberar una reserva vencida.
+  rpc GetBidByReservation(GetBidByReservationRequest) returns (GetBidByReservationResponse);
+  // Eventos en vivo de una sala. El gateway los reenvia por Socket.IO.
+  rpc WatchAuction(WatchAuctionRequest) returns (stream WatchAuctionResponse);
+}
+
+enum AuctionStatus {
+  AUCTION_STATUS_UNSPECIFIED = 0;
+  AUCTION_STATUS_PROGRAMADA = 1;
+  AUCTION_STATUS_ACTIVA = 2;
+  AUCTION_STATUS_CERRADA = 3;
+}
+
+message Bid {
+  string id = 1;
+  string auction_id = 2;
+  string bidder_id = 3;
+  string amount = 4;
+  bool active = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message Auction {
+  string id = 1;
+  string lot_id = 2;
+  string seller_id = 3;
+  string start_price = 4;
+  string current_price = 5;
+  string min_increment = 6;
+  string currency = 7;
+  google.protobuf.Timestamp starts_at = 8;
+  google.protobuf.Timestamp ends_at = 9;
+  google.protobuf.Timestamp initial_ends_at = 10;
+  AuctionStatus status = 11;
+  optional string winner_id = 12;
+  int32 extension_count = 13;
+  int32 duration_minutes = 14;
+  optional string sale_description = 15;
+  repeated Bid bids = 16;
+}
+
+message AuctionSummary {
+  string auction_id = 1;
+  string lot_id = 2;
+  AuctionStatus status = 3;
+  string current_price = 4;
+  google.protobuf.Timestamp starts_at = 5;
+  google.protobuf.Timestamp ends_at = 6;
+  optional string sale_description = 7;
+  string currency = 8;
+}
+
+message GetAuctionRequest {
+  string auction_id = 1;
+}
+
+message GetAuctionResponse {
+  Auction auction = 1;
+  google.protobuf.Timestamp server_time = 2;
+}
+
+message OpenAuctionRequest {
+  string lot_id = 1;
+  string start_price = 2;
+  string min_increment = 3;
+  google.protobuf.Timestamp starts_at = 4;
+  google.protobuf.Timestamp ends_at = 5;
+}
+
+message OpenAuctionResponse {
+  Auction auction = 1;
+}
+
+message PlaceBidRequest {
+  string auction_id = 1;
+  string amount = 2;
+  string idempotency_key = 3;
+}
+
+message PlaceBidResponse {
+  string bid_id = 1;
+  string auction_id = 2;
+  string amount = 3;
+  google.protobuf.Timestamp ends_at = 4;
+  bool extended = 5;
+  // Verdadero si la misma clave ya se habia aceptado.
+  bool idempotent = 6;
+  string current_price = 7;
+}
+
+message WithdrawBidRequest {
+  string auction_id = 1;
+}
+
+message WithdrawBidResponse {
+  string auction_id = 1;
+  int32 released_coins = 2;
+  string current_price = 3;
+}
+
+message BatchGetAuctionSummariesRequest {
+  repeated string lot_ids = 1;
+}
+
+message BatchGetAuctionSummariesResponse {
+  repeated AuctionSummary summaries = 1;
+}
+
+message GetBidByReservationRequest {
+  string reservation_id = 1;
+}
+
+message GetBidByReservationResponse {
+  bool exists = 1;
+  bool active = 2;
+}
+
+message WatchAuctionRequest {
+  string auction_id = 1;
+}
+
+message BidAcceptedNotice {
+  string auction_id = 1;
+  string bid_id = 2;
+  string bidder_id = 3;
+  string amount = 4;
+  google.protobuf.Timestamp ends_at = 5;
+  bool extended = 6;
+}
+
+message AuctionClosedNotice {
+  string auction_id = 1;
+  string lot_id = 2;
+  optional string winner_id = 3;
+  string amount = 4;
+}
+
+message WatchAuctionResponse {
+  google.protobuf.Timestamp server_time = 1;
+  oneof event {
+    BidAcceptedNotice bid_accepted = 2;
+    AuctionClosedNotice auction_closed = 3;
+  }
+}

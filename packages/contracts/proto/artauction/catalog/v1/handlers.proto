@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package artauction.catalog.v1;
+
+import "artauction/auction/events/v1/events.proto";
+import "artauction/audit/events/v1/events.proto";
+
+// Eventos que catalog-service consume. Solo los entrega un outbox con token de
+// servicio; cada handler es idempotente por `metadata.event_id`.
+service CatalogEventHandlerService {
+  rpc HandleAuditCompleted(HandleAuditCompletedRequest) returns (HandleAuditCompletedResponse);
+  rpc HandleAuctionStarted(HandleAuctionStartedRequest) returns (HandleAuctionStartedResponse);
+  rpc HandleAuctionClosed(HandleAuctionClosedRequest) returns (HandleAuctionClosedResponse);
+  rpc HandleAuctionRescheduled(HandleAuctionRescheduledRequest) returns (HandleAuctionRescheduledResponse);
+}
+
+message HandleAuditCompletedRequest {
+  artauction.audit.events.v1.AuditCompleted event = 1;
+}
+
+message HandleAuditCompletedResponse {}
+
+message HandleAuctionStartedRequest {
+  artauction.auction.events.v1.AuctionStarted event = 1;
+}
+
+message HandleAuctionStartedResponse {}
+
+message HandleAuctionClosedRequest {
+  artauction.auction.events.v1.AuctionClosed event = 1;
+}
+
+message HandleAuctionClosedResponse {}
+
+message HandleAuctionRescheduledRequest {
+  artauction.auction.events.v1.AuctionRescheduled event = 1;
+}
+
+message HandleAuctionRescheduledResponse {}

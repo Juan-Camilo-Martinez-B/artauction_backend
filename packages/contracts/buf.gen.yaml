@@ -1,0 +1,20 @@
+version: v2
+inputs:
+  - directory: proto
+plugins:
+  # ts-proto genera interfaces, codificadores y definiciones de servicio para
+  # @grpc/grpc-js. Timestamp se mapea a Date y los int64 a number.
+  # Se invoca con node y no con el shim .cmd de npm, que en Windows corrompe la
+  # salida binaria del plugin. La ruta apunta a la dependencia hoisteada.
+  - local: ["node", "../../node_modules/ts-proto/protoc-gen-ts_proto"]
+    out: src/generated
+    opt:
+      - outputServices=grpc-js
+      - esModuleInterop=true
+      - useDate=true
+      - forceLong=number
+      - oneof=unions-value
+      - useOptionals=none
+      - env=node
+      - outputJsonMethods=false
+      - outputPartialMethods=true

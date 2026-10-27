@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package artauction.wallet.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Bolsillo de artacoins. La pasarela de pago es simulada: los datos de tarjeta
+// se inspeccionan y se descartan; solo se guardan marca y ultimos cuatro digitos.
+service WalletService {
+  rpc GetWallet(GetWalletRequest) returns (GetWalletResponse);
+  rpc TopUp(TopUpRequest) returns (TopUpResponse);
+  // Solo con token de servicio. Fase Try de TCC: reserva la diferencia entre la
+  // retencion actual y `next_coins`. Idempotente por `reservation_id`.
+  rpc TryHold(TryHoldRequest) returns (TryHoldResponse);
+}
+
+enum EntryKind {
+  ENTRY_KIND_UNSPECIFIED = 0;
+  ENTRY_KIND_RECARGA = 1;
+  ENTRY_KIND_RETENCION = 2;
+  ENTRY_KIND_LIBERACION = 3;
+  ENTRY_KIND_CANJE = 4;
+}
+
+message WalletEntry {
+  string id = 1;
+  EntryKind kind = 2;
+  int32 coins = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message GetWalletRequest {}
+
+message GetWalletResponse {
+  int32 balance = 1;
+  int32 held = 2;
+  repeated WalletEntry entries = 3;
+}
+
+message TopUpRequest {
+  int32 coins = 1;
+  string card_number = 2;
+  string card_name = 3;
+  int32 exp_month = 4;
+  int32 exp_year = 5;
+  string cvv = 6;
+  // Clave que manda el cliente. Repetirla devuelve la misma orden sin cobrar.
+  string idempotency_key = 7;
+}
+
+message TopUpResponse {
+  int32 balance = 1;
+  int32 credited = 2;
+  string last4 = 3;
+  string order_id = 4;
+}
+
+message TryHoldRequest {
+  string reservation_id = 1;
+  string auction_id = 2;
+  string bidder_id = 3;
+  int32 next_coins = 4;
+}
+
+message TryHoldResponse {
+  int32 reserved_coins = 1;
+  int32 balance = 2;
+}

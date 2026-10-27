@@ -1,0 +1,180 @@
+syntax = "proto3";
+
+package artauction.gallery.v1;
+
+import "artauction/catalog/v1/catalog.proto";
+import "artauction/common/v1/common.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+// Galeria 3D personal, galeria social, seguimientos y actividad.
+service GalleryService {
+  rpc GetMyGallery(GetMyGalleryRequest) returns (GetMyGalleryResponse);
+  rpc SaveGalleryPreferences(SaveGalleryPreferencesRequest) returns (SaveGalleryPreferencesResponse);
+  rpc GenerateGallery(GenerateGalleryRequest) returns (GenerateGalleryResponse);
+  rpc ApplyGalleryConfig(ApplyGalleryConfigRequest) returns (ApplyGalleryConfigResponse);
+  rpc RestoreSuggestedConfig(RestoreSuggestedConfigRequest) returns (RestoreSuggestedConfigResponse);
+  rpc AddArtwork(AddArtworkRequest) returns (AddArtworkResponse);
+  rpc RemoveArtwork(RemoveArtworkRequest) returns (RemoveArtworkResponse);
+  rpc PlaceArtwork(PlaceArtworkRequest) returns (PlaceArtworkResponse);
+  rpc ListGalleryItems(ListGalleryItemsRequest) returns (ListGalleryItemsResponse);
+  rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
+  rpc GetFeed(GetFeedRequest) returns (GetFeedResponse);
+}
+
+enum CustomizationStatus {
+  CUSTOMIZATION_STATUS_UNSPECIFIED = 0;
+  CUSTOMIZATION_STATUS_SIN_PERSONALIZAR = 1;
+  CUSTOMIZATION_STATUS_PERSONALIZADA = 2;
+  CUSTOMIZATION_STATUS_EDITADA = 3;
+}
+
+enum ArtworkSupport {
+  ARTWORK_SUPPORT_UNSPECIFIED = 0;
+  ARTWORK_SUPPORT_WALL = 1;
+  ARTWORK_SUPPORT_PEDESTAL = 2;
+  ARTWORK_SUPPORT_FLOOR = 3;
+  ARTWORK_SUPPORT_PLATFORM = 4;
+  ARTWORK_SUPPORT_NICHE = 5;
+}
+
+enum ItemSource {
+  ITEM_SOURCE_UNSPECIFIED = 0;
+  ITEM_SOURCE_PROPIA = 1;
+  ITEM_SOURCE_GANADA = 2;
+  ITEM_SOURCE_GRATUITA = 3;
+}
+
+message GalleryArtwork {
+  string id = 1;
+  string lot_id = 2;
+  double pos_x = 3;
+  double pos_y = 4;
+  double pos_z = 5;
+  double rot_y = 6;
+  double scale = 7;
+  ArtworkSupport support = 8;
+  // Lenguaje publicado del catalogo: la ficha de la obra colgada.
+  artauction.catalog.v1.Lot lot = 9;
+}
+
+message PersonalGallery {
+  string id = 1;
+  string owner_id = 2;
+  string name = 3;
+  CustomizationStatus customization_status = 4;
+  google.protobuf.Struct preferences = 5;
+  optional google.protobuf.Struct suggested_config = 6;
+  optional google.protobuf.Struct applied_config = 7;
+  repeated GalleryArtwork artworks = 8;
+}
+
+message GalleryItem {
+  string owner_id = 1;
+  optional string lot_id = 2;
+  ItemSource source = 3;
+  artauction.common.v1.Visibility visibility = 4;
+  string title = 5;
+  optional string artist_name = 6;
+  repeated string image_keys = 7;
+  google.protobuf.Timestamp acquired_at = 8;
+}
+
+message Activity {
+  string actor_id = 1;
+  string verb = 2;
+  string object_type = 3;
+  string object_id = 4;
+  artauction.common.v1.Visibility visibility = 5;
+  string summary = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message GetMyGalleryRequest {}
+
+message GetMyGalleryResponse {
+  PersonalGallery gallery = 1;
+}
+
+message SaveGalleryPreferencesRequest {
+  google.protobuf.Struct preferences = 1;
+  bool random = 2;
+}
+
+message SaveGalleryPreferencesResponse {
+  PersonalGallery gallery = 1;
+}
+
+message GenerateGalleryRequest {
+  google.protobuf.Struct preferences = 1;
+  bool random = 2;
+  bool replace_applied = 3;
+}
+
+message GenerateGalleryResponse {
+  PersonalGallery gallery = 1;
+}
+
+message ApplyGalleryConfigRequest {
+  google.protobuf.Struct config = 1;
+}
+
+message ApplyGalleryConfigResponse {
+  PersonalGallery gallery = 1;
+}
+
+message RestoreSuggestedConfigRequest {}
+
+message RestoreSuggestedConfigResponse {
+  PersonalGallery gallery = 1;
+}
+
+message AddArtworkRequest {
+  string lot_id = 1;
+}
+
+message AddArtworkResponse {
+  PersonalGallery gallery = 1;
+}
+
+message RemoveArtworkRequest {
+  string lot_id = 1;
+}
+
+message RemoveArtworkResponse {
+  PersonalGallery gallery = 1;
+}
+
+message PlaceArtworkRequest {
+  string lot_id = 1;
+  optional double pos_x = 2;
+  optional double pos_y = 3;
+  optional double pos_z = 4;
+  optional double rot_y = 5;
+  optional double scale = 6;
+  ArtworkSupport support = 7;
+}
+
+message PlaceArtworkResponse {
+  PersonalGallery gallery = 1;
+}
+
+message ListGalleryItemsRequest {
+  string owner_id = 1;
+}
+
+message ListGalleryItemsResponse {
+  repeated GalleryItem items = 1;
+}
+
+message FollowUserRequest {
+  string followee_id = 1;
+}
+
+message FollowUserResponse {}
+
+message GetFeedRequest {}
+
+message GetFeedResponse {
+  repeated Activity activities = 1;
+}

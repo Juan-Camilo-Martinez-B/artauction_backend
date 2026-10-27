@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package artauction.auction.v1;
+
+import "artauction/audit/events/v1/events.proto";
+import "artauction/catalog/events/v1/events.proto";
+
+// Eventos que auction-service consume para programar subastas.
+service AuctionEventHandlerService {
+  rpc HandleAuditCompleted(HandleAuditCompletedRequest) returns (HandleAuditCompletedResponse);
+  rpc HandleLotPublished(HandleLotPublishedRequest) returns (HandleLotPublishedResponse);
+}
+
+message HandleAuditCompletedRequest {
+  artauction.audit.events.v1.AuditCompleted event = 1;
+}
+
+message HandleAuditCompletedResponse {}
+
+message HandleLotPublishedRequest {
+  artauction.catalog.events.v1.LotPublished event = 1;
+}
+
+message HandleLotPublishedResponse {}

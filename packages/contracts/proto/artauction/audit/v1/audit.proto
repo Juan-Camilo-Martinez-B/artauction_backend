@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package artauction.audit.v1;
+
+import "artauction/audit/events/v1/events.proto";
+import "google/protobuf/timestamp.proto";
+
+// Consulta de resultados de auditoria. El proceso de auditar lo dispara el
+// evento LotSubmitted.
+service AuditService {
+  rpc BatchGetLatestSummaries(BatchGetLatestSummariesRequest) returns (BatchGetLatestSummariesResponse);
+}
+
+message AuditSummary {
+  string id = 1;
+  string lot_id = 2;
+  int32 score = 3;
+  string price_min = 4;
+  string price_max = 5;
+  artauction.audit.events.v1.AuditVerdict verdict = 6;
+  bool has_critical_inconsistency = 7;
+  string model_name = 8;
+  string prompt_version = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message BatchGetLatestSummariesRequest {
+  repeated string lot_ids = 1;
+}
+
+message BatchGetLatestSummariesResponse {
+  repeated AuditSummary summaries = 1;
+}

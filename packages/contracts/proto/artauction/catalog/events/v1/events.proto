@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package artauction.catalog.events.v1;
+
+import "artauction/common/v1/common.proto";
+
+// Eventos que publica catalog-service por su outbox.
+
+// Una obra nueva entra en la galeria propia del vendedor.
+message LotCreated {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string lot_id = 2;
+  string seller_id = 3;
+  string title = 4;
+  optional string artist_name = 5;
+}
+
+// El vendedor envio la obra a auditoria.
+message LotSubmitted {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string lot_id = 2;
+}
+
+// Un administrador aprobo una obra en revision manual.
+message LotPublished {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string lot_id = 2;
+  string seller_id = 3;
+  string title = 4;
+  int32 score = 5;
+  int32 price_min = 6;
+  int32 price_max = 7;
+}

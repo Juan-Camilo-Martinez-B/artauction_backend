@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package artauction.notification.v1;
+
+import "artauction/auction/events/v1/events.proto";
+import "artauction/audit/events/v1/events.proto";
+
+// Eventos que notification-service convierte en avisos para los usuarios.
+service NotificationEventHandlerService {
+  rpc HandleAuditCompleted(HandleAuditCompletedRequest) returns (HandleAuditCompletedResponse);
+  rpc HandleAuctionClosed(HandleAuctionClosedRequest) returns (HandleAuctionClosedResponse);
+}
+
+message HandleAuditCompletedRequest {
+  artauction.audit.events.v1.AuditCompleted event = 1;
+}
+
+message HandleAuditCompletedResponse {}
+
+message HandleAuctionClosedRequest {
+  artauction.auction.events.v1.AuctionClosed event = 1;
+}
+
+message HandleAuctionClosedResponse {}
