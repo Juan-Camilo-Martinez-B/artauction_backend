@@ -2,6 +2,29 @@
 
 API y tiempo real de **ArtAuction AI**. Monolito modular en NestJS: identidad, catálogo, subastas, auditoría con IA, galerías sociales, notificaciones y administración.
 
+## Migración a microservicios (en curso)
+
+La rama `feat/microservices` convierte este repositorio en un monorepo de microservicios que se comunican por gRPC sobre HTTP/2. El monolito de `src/` sigue funcionando mientras dura la migración: el gateway le reenvía las rutas que todavía no se han migrado (Strangler Fig).
+
+```
+packages/platform     utilidades técnicas compartidas (logger, config, errores, resiliencia)
+packages/contracts    contratos .proto versionados y código generado (fase F1)
+services/<servicio>   un microservicio por contexto, con capas internal y api
+docs/arquitectura     plan, mapa de contextos y decisiones (ADR)
+src/                  monolito, se retira en la fase F9
+```
+
+Lectura recomendada: [plan](docs/arquitectura/plan-microservicios.md), [mapa de contextos](docs/arquitectura/contextos.md) y [ADR](docs/arquitectura/adr).
+
+Comandos del monorepo:
+
+| Comando | Qué hace |
+|---|---|
+| `npm run build:workspaces` | Compila paquetes y servicios |
+| `npm run typecheck:workspaces` | Typecheck de paquetes y servicios |
+| `npm run test:workspaces` | Pruebas de paquetes y servicios |
+| `npm run lint:workspaces` | Lint con las reglas de fronteras entre capas |
+
 Este directorio es un repositorio Git independiente. No importa código de los repos hermanos por ruta relativa.
 
 Contratos que publica:
