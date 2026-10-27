@@ -1,0 +1,28 @@
+// Solo el esquema `identity`. La URL lleva ?schema=identity y el usuario
+// identity_svc no tiene permisos sobre otros esquemas. El DDL vive en
+// artauction_bd: este servicio no ejecuta migraciones.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(uuid()) @db.Uuid
+  email             String   @unique
+  passwordHash      String   @map("password_hash")
+  displayName       String   @map("display_name")
+  role              String   @default("USER")
+  profileVisibility String   @default("PUBLIC") @map("profile_visibility")
+  bio               String?
+  avatarUrl         String?  @map("avatar_url")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("users")
+}
