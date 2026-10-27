@@ -43,5 +43,5 @@ Thumbs.db
 *.local
 .eslintcache
 
-# Artefactos de Prisma generados en este servicio
-src/generated/
+# Código generado: Prisma y contratos gRPC (se regenera en el build)
+**/src/generated/
