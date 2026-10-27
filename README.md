@@ -16,15 +16,18 @@ docs/arquitectura     plan, mapa de contextos y decisiones (ADR)
 src/                  monolito, se retira en la fase F9
 ```
 
-Estado: migrados `identity-service` y `api-gateway`. El resto de rutas lo atiende el monolito detrás del gateway.
+Estado: migrados `identity-service`, `catalog-service` y `api-gateway`. El resto de rutas lo atiende el monolito detrás del gateway. El monolito también expone un servidor gRPC legado (`LEGACY_GRPC_PORT`) que consume los eventos del catálogo en nombre de gallery, audit y auction mientras esos servicios no existen.
 
 ### Levantar la pila en local
 
 ```bash
-node scripts/generate-keys.mjs                 # una vez: secrets/jwt y secrets/service-clients.env
+node scripts/generate-keys.mjs                 # una vez: claves RS256, secretos de servicio y de Garage
+docker compose up -d                           # en la carpeta raíz: Postgres, Mongo y Garage (S3)
+bash scripts/storage/init-garage.sh            # una vez: bucket, llaves y CORS en secrets/storage.env
 npm run build:workspaces
 npm start -w @artauction/identity-service      # gRPC :50051
-npx nest start                                 # monolito :3002 (PORT=3002 y JWT_PUBLIC_KEY_PATH en .env)
+npx nest start                                 # monolito :3002 y gRPC legado :50090
+npm start -w @artauction/catalog-service       # gRPC :50052
 npm start -w @artauction/api-gateway           # HTTP y Socket.IO :3001, el frontend no cambia
 ```
 
