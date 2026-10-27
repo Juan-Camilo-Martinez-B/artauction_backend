@@ -52,7 +52,7 @@ Reglas, verificadas por `eslint.config.mjs`:
 
 Paquetes compartidos, sin reglas de negocio:
 
-- `packages/contracts`: `.proto` versionados (`artauction.<svc>.v1`) y el codigo TS generado.
+- `packages/contracts`: `.proto` versionados (`artauction.<svc>.v1` y eventos en `artauction.<svc>.events.v1`) y el codigo TS generado.
 - `packages/platform`: logger, configuracion, errores de dominio, resiliencia, concurrencia y helpers gRPC.
 
 ## Comunicacion

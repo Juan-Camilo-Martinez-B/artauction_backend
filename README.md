@@ -8,7 +8,7 @@ La rama `feat/microservices` convierte este repositorio en un monorepo de micros
 
 ```
 packages/platform     utilidades técnicas compartidas (logger, config, errores, resiliencia)
-packages/contracts    contratos .proto versionados y código generado (fase F1)
+packages/contracts    contratos .proto versionados y código generado con ts-proto
 services/<servicio>   un microservicio por contexto, con capas internal y api
 docs/arquitectura     plan, mapa de contextos y decisiones (ADR)
 src/                  monolito, se retira en la fase F9
