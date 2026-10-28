@@ -59,6 +59,21 @@ export function holdIncrease(previous: number, next: number): number {
   return next - previous;
 }
 
+/**
+ * Retencion que queda al confirmar una reserva y artacoins que sobran.
+ *
+ * Cada reserva se calcula sobre la retencion confirmada en ese momento, no
+ * sobre otras reservas pendientes: una pendiente puede ser de una puja que
+ * auction rechazo despues del Try, y esa se libera por separado. Si otra
+ * reserva se confirmo entre medias, la retencion ya cubre parte de esta y la
+ * diferencia vuelve al saldo. Asi el saldo retirado siempre suma la mayor
+ * oferta viva del postor.
+ */
+export function confirmHold(currentHold: number, reservation: { nextCoins: number; reservedCoins: number }): { hold: number; refund: number } {
+  const hold = Math.max(currentHold, reservation.nextCoins);
+  return { hold, refund: currentHold + reservation.reservedCoins - hold };
+}
+
 /** Una puja es un decimal en texto ("850.00"); en artacoins solo se admiten enteros. */
 export function coinsFromAmount(amount: string): number {
   const match = /^(\d{1,9})(?:\.(\d{1,2}))?$/.exec(amount.trim());

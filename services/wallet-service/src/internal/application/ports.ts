@@ -23,7 +23,7 @@ export interface NewTopUp {
 /** Estado bloqueado (FOR UPDATE) de un postor en una subasta al reservar. */
 export interface HoldState {
   balance: number;
-  /** Mayor entre la retencion confirmada y la ultima reserva pendiente. */
+  /** Retencion confirmada del postor en la subasta; las reservas pendientes no cuentan. */
   previousCoins: number;
   existing: { reservedCoins: number } | null;
 }

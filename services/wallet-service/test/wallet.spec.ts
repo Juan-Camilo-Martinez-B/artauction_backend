@@ -1,5 +1,5 @@
 import { DomainError } from '@artauction/platform';
-import { coinsFromAmount, decideExpiredReservation, holdIncrease, sellerPayout, type WalletSnapshot } from '../src/internal/domain/wallet';
+import { coinsFromAmount, confirmHold, decideExpiredReservation, holdIncrease, sellerPayout, type WalletSnapshot } from '../src/internal/domain/wallet';
 import type {
   BidLookup,
   HoldState,
@@ -69,11 +69,8 @@ class MemoryWallets implements WalletRepository {
       return { reservedCoins: existing.reservedCoins, balance: this.balances.get(input.bidderId) ?? 0 };
     }
     const pair = `${input.auctionId}:${input.bidderId}`;
-    const previous = Math.max(
-      this.holds.get(pair) ?? 0,
-      ...[...this.reservations.values()].filter((item) => item.bidderId === input.bidderId).map((item) => item.nextCoins),
-    );
-    const decided = plan({ balance: this.balances.get(input.bidderId) ?? 0, previousCoins: previous, existing: null });
+    // Como el repositorio real: la base es la retencion confirmada, no las reservas pendientes.
+    const decided = plan({ balance: this.balances.get(input.bidderId) ?? 0, previousCoins: this.holds.get(pair) ?? 0, existing: null });
     this.reservations.set(input.reservationId, { ...decided, bidderId: input.bidderId });
     const balance = (this.balances.get(input.bidderId) ?? 0) - decided.reservedCoins;
     this.balances.set(input.bidderId, balance);
@@ -116,6 +113,16 @@ describe('dominio del bolsillo', () => {
   it('retiene solo la diferencia y nunca hacia atras', () => {
     expect(holdIncrease(850, 900)).toBe(50);
     expect(() => holdIncrease(900, 900)).toThrow(/crece/);
+  });
+
+  it('al confirmar deja la mayor oferta retenida y devuelve lo reservado de mas', () => {
+    // Secuencia normal: 100 confirmada, luego sube a 150 reservando 50.
+    expect(confirmHold(0, { nextCoins: 100, reservedCoins: 100 })).toEqual({ hold: 100, refund: 0 });
+    expect(confirmHold(100, { nextCoins: 150, reservedCoins: 50 })).toEqual({ hold: 150, refund: 0 });
+    // Dos pujas seguidas reservadas antes de confirmar la primera: ambas sobre 0.
+    expect(confirmHold(100, { nextCoins: 150, reservedCoins: 150 })).toEqual({ hold: 150, refund: 100 });
+    // Una reserva tardia por debajo de la retencion vuelve entera.
+    expect(confirmHold(150, { nextCoins: 120, reservedCoins: 120 })).toEqual({ hold: 150, refund: 120 });
   });
 
   it('convierte pujas a artacoins enteras', () => {
@@ -193,6 +200,8 @@ describe('retencion TCC', () => {
     const tryHold = new TryHold(wallets, clock);
     const first = await tryHold.execute({ reservationId: 'bid-key-1', auctionId: 'a1', bidderId: USER, nextCoins: 850 });
     expect(first).toEqual({ reservedCoins: 850, balance: 150 });
+    // BidAccepted de la primera puja: su reserva pasa a ser la retencion.
+    wallets.holds.set(`a1:${USER}`, 850);
     const second = await tryHold.execute({ reservationId: 'bid-key-2', auctionId: 'a1', bidderId: USER, nextCoins: 900 });
     expect(second.reservedCoins).toBe(50);
     const repeated = await tryHold.execute({ reservationId: 'bid-key-2', auctionId: 'a1', bidderId: USER, nextCoins: 900 });

@@ -24,8 +24,10 @@ En el monolito la orden y el abono iban en transacciones separadas: una caída e
 
 Una puja retiene artacoins en tres pasos (Try-Confirm-Cancel):
 
-1. **Try** (`TryHold`, lo llama auction antes de guardar la puja): reserva solo la diferencia entre lo ya retenido y la nueva oferta. La reserva queda `PENDIENTE` y vence a los 2 minutos. Es idempotente por la clave de la puja.
-2. **Confirm** (evento `BidAccepted`): la reserva pasa a ser la retención del postor en esa subasta.
+1. **Try** (`TryHold`, lo llama auction antes de guardar la puja): reserva solo la diferencia entre la retención **confirmada** y la nueva oferta. La reserva queda `PENDIENTE` y vence a los 2 minutos. Es idempotente por la clave de la puja.
+2. **Confirm** (evento `BidAccepted`): la retención del postor pasa a ser la mayor entre la que tenía y la nueva oferta, y lo reservado de más vuelve al saldo (`confirmHold`).
+
+Las reservas pendientes no sirven de base para la siguiente. Una pendiente puede ser de una puja que auction rechazó después del Try, y esa se libera aparte. Si sirviera de base, la puja siguiente reservaría de menos y al liberar la huérfana el postor recuperaría artacoins que ya forman parte de su retención. Por la misma regla, dos pujas seguidas reservadas antes de la primera confirmación no retienen de más: al confirmar la segunda vuelve la diferencia.
 3. **Cancel**: `BidWithdrawn` devuelve toda la retención del postor; una reserva vencida se resuelve en el barrido.
 
 El barrido nunca libera a ciegas: antes pregunta a auction (`GetBidByReservation`) si la puja existe. Si existe, confirma; si no, devuelve las artacoins; si auction no responde, espera al siguiente barrido.
@@ -34,7 +36,7 @@ El barrido nunca libera a ciegas: antes pregunta a auction (`GetBidByReservation
 
 `AuctionClosed` canjea la retención del ganador, devuelve la de los demás y **abona al vendedor** el precio de venta menos la comisión de la plataforma (`PLATFORM_FEE_BPS`, 10 % por defecto, redondeada a favor del vendedor). La comisión se registra en `wallet.platform_fees`, cuya llave primaria por subasta impide cobrarla dos veces. `AuctionRescheduled` devuelve todas las retenciones.
 
-El pago al vendedor y la retención TCC se activan cuando exista auction-service (fase F6). Mientras tanto el monolito sigue reteniendo y cerrando directamente sobre las mismas tablas.
+Desde F6 estos eventos los produce auction-service; el monolito ya no retiene ni cierra sobre las tablas del bolsillo.
 
 ## Concurrencia
 

@@ -1,6 +1,6 @@
 import { recordInbox, sqlExecutorFrom } from '@artauction/platform';
 import { Prisma, type PrismaClient } from '../../generated/prisma';
-import type { EntryKind, WalletSnapshot } from '../domain/wallet';
+import { confirmHold, type EntryKind, type WalletSnapshot } from '../domain/wallet';
 import type {
   HoldState,
   LedgerTransaction,
@@ -78,11 +78,20 @@ function ledgerIn(tx: Tx): LedgerTransaction {
       if (changed.count !== 1) {
         return false;
       }
-      // La retencion es absoluta por postor y subasta: queda en la mayor oferta confirmada.
-      await tx.$executeRaw`
-        INSERT INTO wallet.bid_holds (auction_id, bidder_id, coins)
-        VALUES (CAST(${reservation.auctionId} AS uuid), CAST(${reservation.bidderId} AS uuid), ${reservation.nextCoins})
-        ON CONFLICT (auction_id, bidder_id) DO UPDATE SET coins = GREATEST(wallet.bid_holds.coins, EXCLUDED.coins)`;
+      // La retencion es absoluta por postor y subasta: queda en la mayor oferta
+      // confirmada, y lo reservado de mas vuelve al saldo.
+      const key = { auctionId_bidderId: { auctionId: reservation.auctionId, bidderId: reservation.bidderId } };
+      const current = await tx.bidHold.findUnique({ where: key });
+      const { hold, refund } = confirmHold(current?.coins ?? 0, reservation);
+      await tx.bidHold.upsert({
+        where: key,
+        create: { auctionId: reservation.auctionId, bidderId: reservation.bidderId, coins: hold },
+        update: { coins: hold },
+      });
+      if (refund > 0) {
+        await addToBalance(tx, reservation.bidderId, refund);
+        await entry(tx, reservation.bidderId, 'LIBERACION', refund, { auctionId: reservation.auctionId });
+      }
       return true;
     },
 
@@ -229,15 +238,7 @@ export class PrismaWalletRepository implements WalletRepository {
         const hold = await tx.bidHold.findUnique({
           where: { auctionId_bidderId: { auctionId: input.auctionId, bidderId: input.bidderId } },
         });
-        const latestPending = await tx.holdReservation.aggregate({
-          where: { auctionId: input.auctionId, bidderId: input.bidderId, status: 'PENDIENTE' },
-          _max: { nextCoins: true },
-        });
-        const decided = plan({
-          balance,
-          previousCoins: Math.max(hold?.coins ?? 0, latestPending._max.nextCoins ?? 0),
-          existing: null,
-        });
+        const decided = plan({ balance, previousCoins: hold?.coins ?? 0, existing: null });
         await tx.holdReservation.create({
           data: {
             reservationId: input.reservationId,
