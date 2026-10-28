@@ -16,7 +16,7 @@ docs/arquitectura     plan, mapa de contextos y decisiones (ADR)
 src/                  monolito, se retira en la fase F9
 ```
 
-Estado: migrados `identity-service`, `catalog-service`, `wallet-service` y `api-gateway`. El resto de rutas lo atiende el monolito detrás del gateway. El monolito también expone un servidor gRPC legado (`LEGACY_GRPC_PORT`) que consume los eventos del catálogo en nombre de gallery, audit y auction mientras esos servicios no existen.
+Estado: migrados `identity-service`, `catalog-service`, `wallet-service`, `auction-service` y `api-gateway`, que ya sirve la sala en vivo por Socket.IO. El resto de rutas lo atiende el monolito detrás del gateway. El monolito también expone un servidor gRPC legado (`LEGACY_GRPC_PORT`) que consume eventos en nombre de gallery, audit y notification mientras esos servicios no existen, y arranca con `AUCTIONS_IN_SERVICE=true` para no abrir ni cerrar salas.
 
 ### Levantar la pila en local
 
@@ -29,6 +29,7 @@ npm start -w @artauction/identity-service      # gRPC :50051
 npx nest start                                 # monolito :3002 y gRPC legado :50090
 npm start -w @artauction/catalog-service       # gRPC :50052
 npm start -w @artauction/wallet-service        # gRPC :50053
+npm start -w @artauction/auction-service       # gRPC :50054, programador de salas
 npm start -w @artauction/api-gateway           # HTTP y Socket.IO :3001, el frontend no cambia
 ```
 
