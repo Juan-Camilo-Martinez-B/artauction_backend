@@ -1,0 +1,91 @@
+// Solo el esquema `wallet`. La URL lleva ?schema=wallet y el usuario
+// wallet_svc no tiene permisos sobre otros esquemas. El DDL vive en
+// artauction_bd (migraciones 0014 y 0017): este servicio no ejecuta migraciones.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Wallet {
+  userId    String   @id @map("user_id") @db.Uuid
+  balance   Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("wallets")
+}
+
+model PaymentOrder {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  coins          Int
+  amountCents    Int      @map("amount_cents")
+  currency       String   @default("USD") @db.Char(3)
+  status         String
+  cardBrand      String   @map("card_brand")
+  cardLast4      String   @map("card_last4") @db.Char(4)
+  idempotencyKey String?  @map("idempotency_key")
+  requestHash    String?  @map("request_hash")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  entries WalletEntry[]
+
+  @@index([userId], map: "payment_orders_user_id_idx")
+  @@map("payment_orders")
+}
+
+model WalletEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  kind           String
+  coins          Int
+  auctionId      String?  @map("auction_id") @db.Uuid
+  paymentOrderId String?  @map("payment_order_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  paymentOrder PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt(sort: Desc)], map: "wallet_entries_user_id_created_at_idx")
+  @@map("wallet_entries")
+}
+
+model BidHold {
+  auctionId String @map("auction_id") @db.Uuid
+  bidderId  String @map("bidder_id") @db.Uuid
+  coins     Int
+
+  @@id([auctionId, bidderId])
+  @@index([bidderId], map: "bid_holds_bidder_id_idx")
+  @@map("bid_holds")
+}
+
+model HoldReservation {
+  reservationId String   @id @map("reservation_id")
+  auctionId     String   @map("auction_id") @db.Uuid
+  bidderId      String   @map("bidder_id") @db.Uuid
+  previousCoins Int      @map("previous_coins")
+  nextCoins     Int      @map("next_coins")
+  reservedCoins Int      @map("reserved_coins")
+  status        String   @default("PENDIENTE")
+  expiresAt     DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([auctionId, bidderId], map: "hold_reservations_auction_bidder_idx")
+  @@map("hold_reservations")
+}
+
+model PlatformFee {
+  auctionId  String   @id @map("auction_id") @db.Uuid
+  sellerId   String   @map("seller_id") @db.Uuid
+  grossCoins Int      @map("gross_coins")
+  feeCoins   Int      @map("fee_coins")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("platform_fees")
+}
