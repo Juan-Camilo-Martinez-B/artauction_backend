@@ -16,8 +16,11 @@ import {
   createAuditClient,
   createCatalogClient,
   createIdentityClient,
+  createWalletClient,
   IDENTITY_CLIENT,
+  WALLET_CLIENT,
 } from './clients/grpc-clients';
+import { WalletController } from './api/http/wallet/wallet.controller';
 import type { GatewayConfig } from './config';
 
 @Module({})
@@ -27,13 +30,14 @@ export class GatewayModule implements OnApplicationShutdown {
     @Inject(CATALOG_CLIENT) private readonly catalog: Client,
     @Inject(AUCTION_CLIENT) private readonly auction: Client,
     @Inject(AUDIT_CLIENT) private readonly audit: Client,
+    @Inject(WALLET_CLIENT) private readonly wallet: Client,
   ) {}
 
   static register(config: GatewayConfig, logger: StructuredLogger): DynamicModule {
     return {
       module: GatewayModule,
       imports: [ThrottlerModule.forRoot({ throttlers: [{ name: 'default', ttl: 60_000, limit: 120 }] })],
-      controllers: [AuthController, CatalogController, AdminController, HealthController],
+      controllers: [AuthController, CatalogController, AdminController, WalletController, HealthController],
       providers: [
         { provide: GATEWAY_CONFIG, useValue: config },
         { provide: GATEWAY_LOGGER, useValue: logger },
@@ -41,13 +45,14 @@ export class GatewayModule implements OnApplicationShutdown {
         { provide: CATALOG_CLIENT, useFactory: () => createCatalogClient(config) },
         { provide: AUCTION_CLIENT, useFactory: () => createAuctionClient(config) },
         { provide: AUDIT_CLIENT, useFactory: () => createAuditClient(config) },
+        { provide: WALLET_CLIENT, useFactory: () => createWalletClient(config) },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
       ],
     };
   }
 
   onApplicationShutdown(): void {
-    for (const client of [this.identity, this.catalog, this.auction, this.audit]) {
+    for (const client of [this.identity, this.catalog, this.auction, this.audit, this.wallet]) {
       client.close();
     }
   }

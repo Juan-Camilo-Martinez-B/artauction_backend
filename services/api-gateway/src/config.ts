@@ -26,6 +26,10 @@ export class GatewayConfig {
   @MinLength(1)
   CATALOG_GRPC_URL = '127.0.0.1:50052';
 
+  @IsString()
+  @MinLength(1)
+  WALLET_GRPC_URL = '127.0.0.1:50053';
+
   // Mientras auction y audit no existan como servicios, apuntan al servidor
   // gRPC legado del monolito.
   @IsString()

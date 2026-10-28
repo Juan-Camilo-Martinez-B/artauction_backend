@@ -17,6 +17,7 @@ No contiene reglas de negocio. Hace cuatro cosas:
 | `GET /lots`, `GET /lots/categories`, `GET /lots/:id`, `GET /lots/:id/related` | catalog-service, compuesto con el resumen de subasta y el último informe de auditoría |
 | `POST /lots`, `/lots/:id/hash`, `/lots/:id/uploads`, `/lots/:id/images`, `/lots/:id/submit` | catalog-service |
 | `POST /admin/lots/:id/resolve` | catalog-service (el rol ADMIN lo comprueba el servicio) |
+| `GET /wallet`, `POST /wallet/top-ups` | wallet-service. La recarga exige la cabecera `Idempotency-Key` (400 sin ella); 20 por minuto |
 | `GET /health` | el propio gateway |
 | todo lo demás | monolito en `LEGACY_URL` |
 
