@@ -2,12 +2,16 @@ import { Inject, Module, type DynamicModule, type OnApplicationShutdown } from '
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { Client } from '@grpc/grpc-js';
-import type { StructuredLogger } from '@artauction/platform';
+import { TokenVerifier, type StructuredLogger } from '@artauction/platform';
+import type { auctionV1 } from '@artauction/contracts';
+import { AuctionsController } from './api/http/auctions/auctions.controller';
 import { AuthController } from './api/http/auth/auth.controller';
 import { AdminController } from './api/http/catalog/admin.controller';
 import { CatalogController } from './api/http/catalog/catalog.controller';
 import { HealthController } from './api/http/health.controller';
-import { GATEWAY_CONFIG, GATEWAY_LOGGER } from './api/http/tokens';
+import { GATEWAY_CONFIG, GATEWAY_LOGGER, LIVE_ROOM } from './api/http/tokens';
+import { LiveRoom } from './api/live/live-room';
+import { grpcWatchSource } from './api/live/room-streams';
 import {
   AUCTION_CLIENT,
   AUDIT_CLIENT,
@@ -31,13 +35,14 @@ export class GatewayModule implements OnApplicationShutdown {
     @Inject(AUCTION_CLIENT) private readonly auction: Client,
     @Inject(AUDIT_CLIENT) private readonly audit: Client,
     @Inject(WALLET_CLIENT) private readonly wallet: Client,
+    @Inject(LIVE_ROOM) private readonly liveRoom: LiveRoom | null,
   ) {}
 
   static register(config: GatewayConfig, logger: StructuredLogger): DynamicModule {
     return {
       module: GatewayModule,
       imports: [ThrottlerModule.forRoot({ throttlers: [{ name: 'default', ttl: 60_000, limit: 120 }] })],
-      controllers: [AuthController, CatalogController, AdminController, WalletController, HealthController],
+      controllers: [AuthController, CatalogController, AdminController, WalletController, AuctionsController, HealthController],
       providers: [
         { provide: GATEWAY_CONFIG, useValue: config },
         { provide: GATEWAY_LOGGER, useValue: logger },
@@ -46,14 +51,33 @@ export class GatewayModule implements OnApplicationShutdown {
         { provide: AUCTION_CLIENT, useFactory: () => createAuctionClient(config) },
         { provide: AUDIT_CLIENT, useFactory: () => createAuditClient(config) },
         { provide: WALLET_CLIENT, useFactory: () => createWalletClient(config) },
+        {
+          provide: LIVE_ROOM,
+          inject: [AUCTION_CLIENT],
+          useFactory: (auctions: auctionV1.AuctionServiceClient) => createLiveRoom(config, logger, auctions),
+        },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
       ],
     };
   }
 
   onApplicationShutdown(): void {
+    this.liveRoom?.close();
     for (const client of [this.identity, this.catalog, this.auction, this.audit, this.wallet]) {
       client.close();
     }
   }
+}
+
+/** Sin clave publica no hay forma de autenticar sockets: la sala queda apagada. */
+function createLiveRoom(config: GatewayConfig, logger: StructuredLogger, auctions: auctionV1.AuctionServiceClient): LiveRoom | null {
+  const keyPath = config.JWT_PUBLIC_KEY_PATH.trim();
+  if (keyPath.length === 0) {
+    logger.warn('JWT_PUBLIC_KEY_PATH vacio: la sala en vivo queda desactivada', 'live-room');
+    return null;
+  }
+  return new LiveRoom(auctions, grpcWatchSource(auctions), TokenVerifier.fromFile(keyPath), logger, {
+    corsOrigins: config.corsOrigins,
+    deadlineMs: config.GRPC_DEADLINE_MS,
+  });
 }

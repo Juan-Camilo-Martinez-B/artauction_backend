@@ -1,4 +1,5 @@
-import { auctionV1, auditEventsV1, catalogV1, commonV1, type auditV1 } from '@artauction/contracts';
+import { auditEventsV1, catalogV1, commonV1, type auctionV1, type auditV1 } from '@artauction/contracts';
+import { auctionStatusName } from '../auctions/auction.presenter';
 
 // Convierte los mensajes de los servicios a la forma JSON que el frontend ya
 // consume (la misma que devolvia el monolito con Prisma).
@@ -18,12 +19,6 @@ const REPRESENTATION: ReadonlyMap<catalogV1.RepresentationKind, string> = new Ma
   [catalogV1.RepresentationKind.REPRESENTATION_KIND_TWO_D, 'TWO_D'],
   [catalogV1.RepresentationKind.REPRESENTATION_KIND_THREE_D, 'THREE_D'],
   [catalogV1.RepresentationKind.REPRESENTATION_KIND_OTHER, 'OTHER'],
-]);
-
-const AUCTION_STATUS: ReadonlyMap<auctionV1.AuctionStatus, string> = new Map([
-  [auctionV1.AuctionStatus.AUCTION_STATUS_PROGRAMADA, 'PROGRAMADA'],
-  [auctionV1.AuctionStatus.AUCTION_STATUS_ACTIVA, 'ACTIVA'],
-  [auctionV1.AuctionStatus.AUCTION_STATUS_CERRADA, 'CERRADA'],
 ]);
 
 export interface AuctionCardJson {
@@ -68,7 +63,7 @@ export function imageJson(lotId: string, image: catalogV1.LotImage) {
 export function auctionJson(summary: auctionV1.AuctionSummary): AuctionCardJson {
   return {
     id: summary.auctionId,
-    status: AUCTION_STATUS.get(summary.status) ?? 'PROGRAMADA',
+    status: auctionStatusName(summary.status),
     currentPrice: summary.currentPrice,
     startsAt: summary.startsAt?.toISOString() ?? null,
     endsAt: summary.endsAt?.toISOString() ?? null,

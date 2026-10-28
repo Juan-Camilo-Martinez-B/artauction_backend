@@ -6,7 +6,7 @@ import type { StructuredLogger } from '@artauction/platform';
  * demas se reenvia al monolito (Strangler Fig). Cada fase de la migracion
  * agrega aqui sus rutas; cuando la lista cubra todo, el proxy se retira.
  */
-export const MIGRATED_PREFIXES: readonly string[] = ['/auth', '/health', '/lots', '/admin', '/wallet'];
+export const MIGRATED_PREFIXES: readonly string[] = ['/auth', '/health', '/lots', '/admin', '/wallet', '/auctions'];
 
 /** Limite de cuerpo por prefijo. /lots recibe imagenes en base64 para el hash. */
 export const BODY_LIMITS: Readonly<Record<string, string>> = { '/lots': '12mb' };
@@ -21,7 +21,8 @@ export function createLegacyProxy(target: string, logger: StructuredLogger): Req
     target,
     changeOrigin: false,
     xfwd: true,
-    ws: true,
+    // La sala en vivo (Socket.IO) la sirve el gateway desde F6.
+    ws: false,
     pathFilter: (path) => !isMigrated(path),
     on: {
       error: (error, _request, response) => {
