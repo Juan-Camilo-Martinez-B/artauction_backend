@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { plainToInstance } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Min, MinLength, validateSync } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, MinLength, validateSync } from 'class-validator';
 
 export class Environment {
   @IsIn(['development', 'test', 'production'])
@@ -15,6 +15,11 @@ export class Environment {
   @IsInt()
   @Min(0)
   LEGACY_GRPC_PORT = 0;
+
+  // Transitorio: con auction-service activo, el monolito no abre ni cierra
+  // subastas; si lo hicieran los dos, una sala se procesaria dos veces.
+  @IsBoolean()
+  AUCTIONS_IN_SERVICE = false;
 
   @IsString()
   @MinLength(1)
@@ -99,6 +104,7 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
       NODE_ENV: source['NODE_ENV'] ?? 'development',
       PORT: source['PORT'] !== undefined ? Number(source['PORT']) : 3001,
       LEGACY_GRPC_PORT: source['LEGACY_GRPC_PORT'] !== undefined ? Number(source['LEGACY_GRPC_PORT']) : 0,
+      AUCTIONS_IN_SERVICE: source['AUCTIONS_IN_SERVICE'] === 'true',
       DATABASE_URL: source['DATABASE_URL'],
       MONGODB_URI: source['MONGODB_URI'],
       JWT_ACCESS_SECRET: source['JWT_ACCESS_SECRET'],

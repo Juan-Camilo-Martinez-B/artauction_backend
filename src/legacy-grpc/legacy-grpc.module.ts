@@ -1,11 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AuditQueue } from '../infra/queue/audit-queue';
-import { SubastasModule } from '../modules/subastas/subastas.module';
 import { LegacyGrpcService } from './legacy-grpc.service';
 
-// Transitorio: GaleriasService llega por el modulo global de galerias.
+// Transitorio: GaleriasService y el notificador llegan por sus modulos globales.
 @Module({
-  imports: [SubastasModule],
   providers: [LegacyGrpcService, AuditQueue],
 })
 export class LegacyGrpcModule {}

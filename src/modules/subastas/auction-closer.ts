@@ -32,7 +32,7 @@ export class AuctionCloser implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    if (this.env.NODE_ENV === 'test') {
+    if (this.env.NODE_ENV === 'test' || this.env.AUCTIONS_IN_SERVICE) {
       return;
     }
     this.timer = setInterval(() => {

@@ -1,29 +1,29 @@
 import { status, type handleUnaryCall } from '@grpc/grpc-js';
 import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { InjectConnection } from '@nestjs/mongoose';
+import type { Connection } from 'mongoose';
 import {
-  auctionHandlersV1,
-  auctionV1,
   auditEventsV1,
   auditHandlersV1,
   auditV1,
   galleryHandlersV1,
+  notificationHandlersV1,
   type commonV1,
 } from '@artauction/contracts';
 import { DomainError, StructuredLogger, TokenVerifier } from '@artauction/platform';
 import { CallerResolver, startGrpcServer, unary, type RunningServer } from '@artauction/service-kit';
 import { ENV, type Environment } from '../common/config/environment';
+import { OUTCOME_NOTIFIER, type OutcomeNotifier } from '../common/outcomes';
 import { AuditQueue } from '../infra/queue/audit-queue';
 import { PrismaService } from '../infra/postgres/prisma.service';
 import { GaleriasService } from '../modules/galerias-social/galerias.service';
-import { AuctionsService } from '../modules/subastas/auctions.service';
-
-type InboxSchema = 'gallery' | 'audit' | 'auction';
 
 /**
- * Transitorio (Strangler Fig): mientras gallery, audit y auction no existan
- * como servicios, el monolito atiende sus contratos gRPC de eventos y de
- * consulta. Los productores solo conocen una URL; cuando nazca cada servicio,
- * la URL cambia y este archivo se borra.
+ * Transitorio (Strangler Fig): mientras gallery, audit y notification no
+ * existan como servicios, el monolito atiende sus contratos gRPC de eventos y
+ * de consulta. Los productores solo conocen una URL; cuando nazca cada
+ * servicio, la URL cambia y la parte correspondiente de este archivo se borra.
+ * Las subastas ya las atiende auction-service (F6).
  */
 @Injectable()
 export class LegacyGrpcService implements OnModuleInit, OnModuleDestroy {
@@ -34,8 +34,9 @@ export class LegacyGrpcService implements OnModuleInit, OnModuleDestroy {
     @Inject(ENV) private readonly env: Environment,
     private readonly prisma: PrismaService,
     private readonly galleries: GaleriasService,
-    private readonly auctions: AuctionsService,
     private readonly audits: AuditQueue,
+    @Inject(OUTCOME_NOTIFIER) private readonly notifier: OutcomeNotifier,
+    @InjectConnection() private readonly mongo: Connection,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -61,14 +62,9 @@ export class LegacyGrpcService implements OnModuleInit, OnModuleDestroy {
           implementation: this.auditEvents(callers),
         },
         {
-          name: 'artauction.auction.v1.AuctionEventHandlerService',
-          definition: auctionHandlersV1.AuctionEventHandlerServiceService,
-          implementation: this.auctionEvents(callers),
-        },
-        {
-          name: 'artauction.auction.v1.AuctionService',
-          definition: auctionV1.AuctionServiceService,
-          implementation: this.auctionQueries(),
+          name: 'artauction.notification.v1.NotificationEventHandlerService',
+          definition: notificationHandlersV1.NotificationEventHandlerServiceService,
+          implementation: this.notificationEvents(callers),
         },
         {
           name: 'artauction.audit.v1.AuditService',
@@ -85,25 +81,46 @@ export class LegacyGrpcService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Aplica un efecto una sola vez por evento. Los efectos del monolito escriben
-   * en Mongo o en pg-boss, fuera de la transaccion SQL, asi que el orden es:
-   * comprobar el inbox, aplicar el efecto y despues registrarlo. Un fallo entre
-   * ambos pasos solo puede repetir el efecto, nunca perderlo.
+   * en Mongo o en pg-boss, fuera de una transaccion SQL, asi que el orden es:
+   * comprobar, aplicar el efecto y despues registrarlo. Un fallo entre ambos
+   * pasos solo puede repetir el efecto, nunca perderlo.
    */
-  private async once(schema: InboxSchema, metadata: commonV1.EventMetadata | undefined, type: string, effect: () => Promise<unknown>): Promise<void> {
+  private async once(inbox: Inbox, metadata: commonV1.EventMetadata | undefined, type: string, effect: () => Promise<unknown>) {
     const eventId = metadata?.eventId;
     if (!eventId) {
       throw DomainError.invalid('El evento no trae event_id');
     }
-    const seen = await this.prisma.$queryRawUnsafe<unknown[]>(`SELECT 1 FROM ${schema}.inbox WHERE event_id = $1`, eventId);
-    if (seen.length > 0) {
+    if (await inbox.seen(eventId)) {
       return;
     }
     await effect();
-    await this.prisma.$executeRawUnsafe(
-      `INSERT INTO ${schema}.inbox (event_id, event_type) VALUES ($1, $2) ON CONFLICT (event_id) DO NOTHING`,
-      eventId,
-      type,
-    );
+    await inbox.record(eventId, type);
+  }
+
+  /** Inbox SQL del esquema del consumidor futuro (gallery, audit). */
+  private sqlInbox(schema: 'gallery' | 'audit'): Inbox {
+    return {
+      seen: async (eventId) =>
+        (await this.prisma.$queryRawUnsafe<unknown[]>(`SELECT 1 FROM ${schema}.inbox WHERE event_id = $1`, eventId)).length > 0,
+      record: async (eventId, type) => {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO ${schema}.inbox (event_id, event_type) VALUES ($1, $2) ON CONFLICT (event_id) DO NOTHING`,
+          eventId,
+          type,
+        );
+      },
+    };
+  }
+
+  /** Inbox en Mongo para notificaciones (su servicio vivira en Mongo). */
+  private mongoInbox(): Inbox {
+    const events = this.mongo.collection<{ _id: string; type: string; processedAt: Date }>('processed_events');
+    return {
+      seen: async (eventId) => (await events.countDocuments({ _id: eventId }, { limit: 1 })) > 0,
+      record: async (eventId, type) => {
+        await events.updateOne({ _id: eventId }, { $setOnInsert: { type, processedAt: new Date() } }, { upsert: true });
+      },
+    };
   }
 
   private galleryEvents(callers: CallerResolver): galleryHandlersV1.GalleryEventHandlerServiceServer {
@@ -112,13 +129,22 @@ export class LegacyGrpcService implements OnModuleInit, OnModuleDestroy {
         callers.service(context, ['catalog-service']);
         const event = request.event;
         if (event) {
-          await this.once('gallery', event.metadata, 'catalog.LotCreated', () =>
+          await this.once(this.sqlInbox('gallery'), event.metadata, 'catalog.LotCreated', () =>
             this.galleries.grantOwnLot({ ownerId: event.sellerId, lotId: event.lotId }),
           );
         }
         return galleryHandlersV1.HandleLotCreatedResponse.fromPartial({});
       }),
-      handleAuctionClosed: unimplemented('HandleAuctionClosed'),
+      handleAuctionClosed: unary(this.logger, 'HandleAuctionClosed', async (request, context) => {
+        callers.service(context, ['auction-service']);
+        const event = request.event;
+        if (event?.winnerId) {
+          await this.once(this.sqlInbox('gallery'), event.metadata, 'auction.AuctionClosed', () =>
+            this.galleries.grantWonLot({ ownerId: event.winnerId, lotId: event.lotId }),
+          );
+        }
+        return galleryHandlersV1.HandleAuctionClosedResponse.fromPartial({});
+      }),
     };
   }
 
@@ -128,57 +154,37 @@ export class LegacyGrpcService implements OnModuleInit, OnModuleDestroy {
         callers.service(context, ['catalog-service']);
         const event = request.event;
         if (event) {
-          await this.once('audit', event.metadata, 'catalog.LotSubmitted', () => this.audits.enqueue(event.lotId));
+          await this.once(this.sqlInbox('audit'), event.metadata, 'catalog.LotSubmitted', () => this.audits.enqueue(event.lotId));
         }
         return auditHandlersV1.HandleLotSubmittedResponse.fromPartial({});
       }),
     };
   }
 
-  private auctionEvents(callers: CallerResolver): auctionHandlersV1.AuctionEventHandlerServiceServer {
+  private notificationEvents(callers: CallerResolver): notificationHandlersV1.NotificationEventHandlerServiceServer {
     return {
-      handleLotPublished: unary(this.logger, 'HandleLotPublished', async (request, context) => {
-        callers.service(context, ['catalog-service']);
+      handleAuctionClosed: unary(this.logger, 'HandleAuctionClosed', async (request, context) => {
+        callers.service(context, ['auction-service']);
         const event = request.event;
         if (event) {
-          await this.once('auction', event.metadata, 'catalog.LotPublished', () => this.auctions.scheduleFromLot(event.lotId));
+          await this.once(this.mongoInbox(), event.metadata, 'auction.AuctionClosed', () =>
+            this.notifier.auctionClosed({
+              auctionId: event.auctionId,
+              lotId: event.lotId,
+              sellerId: event.sellerId,
+              winnerId: event.winnerId || null,
+              amount: event.amount,
+            }),
+          );
         }
-        return auctionHandlersV1.HandleLotPublishedResponse.fromPartial({});
+        return notificationHandlersV1.HandleAuctionClosedResponse.fromPartial({});
       }),
+      // AuditCompleted lo produce la auditoria del propio monolito hasta F7.
       handleAuditCompleted: unimplemented('HandleAuditCompleted'),
     };
   }
 
-  /** Resumenes publicos para que el gateway componga las fichas del catalogo. */
-  private auctionQueries(): auctionV1.AuctionServiceServer {
-    return {
-      batchGetAuctionSummaries: unary(this.logger, 'BatchGetAuctionSummaries', async (request) => {
-        const lotIds = uuids(request.lotIds);
-        const rows = lotIds.length === 0 ? [] : await this.prisma.auction.findMany({ where: { lotId: { in: lotIds } } });
-        return auctionV1.BatchGetAuctionSummariesResponse.fromPartial({
-          summaries: rows.map((row) => ({
-            auctionId: row.id,
-            lotId: row.lotId,
-            status: auctionStatus(row.status),
-            currentPrice: row.currentPrice.toString(),
-            startsAt: row.startsAt,
-            endsAt: row.endsAt,
-            saleDescription: row.saleDescription ?? undefined,
-            currency: row.currency,
-          })),
-        });
-      }),
-      getAuction: unimplemented('GetAuction'),
-      openAuction: unimplemented('OpenAuction'),
-      placeBid: unimplemented('PlaceBid'),
-      withdrawBid: unimplemented('WithdrawBid'),
-      getBidByReservation: unimplemented('GetBidByReservation'),
-      watchAuction: (call) => {
-        call.emit('error', { code: status.UNIMPLEMENTED, details: 'WatchAuction sigue en Socket.IO del monolito' });
-      },
-    };
-  }
-
+  /** Ultimo informe de auditoria por obra, para que el gateway componga la ficha. */
   private auditQueries(): auditV1.AuditServiceServer {
     return {
       batchGetLatestSummaries: unary(this.logger, 'BatchGetLatestSummaries', async (request) => {
@@ -213,21 +219,15 @@ export class LegacyGrpcService implements OnModuleInit, OnModuleDestroy {
   }
 }
 
+interface Inbox {
+  seen(eventId: string): Promise<boolean>;
+  record(eventId: string, type: string): Promise<void>;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function uuids(ids: readonly string[]): string[] {
   return [...new Set(ids)].filter((id) => UUID.test(id)).slice(0, 100);
-}
-
-function auctionStatus(value: string): auctionV1.AuctionStatus {
-  switch (value) {
-    case 'ACTIVA':
-      return auctionV1.AuctionStatus.AUCTION_STATUS_ACTIVA;
-    case 'CERRADA':
-      return auctionV1.AuctionStatus.AUCTION_STATUS_CERRADA;
-    default:
-      return auctionV1.AuctionStatus.AUCTION_STATUS_PROGRAMADA;
-  }
 }
 
 function unimplemented<Req, Res>(rpc: string): handleUnaryCall<Req, Res> {
