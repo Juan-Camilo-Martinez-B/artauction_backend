@@ -20,6 +20,8 @@ enum EntryKind {
   ENTRY_KIND_RETENCION = 2;
   ENTRY_KIND_LIBERACION = 3;
   ENTRY_KIND_CANJE = 4;
+  // Abono al vendedor: precio de venta menos la comision de la plataforma.
+  ENTRY_KIND_VENTA = 5;
 }
 
 message WalletEntry {
