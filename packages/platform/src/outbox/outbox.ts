@@ -26,6 +26,19 @@ export interface SqlExecutor {
   execute(sql: string, ...params: unknown[]): Promise<number>;
 }
 
+/** Forma minima de un cliente con SQL crudo, como PrismaClient o su transaccion. */
+export interface RawSqlClient {
+  $queryRawUnsafe<T>(sql: string, ...params: unknown[]): Promise<T>;
+  $executeRawUnsafe(sql: string, ...params: unknown[]): Promise<number>;
+}
+
+export function sqlExecutorFrom(client: RawSqlClient): SqlExecutor {
+  return {
+    query: <T>(sql: string, ...params: unknown[]) => client.$queryRawUnsafe<T[]>(sql, ...params),
+    execute: (sql: string, ...params: unknown[]) => client.$executeRawUnsafe(sql, ...params),
+  };
+}
+
 export interface OutboxStore {
   /**
    * Reserva hasta `limit` mensajes entregables por `leaseMs`. Un mensaje es

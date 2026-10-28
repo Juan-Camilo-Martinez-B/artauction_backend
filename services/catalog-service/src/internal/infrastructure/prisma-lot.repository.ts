@@ -1,4 +1,4 @@
-import { appendToOutbox, recordInbox, type DomainEvent, type SqlExecutor } from '@artauction/platform';
+import { appendToOutbox, recordInbox, sqlExecutorFrom, type DomainEvent, type SqlExecutor } from '@artauction/platform';
 import type { Prisma, PrismaClient } from '../../generated/prisma';
 import type { Category, Lot, LotImage, NewLot, RepresentationKind } from '../domain/lot';
 import { isLotStatus, PUBLIC_STATUSES, type LotStatus } from '../domain/lot-status';
@@ -17,10 +17,7 @@ type Tx = Prisma.TransactionClient;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function sqlExecutor(client: Tx | PrismaClient): SqlExecutor {
-  return {
-    query: <T>(sql: string, ...params: unknown[]) => client.$queryRawUnsafe<T[]>(sql, ...params),
-    execute: (sql: string, ...params: unknown[]) => client.$executeRawUnsafe(sql, ...params),
-  };
+  return sqlExecutorFrom(client);
 }
 
 export class PrismaLotRepository implements LotRepository {
