@@ -1,4 +1,4 @@
-import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
 import type { PgBoss } from 'pg-boss';
 import { ENV, type Environment } from '../../common/config/environment';
 
@@ -11,6 +11,7 @@ export interface AuditJob {
 
 @Injectable()
 export class AuditQueue implements OnModuleDestroy {
+  private readonly logger = new Logger(AuditQueue.name);
   private boss: PgBoss | null = null;
 
   constructor(@Inject(ENV) private readonly env: Environment) {}
@@ -46,6 +47,11 @@ export class AuditQueue implements OnModuleDestroy {
     const boss = new PgBoss({
       connectionString: this.env.DATABASE_URL,
       schema: this.env.PGBOSS_SCHEMA,
+    });
+    // Sin este listener, un corte de la base (por ejemplo al reiniciarla) emite
+    // 'error' sin manejar y tumba todo el proceso. pg-boss se reconecta solo.
+    boss.on('error', (error: unknown) => {
+      this.logger.warn(`pg-boss: ${error instanceof Error ? error.message : String(error)}`);
     });
     await boss.start();
     await boss.createQueue(AUDIT_QUEUE, {
