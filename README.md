@@ -93,6 +93,8 @@ npm run compose:down     # detiene; con "-- -v" borra también los datos
 
 Cuentas de la semilla, todas con la contraseña `DevPassword!234`: `admin@artauction.local` (ADMIN), `seller@artauction.local` (SELLER), `leo@artauction.local` y `nora@artauction.local` (USER).
 
+**Linux y macOS.** Los contenedores corren como el usuario `node` (uid 1000) y montan `secrets/jwt/private.pem`, que se genera con modo 600. Si tu uid no es 1000 (`id -u`), entrégale la clave: `sudo chown 1000 secrets/jwt/private.pem`. En Windows y en Docker Desktop no hace falta.
+
 **Gemini es opcional.** Con `GEMINI_API_KEY` en `services/ai-service/.env`, la auditoría y el asistente de galería usan el modelo. Sin clave, ai-service usa una evaluación local determinista y todo sigue funcionando.
 
 **Puertos.** Se cambian con `FRONTEND_PORT`, `GATEWAY_PORT`, `S3_PORT` y `MEDIA_PORT`. El proyecto de compose se llama `artauction-platform`, así no toca los contenedores de desarrollo de la carpeta raíz. Eso sí, los dos usan los puertos 3900 y 3902 de Garage: detén la infraestructura de desarrollo antes, o cambia esos puertos.

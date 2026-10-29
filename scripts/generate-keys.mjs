@@ -23,13 +23,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const secrets = path.join(root, 'secrets');
 const force = process.argv.includes('--force');
 
-function write(file, content) {
+function write(file, content, mode = 0o600) {
   if (existsSync(file) && !force) {
     console.log(`keep ${path.relative(root, file)}`);
     return;
   }
   mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, content, { mode: 0o600 });
+  writeFileSync(file, content, { mode });
   console.log(`write ${path.relative(root, file)}`);
 }
 
@@ -37,7 +37,9 @@ const privatePath = path.join(secrets, 'jwt', 'private.pem');
 if (!existsSync(privatePath) || force) {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 3072 });
   write(privatePath, privateKey.export({ type: 'pkcs8', format: 'pem' }));
-  write(path.join(secrets, 'jwt', 'public.pem'), publicKey.export({ type: 'spki', format: 'pem' }));
+  // La clave publica no es secreta: legible por todos, la leen los contenedores
+  // (usuario node) aunque el archivo pertenezca a otro usuario del host.
+  write(path.join(secrets, 'jwt', 'public.pem'), publicKey.export({ type: 'spki', format: 'pem' }), 0o644);
 } else {
   console.log('keep secrets/jwt/private.pem');
 }

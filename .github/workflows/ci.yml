@@ -104,9 +104,12 @@ jobs:
       # imprimir nada. Sin GEMINI_API_KEY, ai-service usa la evaluacion local
       # determinista.
       - name: Generate secrets
+        # La clave privada queda con modo 600; se le entrega al uid 1000 (node en
+        # los contenedores), porque el usuario del runner es otro (1001).
         run: |
           node scripts/generate-keys.mjs > /dev/null
           node scripts/compose-secrets.mjs > /dev/null
+          sudo chown 1000:1000 secrets/jwt/private.pem
 
       - name: Start the platform
         run: npm run compose:up
