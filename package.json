@@ -8,13 +8,15 @@
   },
   "workspaces": [
     "packages/*",
-    "services/*"
+    "services/*",
+    "e2e"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "lint": "eslint --no-error-on-unmatched-pattern \"packages/*/src/**/*.ts\" \"packages/*/test/**/*.ts\" \"services/*/src/**/*.ts\" \"services/*/test/**/*.ts\"",
+    "lint": "eslint --no-error-on-unmatched-pattern \"packages/*/src/**/*.ts\" \"packages/*/test/**/*.ts\" \"services/*/src/**/*.ts\" \"services/*/test/**/*.ts\" \"e2e/**/*.ts\"",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "e2e": "npm run e2e -w @artauction/e2e",
     "compose:up": "docker compose --env-file secrets/service-clients.env --env-file secrets/compose.env up -d --build",
     "compose:down": "docker compose --env-file secrets/service-clients.env --env-file secrets/compose.env down",
     "prepare": "husky"

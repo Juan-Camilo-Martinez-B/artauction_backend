@@ -110,4 +110,14 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // describe y test de node:test devuelven promesas que gestiona el propio runner.
+    files: ['e2e/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        { allowForKnownSafeCalls: [{ from: 'package', package: 'node:test', name: ['describe', 'test', 'before', 'after'] }] },
+      ],
+    },
+  },
 );
