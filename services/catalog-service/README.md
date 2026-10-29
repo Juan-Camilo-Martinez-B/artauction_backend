@@ -25,6 +25,7 @@ La máquina de estados es una lista de adyacencia en `internal/domain/lot-status
 | `SubmitLot` | `SubmitLot` | `BORRADOR -> PENDIENTE_AUDITORIA` y emite `LotSubmitted`. |
 | `ResolveManualReview` | `ResolveManualReview` | Solo `ADMIN`. Publica (emite `LotPublished`) o devuelve a borrador. |
 | `BatchGetLotSnapshots` | consulta interna | Solo con token de servicio; ignora la visibilidad. |
+| `ListReviewQueue` | `GET /admin/reviews` | Solo `ADMIN`: obras en revisión manual, la más antigua primero (hasta 50). |
 | `FindSimilarImages` | consulta interna | Solo audit-service: imágenes de otras obras a distancia de Hamming ≤ `max_distance` del dHash. Los hashes no salen de catalog. |
 
 Eventos que consume (`CatalogEventHandlerService`), cada uno una sola vez por `event_id` y solo desde el estado esperado: `AuditCompleted` (veredicto), `AuctionStarted` (`EN_SUBASTA`), `AuctionClosed` (`VENDIDA`), `AuctionRescheduled` (`PUBLICADA`).

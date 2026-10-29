@@ -72,6 +72,10 @@ Las imágenes se descargan solo desde la base pública de Garage y los hosts htt
 
 Node en Windows no resuelve `*.localhost`. Por eso una URL de la base pública de Garage se pide a `MEDIA_INTERNAL_BASE_URL` conservando la cabecera `Host`, que es como Garage elige el bucket.
 
+## Revisión manual
+
+`BatchGetReviewReports`, solo para ADMIN, devuelve por obra el último resumen con sus hallazgos. Cada hallazgo trae el **valor** de las evidencias que cita, tomado del expediente guardado en Mongo; por ejemplo, `lot.declared_year = 1910`. El administrador decide con los mismos argumentos que usó la auditoría. Los informes anteriores a F7 se leen igual, con sus hallazgos y sin evidencias.
+
 ## Estructura
 
 ```

@@ -17,11 +17,15 @@ No contiene reglas de negocio. Hace cinco cosas:
 | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `GET/PATCH /auth/me` | identity-service por gRPC |
 | `GET /lots`, `GET /lots/categories`, `GET /lots/:id`, `GET /lots/:id/related` | catalog-service, compuesto con el resumen de subasta y el último informe de auditoría |
 | `POST /lots`, `/lots/:id/hash`, `/lots/:id/uploads`, `/lots/:id/images`, `/lots/:id/submit` | catalog-service |
+| `GET /admin/reviews` | cola de revisión manual: `ListReviewQueue` de catalog compuesto con `BatchGetReviewReports` de audit (hallazgos con el valor de sus evidencias). Si audit no responde, cada obra sale con `audit: null`. Solo ADMIN |
 | `POST /admin/lots/:id/resolve` | catalog-service (el rol ADMIN lo comprueba el servicio) |
 | `GET /wallet`, `POST /wallet/top-ups` | wallet-service. La recarga exige la cabecera `Idempotency-Key` (400 sin ella); 20 por minuto |
 | `GET /auctions/:id`, `POST /auctions`, `POST /auctions/:id/bids`, `POST /auctions/:id/withdraw` | auction-service. Las pujas no exponen su clave de idempotencia; 30 pujas por minuto |
 | `GET /health` | el propio gateway |
-| todo lo demás | monolito en `LEGACY_URL` |
+| `/me/gallery/*` | gallery-service. El gateway completa cada obra colgada con su ficha pública de catalog; una obra que dejó de ser pública no se muestra |
+| `GET /galleries/:ownerId`, `POST /users/:id/follow`, `GET /feed` | gallery-service |
+| `GET /notifications` | notification-service. Repone como `null` los valores nulos que un `map` de proto no transporta |
+| todo lo demás | monolito en `LEGACY_URL`. Desde F8 solo queda `/docs`; el proxy se retira en F9 |
 
 **Composición con degradación.** Las tarjetas y la ficha combinan el catálogo con `AuctionService.BatchGetAuctionSummaries` y `AuditService.BatchGetLatestSummaries`. Si alguno no responde, la obra sale con `auction: null` o `auditSummaries: []` en lugar de fallar: el catálogo no se cae por un servicio vecino.
 

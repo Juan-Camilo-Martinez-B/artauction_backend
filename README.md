@@ -16,7 +16,7 @@ docs/arquitectura     plan, mapa de contextos y decisiones (ADR)
 src/                  monolito, se retira en la fase F9
 ```
 
-Estado: migrados `identity-service`, `catalog-service`, `wallet-service`, `auction-service`, `ai-service`, `audit-service` y `api-gateway`, que ya sirve la sala en vivo por Socket.IO. La auditoría arma un expediente de evidencias local y la IA razona sobre él sin ver imágenes (ADR 0009); ai-service es el único con la clave de Gemini. El resto de rutas lo atiende el monolito detrás del gateway. El monolito también expone un servidor gRPC legado (`LEGACY_GRPC_PORT`) que consume eventos en nombre de gallery y notification mientras esos servicios no existen, arranca con `AUCTIONS_IN_SERVICE=true` para no abrir ni cerrar salas y pide el diseño de galerías a ai-service.
+Estado: migrados `identity-service`, `catalog-service`, `wallet-service`, `auction-service`, `ai-service`, `audit-service`, `gallery-service`, `notification-service` y `api-gateway`, que sirve todas las rutas del frontend y la sala en vivo por Socket.IO. La auditoría arma un expediente de evidencias local y la IA razona sobre él sin ver imágenes (ADR 0009); ai-service es el único con la clave de Gemini. Los administradores resuelven la revisión manual desde una cola con los hallazgos y sus evidencias. El monolito ya no atiende rutas ni eventos; queda solo hasta su retiro en F9.
 
 ### Levantar la pila en local
 
@@ -32,6 +32,8 @@ npm start -w @artauction/wallet-service        # gRPC :50053
 npm start -w @artauction/auction-service       # gRPC :50054, programador de salas
 npm start -w @artauction/ai-service            # gRPC :50055, fachada de Gemini
 npm start -w @artauction/audit-service         # gRPC :50056, auditoria por expediente de evidencias
+npm start -w @artauction/gallery-service       # gRPC :50057, galeria 3D, galeria social y feed
+npm start -w @artauction/notification-service  # gRPC :50058, avisos
 npm start -w @artauction/api-gateway           # HTTP y Socket.IO :3001, el frontend no cambia
 ```
 
