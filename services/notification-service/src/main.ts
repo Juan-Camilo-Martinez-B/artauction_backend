@@ -8,7 +8,9 @@ import { NotificationConfig } from './config';
 
 async function bootstrap(): Promise<void> {
   const config = loadConfig(NotificationConfig);
-  const app = await NestFactory.createApplicationContext(NotificationModule.register(config), { logger: false });
+  // Sin logger de Nest, abortOnError haria que un fallo de arranque (por ejemplo
+  // una clave ilegible) terminara el proceso sin mensaje; asi llega al catch.
+  const app = await NestFactory.createApplicationContext(NotificationModule.register(config), { logger: false, abortOnError: false });
   app.enableShutdownHooks();
   const logger = app.get<StructuredLogger>(LOGGER);
   const server = await startGrpcServer({
