@@ -1,0 +1,58 @@
+// Solo el esquema `gallery`. La URL lleva ?schema=gallery y el usuario
+// gallery_svc no tiene permisos sobre otros esquemas. El DDL vive en
+// artauction_bd: este servicio no ejecuta migraciones. El inbox se usa con SQL
+// desde @artauction/platform.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model PersonalGallery {
+  id                  String                   @id @default(uuid()) @db.Uuid
+  ownerId             String                   @unique @map("owner_id") @db.Uuid
+  name                String
+  description         String?
+  preferences         Json                     @default("{}")
+  suggestedConfig     Json?                    @map("suggested_config")
+  appliedConfig       Json?                    @map("applied_config")
+  configVersion       Int                      @default(1) @map("config_version")
+  customizationStatus String                   @default("SIN_PERSONALIZAR") @map("customization_status")
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  artworks            PersonalGalleryArtwork[]
+
+  @@map("personal_galleries")
+}
+
+model PersonalGalleryArtwork {
+  id        String          @id @default(uuid()) @db.Uuid
+  galleryId String          @map("gallery_id") @db.Uuid
+  lotId     String          @map("lot_id") @db.Uuid
+  posX      Float           @default(0) @map("pos_x")
+  posY      Float           @default(1.5) @map("pos_y")
+  posZ      Float           @default(-3.8) @map("pos_z")
+  rotY      Float           @default(0) @map("rot_y")
+  scale     Float           @default(1)
+  support   String          @default("WALL")
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  gallery   PersonalGallery @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+
+  @@unique([galleryId, lotId])
+  @@map("personal_gallery_artworks")
+}
+
+model Follow {
+  followerId String   @map("follower_id") @db.Uuid
+  followeeId String   @map("followee_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([followerId, followeeId])
+  @@map("follows")
+}
