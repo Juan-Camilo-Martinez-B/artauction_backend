@@ -11,8 +11,13 @@
 # Los secretos se leen de secrets/ en tiempo de ejecucion y nunca entran en
 # una imagen. Los puertos del host se pueden cambiar con FRONTEND_PORT,
 # GATEWAY_PORT, MEDIA_PORT y S3_PORT.
+#
+# El proyecto no se llama "artauction" a proposito: ese nombre lo toma el
+# compose de infraestructura de la carpeta raiz, que tiene servicios con los
+# mismos nombres (postgres, mongo, garage). Con el mismo proyecto, compose
+# recrearia esos contenedores de desarrollo.
 
-name: artauction
+name: artauction-platform
 
 x-service: &service
   restart: unless-stopped
