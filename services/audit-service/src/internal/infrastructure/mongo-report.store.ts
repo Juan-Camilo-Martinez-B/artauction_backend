@@ -2,7 +2,7 @@ import { ObjectId, type Collection, type MongoClient } from 'mongodb';
 import type { Finding } from '../domain/dossier';
 import type { AuditReport, ReportStore, ReviewFinding } from '../application/ports';
 
-type ReportDocument = Omit<AuditReport, 'id'> & { _id: string | ObjectId };
+type ReportDocument = Omit<AuditReport, 'id'> & { _id: string | ObjectId; summaryId?: string };
 /** Lo que realmente puede traer un documento: los del monolito no tienen assessment ni dossier. */
 type StoredReport = Omit<ReportDocument, 'assessment' | 'dossier'> & Partial<Pick<ReportDocument, 'assessment' | 'dossier'>> & LegacyFields;
 
@@ -67,7 +67,9 @@ export class MongoReportStore implements ReportStore {
 
   async save(report: AuditReport): Promise<void> {
     const { id, ...rest } = report;
-    await this.reports.replaceOne({ _id: id }, rest, { upsert: true });
+    // summaryId repite el _id porque artauction_bd lo indexa como unico: sin el
+    // campo, todos los informes valdrian null y desde el segundo chocarian.
+    await this.reports.replaceOne({ _id: id }, { ...rest, summaryId: id }, { upsert: true });
   }
 
   async findings(reportIds: readonly string[]): Promise<Map<string, ReviewFinding[]>> {
