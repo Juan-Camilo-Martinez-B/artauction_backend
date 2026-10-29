@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package artauction.notification.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service NotificationService {
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+}
+
+message Notification {
+  string id = 1;
+  string user_id = 2;
+  // AUDIT o AUCTION_CLOSED.
+  string kind = 3;
+  map<string, string> payload = 4;
+  google.protobuf.Timestamp created_at = 5;
+  optional google.protobuf.Timestamp read_at = 6;
+}
+
+message ListNotificationsRequest {}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+}

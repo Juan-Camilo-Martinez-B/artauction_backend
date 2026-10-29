@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package artauction.identity.v1;
+
+import "artauction/common/v1/common.proto";
+
+// Cuentas, sesiones y emision de tokens. Es el unico servicio con la clave
+// privada RS256. Las RPC que actuan sobre "la cuenta actual" leen el usuario del
+// access token que viaja en la metadata `authorization`.
+service IdentityService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc RefreshSession(RefreshSessionRequest) returns (RefreshSessionResponse);
+  rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+  rpc GetPublicProfile(GetPublicProfileRequest) returns (GetPublicProfileResponse);
+  // Claves publicas para verificar access tokens y tokens de servicio.
+  rpc GetSigningKeys(GetSigningKeysRequest) returns (GetSigningKeysResponse);
+  // OAuth2 client credentials entre servicios.
+  rpc IssueServiceToken(IssueServiceTokenRequest) returns (IssueServiceTokenResponse);
+}
+
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_USER = 1;
+  ROLE_SELLER = 2;
+  ROLE_ADMIN = 3;
+}
+
+message Account {
+  string user_id = 1;
+  string email = 2;
+  Role role = 3;
+  string display_name = 4;
+  optional string avatar_url = 5;
+}
+
+message TokenPair {
+  string access_token = 1;
+  string refresh_token = 2;
+  // Duracion del access token en el formato de entorno, por ejemplo "15m".
+  string expires_in = 3;
+}
+
+message PublicProfile {
+  string user_id = 1;
+  string display_name = 2;
+  optional string avatar_url = 3;
+  artauction.common.v1.Visibility visibility = 4;
+}
+
+message SigningKey {
+  string kid = 1;
+  string algorithm = 2;
+  string public_key_pem = 3;
+}
+
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string display_name = 3;
+  // Solo ROLE_USER o ROLE_SELLER. Sin valor equivale a ROLE_USER.
+  Role role = 4;
+}
+
+message RegisterResponse {
+  Account account = 1;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  TokenPair tokens = 1;
+}
+
+message RefreshSessionRequest {
+  string refresh_token = 1;
+}
+
+message RefreshSessionResponse {
+  TokenPair tokens = 1;
+}
+
+message GetAccountRequest {}
+
+message GetAccountResponse {
+  Account account = 1;
+}
+
+message UpdateProfileRequest {
+  string display_name = 1;
+  // Ausente: no cambia. Cadena vacia: vuelve a las iniciales.
+  optional string avatar_url = 2;
+}
+
+message UpdateProfileResponse {
+  Account account = 1;
+}
+
+message GetPublicProfileRequest {
+  string user_id = 1;
+}
+
+message GetPublicProfileResponse {
+  PublicProfile profile = 1;
+}
+
+message GetSigningKeysRequest {}
+
+message GetSigningKeysResponse {
+  repeated SigningKey keys = 1;
+}
+
+message IssueServiceTokenRequest {
+  string client_id = 1;
+  string client_secret = 2;
+}
+
+message IssueServiceTokenResponse {
+  string access_token = 1;
+  int32 expires_in_seconds = 2;
+}

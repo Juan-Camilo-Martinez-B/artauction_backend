@@ -1,0 +1,19 @@
+{
+  "name": "@artauction/service-kit",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Piezas de la capa api de los microservicios: servidor gRPC con health check, handlers, clientes con deadline y tokens de servicio.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@artauction/contracts": "1.0.0",
+    "@artauction/platform": "0.1.0",
+    "@grpc/grpc-js": "1.14.6",
+    "grpc-health-check": "2.1.0"
+  }
+}

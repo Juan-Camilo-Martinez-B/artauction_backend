@@ -1,0 +1,59 @@
+// Solo el esquema `audit`. La URL lleva ?schema=audit y el usuario audit_svc
+// no tiene permisos sobre otros esquemas. El DDL vive en artauction_bd
+// (migraciones 0016 y 0019): este servicio no ejecuta migraciones. outbox e
+// inbox se usan con SQL desde @artauction/platform.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AuditSummary {
+  id                       String   @id @default(uuid()) @db.Uuid
+  lotId                    String   @map("lot_id") @db.Uuid
+  score                    Int      @db.SmallInt
+  priceMin                 Decimal  @map("price_min") @db.Decimal(12, 2)
+  priceMax                 Decimal  @map("price_max") @db.Decimal(12, 2)
+  verdict                  String
+  hasCriticalInconsistency Boolean  @default(false) @map("has_critical_inconsistency")
+  mongoReportId            String   @map("mongo_report_id")
+  modelName                String   @map("model_name")
+  promptVersion            String   @map("prompt_version")
+  decidedBy                String?  @map("decided_by")
+  dossierHash              String?  @map("dossier_hash")
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([lotId, createdAt(sort: Desc)])
+  @@map("audit_summaries")
+}
+
+model AuditRequest {
+  id            String    @id @default(uuid()) @db.Uuid
+  lotId         String    @map("lot_id") @db.Uuid
+  sourceEventId String    @unique @map("source_event_id")
+  status        String    @default("PENDIENTE")
+  attempts      Int       @default(0)
+  availableAt   DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  leaseUntil    DateTime? @map("lease_until") @db.Timestamptz(6)
+  lastError     String?   @map("last_error")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@map("audit_requests")
+}
+
+model AiAssessment {
+  dossierHash   String   @map("dossier_hash")
+  modelName     String   @map("model_name")
+  promptVersion String   @map("prompt_version")
+  result        Json
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([dossierHash, modelName, promptVersion])
+  @@map("ai_assessments")
+}

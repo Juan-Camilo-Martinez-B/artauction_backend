@@ -1,0 +1,261 @@
+syntax = "proto3";
+
+package artauction.catalog.v1;
+
+import "artauction/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+// Obras, imagenes y categorias, y el ciclo de vida del lote. Las cantidades de
+// dinero son decimales en texto con dos cifras ("120.00").
+service CatalogService {
+  rpc ListPublicLots(ListPublicLotsRequest) returns (ListPublicLotsResponse);
+  rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
+  rpc GetRelatedLots(GetRelatedLotsRequest) returns (GetRelatedLotsResponse);
+  // Respeta la visibilidad: una obra privada solo la ve su vendedor.
+  rpc GetLot(GetLotRequest) returns (GetLotResponse);
+  // Solo obras publicas.
+  rpc BatchGetPublicLots(BatchGetPublicLotsRequest) returns (BatchGetPublicLotsResponse);
+  // Solo con token de servicio: ignora la visibilidad.
+  rpc BatchGetLotSnapshots(BatchGetLotSnapshotsRequest) returns (BatchGetLotSnapshotsResponse);
+  // Solo con token de audit-service: imagenes de otras obras con un hash
+  // perceptual a distancia de Hamming menor o igual a max_distance.
+  rpc FindSimilarImages(FindSimilarImagesRequest) returns (FindSimilarImagesResponse);
+  rpc CreateLot(CreateLotRequest) returns (CreateLotResponse);
+  rpc HashImage(HashImageRequest) returns (HashImageResponse);
+  rpc SignUpload(SignUploadRequest) returns (SignUploadResponse);
+  rpc RegisterImage(RegisterImageRequest) returns (RegisterImageResponse);
+  rpc SubmitLot(SubmitLotRequest) returns (SubmitLotResponse);
+  // Solo ROLE_ADMIN: obras en revision manual, la mas antigua primero.
+  rpc ListReviewQueue(ListReviewQueueRequest) returns (ListReviewQueueResponse);
+  // Solo ROLE_ADMIN.
+  rpc ResolveManualReview(ResolveManualReviewRequest) returns (ResolveManualReviewResponse);
+}
+
+enum LotStatus {
+  LOT_STATUS_UNSPECIFIED = 0;
+  LOT_STATUS_BORRADOR = 1;
+  LOT_STATUS_PENDIENTE_AUDITORIA = 2;
+  LOT_STATUS_APROBADO = 3;
+  LOT_STATUS_PUBLICADA = 4;
+  LOT_STATUS_REVISION_MANUAL = 5;
+  LOT_STATUS_EN_SUBASTA = 6;
+  LOT_STATUS_CERRADO = 7;
+  LOT_STATUS_VENDIDA = 8;
+}
+
+enum RepresentationKind {
+  REPRESENTATION_KIND_UNSPECIFIED = 0;
+  REPRESENTATION_KIND_TWO_D = 1;
+  REPRESENTATION_KIND_THREE_D = 2;
+  REPRESENTATION_KIND_OTHER = 3;
+}
+
+enum LotSort {
+  LOT_SORT_UNSPECIFIED = 0;
+  LOT_SORT_RECENT = 1;
+  LOT_SORT_TITLE = 2;
+  LOT_SORT_SCORE = 3;
+}
+
+enum ReviewDecision {
+  REVIEW_DECISION_UNSPECIFIED = 0;
+  REVIEW_DECISION_APPROVE = 1;
+  REVIEW_DECISION_RETURN_TO_DRAFT = 2;
+}
+
+message Category {
+  string id = 1;
+  string name = 2;
+  string slug = 3;
+  string description = 4;
+  bool active = 5;
+}
+
+message LotCategory {
+  bool is_primary = 1;
+  Category category = 2;
+}
+
+message LotImage {
+  string id = 1;
+  string object_key = 2;
+  int32 position = 3;
+  optional string perceptual_hash = 4;
+  // URL publica https cuando la clave es una URL; vacia en otro caso.
+  optional string url = 5;
+}
+
+message Lot {
+  string id = 1;
+  string seller_id = 2;
+  string title = 3;
+  string description = 4;
+  optional string artist_name = 5;
+  optional int32 creation_year = 6;
+  string materials = 7;
+  optional string width_cm = 8;
+  optional string height_cm = 9;
+  optional string depth_cm = 10;
+  optional string provenance = 11;
+  RepresentationKind representation_kind = 12;
+  LotStatus status = 13;
+  artauction.common.v1.Visibility visibility = 14;
+  optional int32 authenticity_score = 15;
+  optional string suggested_price_min = 16;
+  optional string suggested_price_max = 17;
+  string currency = 18;
+  repeated LotImage images = 19;
+  repeated LotCategory categories = 20;
+  google.protobuf.Timestamp created_at = 21;
+}
+
+message SignedUpload {
+  string upload_url = 1;
+  string object_key = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message ListPublicLotsRequest {
+  string query = 1;
+  string category_slug = 2;
+  RepresentationKind representation = 3;
+  LotSort sort = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+message ListPublicLotsResponse {
+  repeated Lot lots = 1;
+  artauction.common.v1.PageInfo page_info = 2;
+}
+
+message ListCategoriesRequest {}
+
+message ListCategoriesResponse {
+  repeated Category categories = 1;
+}
+
+message GetRelatedLotsRequest {
+  string lot_id = 1;
+}
+
+message GetRelatedLotsResponse {
+  repeated Lot lots = 1;
+}
+
+message GetLotRequest {
+  string lot_id = 1;
+}
+
+message GetLotResponse {
+  Lot lot = 1;
+}
+
+message BatchGetPublicLotsRequest {
+  repeated string lot_ids = 1;
+}
+
+message BatchGetPublicLotsResponse {
+  repeated Lot lots = 1;
+}
+
+message BatchGetLotSnapshotsRequest {
+  repeated string lot_ids = 1;
+}
+
+message BatchGetLotSnapshotsResponse {
+  repeated Lot lots = 1;
+}
+
+message ListReviewQueueRequest {
+  int32 limit = 1;
+}
+
+message ListReviewQueueResponse {
+  repeated Lot lots = 1;
+}
+
+message FindSimilarImagesRequest {
+  // Obra auditada: sus propias imagenes no cuentan como coincidencia.
+  string lot_id = 1;
+  repeated string perceptual_hashes = 2;
+  int32 max_distance = 3;
+}
+
+message SimilarImage {
+  string lot_id = 1;
+  string seller_id = 2;
+  // Hash de la obra auditada y hash de la otra obra que se le parece.
+  string query_hash = 3;
+  string matched_hash = 4;
+  int32 distance = 5;
+}
+
+message FindSimilarImagesResponse {
+  repeated SimilarImage matches = 1;
+}
+
+message CreateLotRequest {
+  string title = 1;
+  string description = 2;
+  optional string artist_name = 3;
+  optional int32 creation_year = 4;
+  string materials = 5;
+  string category_slug = 6;
+  RepresentationKind representation_kind = 7;
+  string width_cm = 8;
+  string height_cm = 9;
+  optional string depth_cm = 10;
+  optional string provenance = 11;
+}
+
+message CreateLotResponse {
+  Lot lot = 1;
+}
+
+message HashImageRequest {
+  string lot_id = 1;
+  bytes image = 2;
+}
+
+message HashImageResponse {
+  string perceptual_hash = 1;
+}
+
+message SignUploadRequest {
+  string lot_id = 1;
+  string content_type = 2;
+  int32 position = 3;
+}
+
+message SignUploadResponse {
+  SignedUpload upload = 1;
+}
+
+message RegisterImageRequest {
+  string lot_id = 1;
+  string object_key = 2;
+  int32 position = 3;
+  optional string perceptual_hash = 4;
+}
+
+message RegisterImageResponse {
+  LotImage image = 1;
+}
+
+message SubmitLotRequest {
+  string lot_id = 1;
+}
+
+message SubmitLotResponse {
+  LotStatus status = 1;
+}
+
+message ResolveManualReviewRequest {
+  string lot_id = 1;
+  ReviewDecision decision = 2;
+}
+
+message ResolveManualReviewResponse {
+  Lot lot = 1;
+}

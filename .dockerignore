@@ -1,11 +1,17 @@
-node_modules
+# Ni dependencias ni compilados del host: la imagen los construye desde cero.
+**/node_modules
+**/dist
+**/src/generated
+coverage
+
+# Secretos y entornos locales: llegan en tiempo de ejecucion, nunca dentro de la imagen.
+secrets
+**/.env
+**/.env.*
+!**/.env.example
+
 .git
 .github
-dist
-coverage
-test
-.env
-.env.*
-!.env.example
-npm-debug.log*
-README.md
+.husky
+docs
+*.md

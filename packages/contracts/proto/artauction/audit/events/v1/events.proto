@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package artauction.audit.events.v1;
+
+import "artauction/common/v1/common.proto";
+
+// Eventos que publica audit-service por su outbox.
+
+enum AuditVerdict {
+  AUDIT_VERDICT_UNSPECIFIED = 0;
+  AUDIT_VERDICT_APPROVED = 1;
+  AUDIT_VERDICT_MANUAL_REVIEW = 2;
+}
+
+message AuditCompleted {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string lot_id = 2;
+  string seller_id = 3;
+  string title = 4;
+  AuditVerdict verdict = 5;
+  int32 score = 6;
+  int32 price_min = 7;
+  int32 price_max = 8;
+  bool critical = 9;
+  // Hallazgos unidos en un texto para la descripcion de la venta.
+  string rationale = 10;
+}

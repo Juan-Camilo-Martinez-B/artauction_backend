@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package artauction.audit.v1;
+
+import "artauction/audit/events/v1/events.proto";
+import "google/protobuf/timestamp.proto";
+
+// Consulta de resultados de auditoria. El proceso de auditar lo dispara el
+// evento LotSubmitted.
+service AuditService {
+  rpc BatchGetLatestSummaries(BatchGetLatestSummariesRequest) returns (BatchGetLatestSummariesResponse);
+  // Solo ROLE_ADMIN: hallazgos de la ultima auditoria de cada obra con el
+  // valor de las evidencias que citan, para decidir una revision manual.
+  rpc BatchGetReviewReports(BatchGetReviewReportsRequest) returns (BatchGetReviewReportsResponse);
+}
+
+message AuditSummary {
+  string id = 1;
+  string lot_id = 2;
+  int32 score = 3;
+  string price_min = 4;
+  string price_max = 5;
+  artauction.audit.events.v1.AuditVerdict verdict = 6;
+  bool has_critical_inconsistency = 7;
+  string model_name = 8;
+  string prompt_version = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message BatchGetLatestSummariesRequest {
+  repeated string lot_ids = 1;
+}
+
+message BatchGetLatestSummariesResponse {
+  repeated AuditSummary summaries = 1;
+}
+
+enum ReviewSeverity {
+  REVIEW_SEVERITY_UNSPECIFIED = 0;
+  REVIEW_SEVERITY_INFO = 1;
+  REVIEW_SEVERITY_WARNING = 2;
+  REVIEW_SEVERITY_CRITICAL = 3;
+}
+
+message ReviewEvidence {
+  string code = 1;
+  string value = 2;
+}
+
+message ReviewFinding {
+  string code = 1;
+  ReviewSeverity severity = 2;
+  string message = 3;
+  repeated ReviewEvidence evidence = 4;
+}
+
+message ReviewReport {
+  string lot_id = 1;
+  string summary_id = 2;
+  int32 score = 3;
+  // RULES, AI o FALLBACK; vacio en informes anteriores a F7.
+  string decided_by = 4;
+  string model_name = 5;
+  google.protobuf.Timestamp created_at = 6;
+  repeated ReviewFinding findings = 7;
+}
+
+message BatchGetReviewReportsRequest {
+  repeated string lot_ids = 1;
+}
+
+message BatchGetReviewReportsResponse {
+  repeated ReviewReport reports = 1;
+}

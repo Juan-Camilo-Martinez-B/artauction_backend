@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package artauction.wallet.v1;
+
+import "artauction/auction/events/v1/events.proto";
+
+// Eventos que wallet-service consume: confirmar, liberar y liquidar retenciones.
+service WalletEventHandlerService {
+  rpc HandleBidAccepted(HandleBidAcceptedRequest) returns (HandleBidAcceptedResponse);
+  rpc HandleBidWithdrawn(HandleBidWithdrawnRequest) returns (HandleBidWithdrawnResponse);
+  rpc HandleAuctionClosed(HandleAuctionClosedRequest) returns (HandleAuctionClosedResponse);
+  rpc HandleAuctionRescheduled(HandleAuctionRescheduledRequest) returns (HandleAuctionRescheduledResponse);
+}
+
+message HandleBidAcceptedRequest {
+  artauction.auction.events.v1.BidAccepted event = 1;
+}
+
+message HandleBidAcceptedResponse {}
+
+message HandleBidWithdrawnRequest {
+  artauction.auction.events.v1.BidWithdrawn event = 1;
+}
+
+message HandleBidWithdrawnResponse {}
+
+message HandleAuctionClosedRequest {
+  artauction.auction.events.v1.AuctionClosed event = 1;
+}
+
+message HandleAuctionClosedResponse {}
+
+message HandleAuctionRescheduledRequest {
+  artauction.auction.events.v1.AuctionRescheduled event = 1;
+}
+
+message HandleAuctionRescheduledResponse {}

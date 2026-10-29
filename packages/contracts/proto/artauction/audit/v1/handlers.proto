@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package artauction.audit.v1;
+
+import "artauction/catalog/events/v1/events.proto";
+
+// Eventos que audit-service consume: encolar la auditoria de una obra.
+service AuditEventHandlerService {
+  rpc HandleLotSubmitted(HandleLotSubmittedRequest) returns (HandleLotSubmittedResponse);
+}
+
+message HandleLotSubmittedRequest {
+  artauction.catalog.events.v1.LotSubmitted event = 1;
+}
+
+message HandleLotSubmittedResponse {}

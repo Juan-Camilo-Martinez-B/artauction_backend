@@ -1,0 +1,14 @@
+{
+  "name": "@artauction/e2e",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Prueba de punta a punta de ArtAuction AI contra la plataforma levantada con docker compose: REST y Socket.IO del gateway, como los usa el frontend.",
+  "type": "module",
+  "scripts": {
+    "e2e": "node --test --test-concurrency=1 --test-timeout=240000 \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}

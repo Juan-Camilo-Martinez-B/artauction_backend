@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package artauction.common.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Metadatos que acompanan a todo evento de dominio. `event_id` es unico y
+// estable entre reintentos: los consumidores lo usan para descartar duplicados.
+message EventMetadata {
+  string event_id = 1;
+  google.protobuf.Timestamp occurred_at = 2;
+  string producer = 3;
+}
+
+message PageInfo {
+  int32 total = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+enum Visibility {
+  VISIBILITY_UNSPECIFIED = 0;
+  VISIBILITY_PUBLIC = 1;
+  VISIBILITY_PRIVATE = 2;
+}

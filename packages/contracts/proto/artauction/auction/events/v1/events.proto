@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package artauction.auction.events.v1;
+
+import "artauction/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+// Eventos que publica auction-service por su outbox.
+
+message AuctionStarted {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string auction_id = 2;
+  string lot_id = 3;
+}
+
+// Puja guardada. `reservation_id` es la clave de idempotencia de la puja y
+// confirma la reserva de artacoins hecha con WalletService.TryHold.
+message BidAccepted {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string auction_id = 2;
+  string bid_id = 3;
+  string bidder_id = 4;
+  string amount = 5;
+  google.protobuf.Timestamp ends_at = 6;
+  bool extended = 7;
+  string reservation_id = 8;
+  int32 held_coins = 9;
+}
+
+message BidWithdrawn {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string auction_id = 2;
+  string bidder_id = 3;
+}
+
+message AuctionClosed {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string auction_id = 2;
+  string lot_id = 3;
+  string seller_id = 4;
+  string winner_id = 5;
+  string amount = 6;
+}
+
+// La subasta termino sin pujas y se reprogramo.
+message AuctionRescheduled {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string auction_id = 2;
+  string lot_id = 3;
+}

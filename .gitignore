@@ -19,6 +19,9 @@ coverage/
 .env.*
 !.env.example
 
+# Claves RS256 y certificados TLS generados en local. Nunca se versionan.
+secrets/
+
 # Registros
 npm-debug.log*
 yarn-debug.log*
@@ -40,5 +43,5 @@ Thumbs.db
 *.local
 .eslintcache
 
-# Artefactos de Prisma generados en este servicio
-src/generated/
+# Código generado: Prisma y contratos gRPC (se regenera en el build)
+**/src/generated/

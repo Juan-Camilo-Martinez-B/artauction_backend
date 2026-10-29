@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package artauction.gallery.v1;
+
+import "artauction/auction/events/v1/events.proto";
+import "artauction/catalog/events/v1/events.proto";
+
+// Eventos que gallery-service consume: obras propias y ganadas.
+service GalleryEventHandlerService {
+  rpc HandleLotCreated(HandleLotCreatedRequest) returns (HandleLotCreatedResponse);
+  rpc HandleAuctionClosed(HandleAuctionClosedRequest) returns (HandleAuctionClosedResponse);
+}
+
+message HandleLotCreatedRequest {
+  artauction.catalog.events.v1.LotCreated event = 1;
+}
+
+message HandleLotCreatedResponse {}
+
+message HandleAuctionClosedRequest {
+  artauction.auction.events.v1.AuctionClosed event = 1;
+}
+
+message HandleAuctionClosedResponse {}

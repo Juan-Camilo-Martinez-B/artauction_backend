@@ -1,0 +1,31 @@
+{
+  "name": "@artauction/api-gateway",
+  "private": true,
+  "version": "0.1.0",
+  "description": "BFF de ArtAuction AI: contrato REST y Socket.IO del frontend sobre los microservicios gRPC.",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "node --env-file-if-exists=.env dist/main.js",
+    "dev": "npm run build && npm start",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@artauction/contracts": "1.0.0",
+    "@artauction/platform": "0.1.0",
+    "@artauction/service-kit": "0.1.0",
+    "@grpc/grpc-js": "1.14.6",
+    "@nestjs/common": "^11.2.7",
+    "@nestjs/core": "^11.2.7",
+    "@nestjs/platform-express": "^11.2.7",
+    "@nestjs/swagger": "^11.4.7",
+    "@nestjs/throttler": "^6.7.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "express": "^5.1.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "socket.io": "4.8.4"
+  }
+}
