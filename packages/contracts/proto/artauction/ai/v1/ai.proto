@@ -22,6 +22,14 @@ message Finding {
   string code = 1;
   FindingSeverity severity = 2;
   string message = 3;
+  // Codigos de evidencia del expediente que sostienen el hallazgo.
+  repeated string evidence = 4;
+}
+
+// Un dato del expediente: "img1.exif.software" = "Adobe Photoshop".
+message EvidenceItem {
+  string code = 1;
+  string value = 2;
 }
 
 message AuditArtworkRequest {
@@ -31,6 +39,14 @@ message AuditArtworkRequest {
   string materials = 4;
   optional int32 creation_year = 5;
   repeated string image_hashes = 6;
+  // Expediente de evidencias armado por audit-service. La IA razona sobre el
+  // y no recibe imagenes: asi el costo en tokens es acotado.
+  optional string artist_name = 7;
+  string declared_dimensions = 8;
+  string provenance = 9;
+  repeated EvidenceItem evidence = 10;
+  // Hallazgos de las reglas deterministas; la IA no puede contradecir uno critico.
+  repeated Finding rule_findings = 11;
 }
 
 message AuditArtworkResponse {

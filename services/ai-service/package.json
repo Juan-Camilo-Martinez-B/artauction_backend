@@ -1,0 +1,23 @@
+{
+  "name": "@artauction/ai-service",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Fachada de modelos generativos de ArtAuction AI: auditoria sobre expedientes de evidencias y diseno de galerias. Unico duenio de la clave de Gemini.",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "node --env-file-if-exists=.env dist/main.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@artauction/contracts": "1.0.0",
+    "@artauction/platform": "0.1.0",
+    "@artauction/service-kit": "0.1.0",
+    "@nestjs/common": "^11.2.7",
+    "@nestjs/core": "^11.2.7",
+    "class-validator": "^0.15.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  }
+}
