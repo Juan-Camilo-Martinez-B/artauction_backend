@@ -52,7 +52,7 @@ Escritos en `auction.outbox` en la misma transacción que el cambio y entregados
 | `AuctionClosed` | wallet (canje, liberaciones, pago al vendedor), catalog (`VENDIDA`), gallery y notification |
 | `AuctionRescheduled` | wallet (libera todo), catalog (vuelve a `PUBLICADA`) |
 
-Hasta F8, gallery y notification los atiende el servidor gRPC legado del monolito (`GALLERY_EVENTS_GRPC_URL` y `NOTIFICATION_EVENTS_GRPC_URL`).
+Cada consumidor tiene su URL (`WALLET_GRPC_URL`, `CATALOG_GRPC_URL`, `GALLERY_EVENTS_GRPC_URL`, `NOTIFICATION_EVENTS_GRPC_URL`).
 
 ## Sala en vivo
 
@@ -62,7 +62,7 @@ Hasta F8, gallery y notification los atiende el servidor gRPC legado del monolit
 
 ## Copia de la obra
 
-Para validar sin leer `catalog`, cada subasta guarda `seller_id` y `lot_title`, que llegan en los eventos y en la apertura manual. Mientras la auditoría siga en el monolito (hasta F7), este crea subastas sin la copia. Un trigger transitorio de la base (`auctions_fill_lot_copy`, migración `0018` de artauction_bd) la completa, y se elimina en la migración de contract de F7.
+Para validar sin leer `catalog`, cada subasta guarda `seller_id` y `lot_title`, que llegan en los eventos y en la apertura manual. Durante la migración, un trigger transitorio (`auctions_fill_lot_copy`, migración `0018` de artauction_bd) completaba la copia de las subastas que creaba el monolito. La migración `0020` lo retiró y las columnas son obligatorias.
 
 ## Estructura
 
@@ -88,9 +88,6 @@ cp .env.example .env     # completar DATABASE_URL (usuario auction_svc) y SERVIC
 npm run build -w @artauction/auction-service
 npm start -w @artauction/auction-service
 ```
-
-Con auction-service activo, el monolito debe arrancar con `AUCTIONS_IN_SERVICE=true` para que no abra ni cierre salas.
-
 ## Pruebas
 
 `npm test -w @artauction/auction-service`:

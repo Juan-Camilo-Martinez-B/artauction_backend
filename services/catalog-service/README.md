@@ -39,9 +39,6 @@ El cambio de estado y su evento se guardan en la **misma transacción** (`catalo
 | `LotCreated` | gallery (galería propia del vendedor) | `GALLERY_EVENTS_GRPC_URL` |
 | `LotSubmitted` | audit (encola la auditoría) | `AUDIT_EVENTS_GRPC_URL` |
 | `LotPublished` | auction (programa la subasta) | `AUCTION_EVENTS_GRPC_URL` |
-
-Mientras esos servicios no existen, las URL apuntan al servidor gRPC legado del monolito (Strangler Fig asíncrono). Cuando nazca cada uno, solo cambia su URL.
-
 ## Imágenes
 
 El navegador sube la imagen **directo al bucket** con la URL prefirmada; el backend nunca recibe el archivo. Las imágenes se leen desde la base pública `MEDIA_PUBLIC_BASE_URL`. En local el almacenamiento es Garage (S3-compatible, ver ADR 0007); en producción sirve cualquier S3 o la interoperabilidad S3 de Cloud Storage sin cambiar código.
@@ -62,6 +59,8 @@ src/
 ```
 
 ## Ejecutar
+
+Con toda la plataforma, `npm run compose:up` en la raíz: el job `storage-setup` crea el bucket, las llaves y el CORS. Para desarrollarlo solo, sobre el Garage de la carpeta raíz:
 
 ```bash
 bash scripts/storage/init-garage.sh            # en la raíz del monorepo, una vez

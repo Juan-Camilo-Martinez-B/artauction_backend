@@ -1,11 +1,11 @@
 # ai-service
 
-Fachada de modelos generativos de ArtAuction AI. Es el **único** servicio del sistema con la clave de Gemini (`GEMINI_API_KEY`): ningún otro servicio ni el monolito la conocen (mínimo privilegio). Expone `artauction.ai.v1.AiService` por gRPC (puerto `50055`) y no tiene base de datos.
+Fachada de modelos generativos de ArtAuction AI. Es el **único** servicio del sistema con la clave de Gemini (`GEMINI_API_KEY`): ningún otro servicio la conoce (mínimo privilegio). Expone `artauction.ai.v1.AiService` por gRPC (puerto `50055`) y no tiene base de datos.
 
 | RPC | Quién la llama | Qué hace |
 |---|---|---|
 | `AuditArtwork` | audit-service | Evalúa el **expediente de evidencias** de una obra y devuelve score, precio sugerido y hallazgos |
-| `DesignGallery` | la galería (hoy el monolito, como `gallery-service`) | Propone una configuración de galería 3D a partir de preferencias |
+| `DesignGallery` | gallery-service | Propone una configuración de galería 3D a partir de preferencias |
 
 Solo acepta tokens de servicio emitidos por identity-service, y cada RPC comprueba el `client_id` de quien llama.
 

@@ -1,39 +1,43 @@
 # api-gateway
 
-Backend for Frontend de ArtAuction AI. Ocupa `http://localhost:3001`, el mismo puerto y el mismo contrato REST y Socket.IO que usaba el monolito, así el frontend no cambia.
+Backend for Frontend de ArtAuction AI. Es la única puerta HTTP de la plataforma: el frontend habla con `http://localhost:3001` por REST y Socket.IO, y el gateway habla con los servicios por gRPC sobre HTTP/2. Conserva el contrato que tenía el monolito, así que el frontend no cambió con la migración.
 
 No contiene reglas de negocio. Hace cinco cosas:
 
-1. **Valida la forma** de cada petición (class-validator, mismas reglas que el monolito).
-2. **Traduce REST a gRPC** hacia el servicio dueño y reenvía el access token en la metadata `authorization`; el servicio lo verifica (zero trust).
-3. **Traduce errores gRPC a HTTP** con la misma forma JSON del monolito: `{ statusCode, error, message }`. Un error inesperado sale como 500 sin detalles.
-4. **Sirve la sala en vivo** por Socket.IO sobre los streams `WatchAuction` de auction-service.
-5. **Reenvía al monolito** lo que todavía no se ha migrado (Strangler Fig). Desde F6 ya no reenvía WebSocket.
+1. **Valida la forma** de cada petición con class-validator, antes de gastar una llamada gRPC.
+2. **Traduce REST a gRPC** hacia el servicio dueño y reenvía el access token en la metadata `authorization`. El servicio lo verifica por su cuenta (zero trust): el gateway no es una frontera de confianza.
+3. **Traduce errores a HTTP** con una sola forma JSON, `{ statusCode, error, message }`. Los códigos gRPC se mapean a su estado HTTP, los errores de cuerpo (JSON mal formado, cuerpo demasiado grande) salen como 400 o 413, y un error inesperado sale como 500 sin detalles.
+4. **Compone lecturas** de varios servicios, con degradación cuando un vecino no responde.
+5. **Sirve la sala en vivo** por Socket.IO sobre los streams `WatchAuction` de auction-service.
 
 ## Rutas
 
 | Ruta | Destino |
 |---|---|
-| `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `GET/PATCH /auth/me` | identity-service por gRPC |
+| `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `GET/PATCH /auth/me` | identity-service |
 | `GET /lots`, `GET /lots/categories`, `GET /lots/:id`, `GET /lots/:id/related` | catalog-service, compuesto con el resumen de subasta y el último informe de auditoría |
 | `POST /lots`, `/lots/:id/hash`, `/lots/:id/uploads`, `/lots/:id/images`, `/lots/:id/submit` | catalog-service |
 | `GET /admin/reviews` | cola de revisión manual: `ListReviewQueue` de catalog compuesto con `BatchGetReviewReports` de audit (hallazgos con el valor de sus evidencias). Si audit no responde, cada obra sale con `audit: null`. Solo ADMIN |
 | `POST /admin/lots/:id/resolve` | catalog-service (el rol ADMIN lo comprueba el servicio) |
 | `GET /wallet`, `POST /wallet/top-ups` | wallet-service. La recarga exige la cabecera `Idempotency-Key` (400 sin ella); 20 por minuto |
 | `GET /auctions/:id`, `POST /auctions`, `POST /auctions/:id/bids`, `POST /auctions/:id/withdraw` | auction-service. Las pujas no exponen su clave de idempotencia; 30 pujas por minuto |
-| `GET /health` | el propio gateway |
 | `/me/gallery/*` | gallery-service. El gateway completa cada obra colgada con su ficha pública de catalog; una obra que dejó de ser pública no se muestra |
 | `GET /galleries/:ownerId`, `POST /users/:id/follow`, `GET /feed` | gallery-service |
 | `GET /notifications` | notification-service. Repone como `null` los valores nulos que un `map` de proto no transporta |
-| todo lo demás | monolito en `LEGACY_URL`. Desde F8 solo queda `/docs`; el proxy se retira en F9 |
+| `GET /health` | el propio gateway |
+| `GET /docs`, `GET /docs-json` | contrato OpenAPI generado de los controladores (`@nestjs/swagger`) |
+
+Cualquier otra ruta responde 404.
 
 **Composición con degradación.** Las tarjetas y la ficha combinan el catálogo con `AuctionService.BatchGetAuctionSummaries` y `AuditService.BatchGetLatestSummaries`. Si alguno no responde, la obra sale con `auction: null` o `auditSummaries: []` en lugar de fallar: el catálogo no se cae por un servicio vecino.
 
-La lista de prefijos migrados está en `src/api/http/legacy-proxy.ts` (`MIGRATED_PREFIXES`). Cada fase de la migración agrega los suyos; cuando cubran todo, el proxy se retira.
+## OpenAPI
+
+`/docs` sirve Swagger UI y `/docs-json` el documento OpenAPI 3, generado de los DTO y controladores que validan cada petición. Así el contrato no se separa del código. Los endpoints protegidos declaran el esquema `bearer`. El resumen escrito de las rutas está en [`docs/openapi/v1.md`](../../docs/openapi/v1.md).
 
 ## Sala en vivo (Socket.IO)
 
-Mismo contrato que el monolito (`artauction_frontend/src/lib/ws/events.ts`):
+Contrato que consume el frontend (`artauction_frontend/src/lib/ws/events.ts`):
 
 | Dirección | Evento | Contenido |
 |---|---|---|
@@ -51,13 +55,14 @@ Mismo contrato que el monolito (`artauction_frontend/src/lib/ws/events.ts`):
 
 ## Decisiones
 
-- **Sin body parser global.** El cuerpo de las rutas reenviadas pasa intacto al monolito; solo las rutas migradas se parsean (límite 1 MB).
-- **`X-Forwarded-For`.** El proxy añade la IP del cliente y el monolito confía solo en un proxy local (`trust proxy = loopback`), para que su rate limit no meta a todos los usuarios en el mismo cupo.
+- **Límite de cuerpo por ruta.** `/lots` acepta hasta 12 MB, porque `POST /lots/:id/hash` recibe la imagen en base64 para calcular el hash perceptual. El resto, 1 MB. Las imágenes en sí no pasan por el gateway: el navegador las sube directo al bucket con una URL prefirmada.
 - **Rate limit propio.** 120 peticiones por minuto en general, 10 en `/auth/login` y 30 en `/auth/refresh`.
 - **Un canal HTTP/2 persistente por servicio** con keepalive; grpc-js multiplexa las llamadas. Cada llamada lleva deadline (`GRPC_DEADLINE_MS`) y correlation id.
-- **CORS** limitado a `CORS_ORIGINS`. En las respuestas proxificadas queda una sola cabecera `Access-Control-Allow-Origin`.
+- **CORS** limitado a `CORS_ORIGINS`.
 
 ## Ejecutar
+
+Con toda la plataforma, desde la raíz del monorepo: `npm run compose:up` (ver el README principal). Para desarrollarlo solo:
 
 ```bash
 cp .env.example .env
@@ -65,8 +70,17 @@ npm run build -w @artauction/api-gateway
 npm start -w @artauction/api-gateway
 ```
 
-Necesita identity-service en `IDENTITY_GRPC_URL`, auction-service en `AUCTION_GRPC_URL` para la sala en vivo y, mientras dure la migración, el monolito en `LEGACY_URL`.
+Necesita los servicios en las URL `*_GRPC_URL` del `.env`. Sin un servicio, sus rutas responden 503 y las lecturas compuestas se degradan; el resto sigue funcionando.
 
 ## Pruebas
 
-`npm test -w @artauction/api-gateway` levanta servicios gRPC falsos (identity, auction) y un monolito HTTP falso. Comprueba la forma de las respuestas (incluida la sala sin claves de idempotencia), la traducción de errores, la validación, el reenvío del token y el proxy con cuerpo intacto y `X-Forwarded-For`. También prueba el conteo de referencias y la reconexión de `RoomStreams` con timers falsos.
+`npm test -w @artauction/api-gateway` levanta servicios gRPC falsos (identity, auction) en memoria. Comprueba:
+
+- la forma de las respuestas, incluida la sala sin claves de idempotencia;
+- la traducción de errores, la validación y el reenvío del token;
+- el 404 de rutas desconocidas;
+- que `/docs-json` publique las rutas del frontend;
+- los límites de cuerpo (413) y el JSON mal formado (400);
+- el conteo de referencias y la reconexión de `RoomStreams`, con timers falsos.
+
+La prueba de punta a punta contra la plataforma real está en [`e2e/`](../../e2e).

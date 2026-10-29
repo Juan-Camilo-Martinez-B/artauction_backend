@@ -1,6 +1,8 @@
 # Plan de migracion a microservicios
 
-Estado: aprobado. Rama: `feat/microservices`.
+Estado: completado (F0 a F9). Rama: `feat/microservices`.
+
+La arquitectura resultante, con sus diagramas, está en [arquitectura.md](arquitectura.md). Este documento queda como registro del plan y de cómo se ejecutó.
 
 ## Objetivo
 
@@ -91,13 +93,23 @@ Cada esquema tiene tablas `outbox` e `inbox`. La inbox guarda los ids de eventos
 | F8 | gallery-service, notification-service y revision manual | galeria 3D, feed y notificaciones |
 | F9 | Compose completo, retiro del monolito y de las vistas, e2e, CI, README | `docker compose up` y frontend completo |
 
-Mientras dura la migracion, el gateway reenvia al monolito las rutas que aun no se han migrado (Strangler Fig). Asi la aplicacion funciona al cerrar cada fase.
+Mientras duro la migracion, el gateway reenvio al monolito las rutas que aun no se habian migrado (Strangler Fig). Asi la aplicacion funciono al cerrar cada fase.
+
+## Cierre de F9
+
+- `compose.yaml` levanta en un solo comando la infraestructura, los jobs de migracion y almacenamiento, los nueve servicios y el frontend (`npm run compose:up`).
+- Se retiraron el monolito (`src/`, sus pruebas, Prisma y dependencias) y el proxy del gateway. Las rutas desconocidas responden 404.
+- El gateway publica OpenAPI en `/docs` y `/docs-json`.
+- `artauction_bd` 0.8.0 retira las vistas de compatibilidad y los esquemas `pgboss` y `audit_queue` (migracion `0021`).
+- La prueba de punta a punta (`e2e/`) recorre la plataforma por el gateway. La CI la corre sobre compose en cada PR y en `main`, junto con `buf breaking`.
+- La e2e encontro un defecto que las pruebas unitarias no veian: audit-service no escribia `summaryId` en los informes de Mongo, y el indice unico de `artauction_bd` rechazaba desde el segundo informe en una base nueva. Ahora el campo repite el id del resumen.
 
 ## Versionado
 
 - Ramas: `feat/microservices` (backend), `feat/schema-per-service` (base de datos), `feat/topup-idempotency` (frontend).
 - Un commit por paso significativo, en Conventional Commits. Push al cerrar cada fase, previa confirmacion.
 
-## Decisiones abiertas
+## Decisiones que cambiaron durante la ejecucion
 
-- El vendedor no recibe artacoins al vender; el canje solo descuenta al ganador. Se mantiene. Si se quiere abonar al vendedor, basta un consumidor mas de `AuctionClosed` en wallet.
+- Al vender, el vendedor si recibe artacoins: wallet abona el precio menos la comision de la plataforma (`PLATFORM_FEE_BPS`, 10 % por defecto), registrada en `wallet.platform_fees`. El plan original solo descontaba al ganador.
+- La auditoria no llama a la IA con imagenes: arma un expediente de evidencias y decide por reglas cuando hay un conflicto critico (ADR 0009).
