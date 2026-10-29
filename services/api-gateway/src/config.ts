@@ -14,10 +14,6 @@ export class GatewayConfig {
   @MinLength(1)
   CORS_ORIGINS = 'http://localhost:3000';
 
-  /** Monolito que aun atiende las rutas no migradas (Strangler Fig). Vacio lo desactiva. */
-  @IsString()
-  LEGACY_URL = '';
-
   @IsString()
   @MinLength(1)
   IDENTITY_GRPC_URL = '127.0.0.1:50051';

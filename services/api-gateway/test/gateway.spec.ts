@@ -1,35 +1,16 @@
-import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { identityV1 } from '@artauction/contracts';
 import { DomainError, loadConfig, StructuredLogger } from '@artauction/platform';
 import { startGrpcServer, unary, type RunningServer } from '@artauction/service-kit';
-import { isMigrated } from '../src/api/http/legacy-proxy';
 import { createGateway } from '../src/app';
 import { GatewayConfig } from '../src/config';
 
-describe('tabla de rutas migradas', () => {
-  it('distingue prefijos exactos de prefijos parecidos', () => {
-    expect(isMigrated('/auth/login')).toBe(true);
-    expect(isMigrated('/auth?x=1')).toBe(true);
-    expect(isMigrated('/authors')).toBe(false);
-    expect(isMigrated('/lots/123/related')).toBe(true);
-    expect(isMigrated('/admin/lots/1/resolve')).toBe(true);
-    expect(isMigrated('/wallet/top-ups')).toBe(true);
-    expect(isMigrated('/auctions/a1/bids')).toBe(true);
-    expect(isMigrated('/galleries/me')).toBe(true);
-    expect(isMigrated('/notifications')).toBe(true);
-    expect(isMigrated('/docs')).toBe(false);
-  });
-});
-
-describe('gateway sobre identity y el monolito', () => {
+describe('gateway sobre identity', () => {
   const logger = new StructuredLogger('test', () => undefined);
   let identity: RunningServer;
-  let legacy: Server;
   let gateway: NestExpressApplication;
   let base: string;
-  const seen: Array<{ url: string; body: string; forwardedFor: string | undefined }> = [];
   let seenAuthorization: string | undefined;
 
   beforeAll(async () => {
@@ -70,21 +51,9 @@ describe('gateway sobre identity y el monolito', () => {
       services: [{ name: 'identity', definition: identityV1.IdentityServiceService, implementation }],
     });
 
-    legacy = createServer((request: IncomingMessage, response) => {
-      let body = '';
-      request.on('data', (chunk: Buffer) => (body += chunk.toString()));
-      request.on('end', () => {
-        const forwarded = request.headers['x-forwarded-for'];
-        seen.push({ url: request.url ?? '', body, forwardedFor: Array.isArray(forwarded) ? forwarded[0] : forwarded });
-        response.writeHead(200, { 'content-type': 'application/json' });
-        response.end(JSON.stringify({ from: 'monolito' }));
-      });
-    });
-    await new Promise<void>((resolve) => legacy.listen(0, '127.0.0.1', resolve));
 
     const config = loadConfig(GatewayConfig, {
       PORT: '3999',
-      LEGACY_URL: `http://127.0.0.1:${String((legacy.address() as AddressInfo).port)}`,
       IDENTITY_GRPC_URL: `127.0.0.1:${String(identity.port)}`,
     });
     gateway = await createGateway(config, logger);
@@ -95,17 +64,12 @@ describe('gateway sobre identity y el monolito', () => {
   afterAll(async () => {
     await gateway.close();
     await identity.shutdown();
-    await new Promise<void>((resolve) => {
-      legacy.close(() => {
-        resolve();
-      });
-    });
   });
 
   const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
     fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
 
-  it('responde el login con la forma del monolito', async () => {
+  it('responde el login con la forma que consume el frontend', async () => {
     const response = await post('/auth/login', { email: 'leo@artauction.local', password: 'DevPassword!234' });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ accessToken: 'a', refreshToken: 'r', expiresIn: '15m' });
@@ -134,12 +98,23 @@ describe('gateway sobre identity y el monolito', () => {
     expect(response.status).toBe(400);
   });
 
-  it('reenvia lo no migrado al monolito con el cuerpo intacto y la IP del cliente', async () => {
-    const response = await post('/docs/echo', { lotId: 'l1' });
-    expect(await response.json()).toEqual({ from: 'monolito' });
-    const last = seen.at(-1);
-    expect(last?.url).toBe('/docs/echo');
-    expect(last?.body).toBe(JSON.stringify({ lotId: 'l1' }));
-    expect(last?.forwardedFor).toBeDefined();
+  it('sin monolito, una ruta desconocida responde 404', async () => {
+    const response = await fetch(`${base}/ruta-que-no-existe`);
+    expect(response.status).toBe(404);
+  });
+
+  it('publica el contrato OpenAPI con las rutas del frontend', async () => {
+    const response = await fetch(`${base}/docs-json`);
+    expect(response.status).toBe(200);
+    const document = (await response.json()) as { paths: Record<string, unknown> };
+    expect(Object.keys(document.paths)).toEqual(expect.arrayContaining(['/auth/login', '/lots', '/auctions/{id}/bids', '/me/gallery', '/admin/reviews']));
+  });
+
+  it('limita el cuerpo a 1 MB fuera de /lots', async () => {
+    const response = await post('/auth/login', { email: 'leo@artauction.local', password: 'x'.repeat(1_100_000) });
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({ statusCode: 413, error: 'Payload Too Large' });
+    const malformed = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"email":' });
+    expect(malformed.status).toBe(400);
   });
 });

@@ -9,7 +9,7 @@ async function bootstrap(): Promise<void> {
   const app = await createGateway(config, logger);
   app.enableShutdownHooks();
   await app.listen(config.PORT, '0.0.0.0');
-  logger.log(`HTTP escuchando en :${String(config.PORT)}; legado ${config.LEGACY_URL || 'desactivado'}`, 'http');
+  logger.log(`HTTP escuchando en :${String(config.PORT)}`, 'http');
 }
 
 bootstrap().catch((error: unknown) => {
