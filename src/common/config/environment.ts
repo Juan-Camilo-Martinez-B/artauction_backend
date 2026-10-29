@@ -10,12 +10,6 @@ export class Environment {
   @Min(1)
   PORT = 3001;
 
-  // Transitorio: servidor gRPC que expone al monolito como consumidor de eventos
-  // de los microservicios mientras sus servicios dueños no existen. 0 lo apaga.
-  @IsInt()
-  @Min(0)
-  LEGACY_GRPC_PORT = 0;
-
   // Transitorio: con auction-service activo, el monolito no abre ni cierra
   // subastas; si lo hicieran los dos, una sala se procesaria dos veces.
   @IsBoolean()
@@ -51,20 +45,6 @@ export class Environment {
   @IsString()
   JWT_PUBLIC_KEY_PATH = '';
 
-  // Transitorio hasta F8: el diseno de galerias se pide a ai-service. El
-  // monolito se identifica como gallery-service. Vacio usa el diseno local.
-  @IsOptional()
-  @IsString()
-  AI_GRPC_URL = '';
-
-  @IsString()
-  @MinLength(1)
-  IDENTITY_GRPC_URL = '127.0.0.1:50051';
-
-  @IsOptional()
-  @IsString()
-  GALLERY_SERVICE_CLIENT_SECRET = '';
-
   @IsString()
   @MinLength(1)
   GCS_BUCKET = 'artauction-images-dev';
@@ -90,10 +70,6 @@ export class Environment {
       .filter((origin) => origin.length > 0);
   }
 
-  get aiServiceConfigured(): boolean {
-    return this.AI_GRPC_URL.trim().length > 0 && this.GALLERY_SERVICE_CLIENT_SECRET.trim().length >= 20;
-  }
-
   /** Clave publica RS256 de identity-service, o null si el monolito sigue con HS256. */
   get identityPublicKey(): string | null {
     const path = this.JWT_PUBLIC_KEY_PATH.trim();
@@ -109,7 +85,6 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
     {
       NODE_ENV: source['NODE_ENV'] ?? 'development',
       PORT: source['PORT'] !== undefined ? Number(source['PORT']) : 3001,
-      LEGACY_GRPC_PORT: source['LEGACY_GRPC_PORT'] !== undefined ? Number(source['LEGACY_GRPC_PORT']) : 0,
       AUCTIONS_IN_SERVICE: source['AUCTIONS_IN_SERVICE'] === 'true',
       DATABASE_URL: source['DATABASE_URL'],
       MONGODB_URI: source['MONGODB_URI'],
@@ -118,9 +93,6 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
       JWT_REFRESH_SECRET: source['JWT_REFRESH_SECRET'],
       JWT_REFRESH_TTL: source['JWT_REFRESH_TTL'] ?? '7d',
       JWT_PUBLIC_KEY_PATH: source['JWT_PUBLIC_KEY_PATH'] ?? '',
-      AI_GRPC_URL: source['AI_GRPC_URL'] ?? '',
-      IDENTITY_GRPC_URL: source['IDENTITY_GRPC_URL'] ?? '127.0.0.1:50051',
-      GALLERY_SERVICE_CLIENT_SECRET: source['GALLERY_SERVICE_CLIENT_SECRET'] ?? '',
       GCS_BUCKET: source['GCS_BUCKET'] ?? 'artauction-images-dev',
       GCS_SIGNED_URL_TTL_SECONDS:
         source['GCS_SIGNED_URL_TTL_SECONDS'] !== undefined

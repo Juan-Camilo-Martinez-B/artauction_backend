@@ -8,8 +8,6 @@ import { PrismaService } from '../src/infra/postgres/prisma.service';
 import { PostgresModule } from '../src/infra/postgres/postgres.module';
 import { CatalogoService } from '../src/modules/catalogo/catalogo.service';
 import { CatalogoModule } from '../src/modules/catalogo/catalogo.module';
-import { GaleriasModule } from '../src/modules/galerias-social/galerias.module';
-import { NotificacionesModule } from '../src/modules/notificaciones/notificaciones.module';
 import { AuctionCloser } from '../src/modules/subastas/auction-closer';
 import { AuctionsService } from '../src/modules/subastas/auctions.service';
 import { BidsService } from '../src/modules/subastas/bids.service';
@@ -41,8 +39,6 @@ describe('pujas y obras privadas', () => {
         PostgresModule,
         MongoModule.forRoot(),
         CatalogoModule,
-        GaleriasModule,
-        NotificacionesModule,
         SubastasModule,
       ],
     }).compile();

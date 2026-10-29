@@ -3,12 +3,10 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { canTransition } from '../../common/domain/lot-state';
 import { canViewLot } from '../../common/domain/visibility';
-import { GALLERY_GRANTS, type GalleryGrants } from '../../common/outcomes';
 import { PrismaService } from '../../infra/postgres/prisma.service';
 import { STORAGE, type StoragePort } from '../../infra/storage/storage.port';
 import { ImageHashPool } from '../../infra/workers/image-hash.pool';
@@ -29,7 +27,6 @@ export class CatalogoService {
     private readonly prisma: PrismaService,
     private readonly hashes: ImageHashPool,
     @Inject(STORAGE) private readonly storage: StoragePort,
-    @Optional() @Inject(GALLERY_GRANTS) private readonly grants?: GalleryGrants,
   ) {}
 
   async create(sellerId: string, input: CreateLotDto) {
@@ -60,7 +57,6 @@ export class CatalogoService {
         categories: { create: { categoryId: category.id, isPrimary: true } },
       },
     });
-    await this.grants?.grantOwnLot({ ownerId: sellerId, lotId: lot.id });
     return lot;
   }
 

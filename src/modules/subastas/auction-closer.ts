@@ -1,6 +1,5 @@
-import { Inject, Injectable, Optional, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { ENV, type Environment } from '../../common/config/environment';
-import { GALLERY_GRANTS, OUTCOME_NOTIFIER, type GalleryGrants, type OutcomeNotifier } from '../../common/outcomes';
 import { PrismaService } from '../../infra/postgres/prisma.service';
 import { settleHolds } from '../bolsillo/ledger';
 import { AuctionBus } from './auction-bus';
@@ -27,8 +26,6 @@ export class AuctionCloser implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly bus: AuctionBus,
     @Inject(ENV) private readonly env: Environment,
-    @Optional() @Inject(GALLERY_GRANTS) private readonly grants?: GalleryGrants,
-    @Optional() @Inject(OUTCOME_NOTIFIER) private readonly notifier?: OutcomeNotifier,
   ) {}
 
   onModuleInit(): void {
@@ -176,8 +173,6 @@ export class AuctionCloser implements OnModuleInit, OnModuleDestroy {
     if (closed.rescheduled || !closed.winnerId) {
       return true;
     }
-    await this.grants?.grantWonLot({ ownerId: closed.winnerId, lotId: closed.lotId });
-    await this.notifier?.auctionClosed(closed);
     this.bus.auctionClosed({
       version: 1,
       auctionId: closed.auctionId,
