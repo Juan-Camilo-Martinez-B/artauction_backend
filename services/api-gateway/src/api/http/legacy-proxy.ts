@@ -6,7 +6,19 @@ import type { StructuredLogger } from '@artauction/platform';
  * demas se reenvia al monolito (Strangler Fig). Cada fase de la migracion
  * agrega aqui sus rutas; cuando la lista cubra todo, el proxy se retira.
  */
-export const MIGRATED_PREFIXES: readonly string[] = ['/auth', '/health', '/lots', '/admin', '/wallet', '/auctions'];
+export const MIGRATED_PREFIXES: readonly string[] = [
+  '/auth',
+  '/health',
+  '/lots',
+  '/admin',
+  '/wallet',
+  '/auctions',
+  '/me',
+  '/galleries',
+  '/users',
+  '/feed',
+  '/notifications',
+];
 
 /** Limite de cuerpo por prefijo. /lots recibe imagenes en base64 para el hash. */
 export const BODY_LIMITS: Readonly<Record<string, string>> = { '/lots': '12mb' };

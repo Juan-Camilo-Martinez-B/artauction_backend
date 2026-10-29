@@ -41,8 +41,7 @@ function integer(payload: Record<string, unknown>, key: string): number {
 
 /**
  * Traduce los eventos del outbox de auction a artauction.auction.events.v1 y
- * los entrega a cada consumidor. Gallery y notification siguen en el monolito
- * (servidor gRPC legado) hasta F8: solo cambia su URL.
+ * los entrega a cada consumidor.
  */
 export function auctionOutboxRoutes(
   endpoints: ConsumerEndpoints,

@@ -17,7 +17,9 @@ describe('tabla de rutas migradas', () => {
     expect(isMigrated('/admin/lots/1/resolve')).toBe(true);
     expect(isMigrated('/wallet/top-ups')).toBe(true);
     expect(isMigrated('/auctions/a1/bids')).toBe(true);
-    expect(isMigrated('/galleries/me')).toBe(false);
+    expect(isMigrated('/galleries/me')).toBe(true);
+    expect(isMigrated('/notifications')).toBe(true);
+    expect(isMigrated('/docs')).toBe(false);
   });
 });
 
@@ -133,10 +135,10 @@ describe('gateway sobre identity y el monolito', () => {
   });
 
   it('reenvia lo no migrado al monolito con el cuerpo intacto y la IP del cliente', async () => {
-    const response = await post('/galleries/me/items', { lotId: 'l1' });
+    const response = await post('/docs/echo', { lotId: 'l1' });
     expect(await response.json()).toEqual({ from: 'monolito' });
     const last = seen.at(-1);
-    expect(last?.url).toBe('/galleries/me/items');
+    expect(last?.url).toBe('/docs/echo');
     expect(last?.body).toBe(JSON.stringify({ lotId: 'l1' }));
     expect(last?.forwardedFor).toBeDefined();
   });

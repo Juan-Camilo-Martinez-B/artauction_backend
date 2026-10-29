@@ -45,8 +45,7 @@ export function auditCompletedMessage(message: OutboxMessage): auditEventsV1.Aud
 
 /**
  * AuditCompleted va a catalog (estado y precios), auction (programa la sala si
- * se aprobo) y notification (aviso al vendedor). Notification sigue en el
- * servidor gRPC legado del monolito hasta F8: solo cambia su URL.
+ * se aprobo) y notification (aviso al vendedor).
  */
 export function auditOutboxRoutes(
   endpoints: ConsumerEndpoints,

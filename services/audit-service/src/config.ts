@@ -53,10 +53,10 @@ export class AuditConfig {
   @MinLength(1)
   AUCTION_EVENTS_GRPC_URL = '127.0.0.1:50054';
 
-  /** Hasta F8 las notificaciones las atiende el servidor gRPC legado del monolito. */
+  /** notification-service: aviso del resultado al vendedor. */
   @IsString()
   @MinLength(1)
-  NOTIFICATION_EVENTS_GRPC_URL = '127.0.0.1:50090';
+  NOTIFICATION_EVENTS_GRPC_URL = '127.0.0.1:50058';
 
   /** Base publica de las imagenes en Garage y su direccion interna. */
   @IsString()

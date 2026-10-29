@@ -20,11 +20,16 @@ import {
   createAuditClient,
   createCatalogClient,
   createIdentityClient,
+  createGalleryClient,
+  createNotificationClient,
   createWalletClient,
+  GALLERY_CLIENT,
   IDENTITY_CLIENT,
+  NOTIFICATION_CLIENT,
   WALLET_CLIENT,
 } from './clients/grpc-clients';
 import { WalletController } from './api/http/wallet/wallet.controller';
+import { NotificationsController, PersonalGalleryController, SocialController } from './api/http/gallery/gallery.controller';
 import type { GatewayConfig } from './config';
 
 @Module({})
@@ -35,6 +40,8 @@ export class GatewayModule implements OnApplicationShutdown {
     @Inject(AUCTION_CLIENT) private readonly auction: Client,
     @Inject(AUDIT_CLIENT) private readonly audit: Client,
     @Inject(WALLET_CLIENT) private readonly wallet: Client,
+    @Inject(GALLERY_CLIENT) private readonly gallery: Client,
+    @Inject(NOTIFICATION_CLIENT) private readonly notification: Client,
     @Inject(LIVE_ROOM) private readonly liveRoom: LiveRoom | null,
   ) {}
 
@@ -42,7 +49,7 @@ export class GatewayModule implements OnApplicationShutdown {
     return {
       module: GatewayModule,
       imports: [ThrottlerModule.forRoot({ throttlers: [{ name: 'default', ttl: 60_000, limit: 120 }] })],
-      controllers: [AuthController, CatalogController, AdminController, WalletController, AuctionsController, HealthController],
+      controllers: [AuthController, CatalogController, AdminController, WalletController, AuctionsController, PersonalGalleryController, SocialController, NotificationsController, HealthController],
       providers: [
         { provide: GATEWAY_CONFIG, useValue: config },
         { provide: GATEWAY_LOGGER, useValue: logger },
@@ -51,6 +58,8 @@ export class GatewayModule implements OnApplicationShutdown {
         { provide: AUCTION_CLIENT, useFactory: () => createAuctionClient(config) },
         { provide: AUDIT_CLIENT, useFactory: () => createAuditClient(config) },
         { provide: WALLET_CLIENT, useFactory: () => createWalletClient(config) },
+        { provide: GALLERY_CLIENT, useFactory: () => createGalleryClient(config) },
+        { provide: NOTIFICATION_CLIENT, useFactory: () => createNotificationClient(config) },
         {
           provide: LIVE_ROOM,
           inject: [AUCTION_CLIENT],
@@ -63,7 +72,7 @@ export class GatewayModule implements OnApplicationShutdown {
 
   onApplicationShutdown(): void {
     this.liveRoom?.close();
-    for (const client of [this.identity, this.catalog, this.auction, this.audit, this.wallet]) {
+    for (const client of [this.identity, this.catalog, this.auction, this.audit, this.wallet, this.gallery, this.notification]) {
       client.close();
     }
   }

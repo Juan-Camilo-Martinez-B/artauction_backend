@@ -40,15 +40,14 @@ export class AuctionConfig {
   @MinLength(1)
   WALLET_GRPC_URL = '127.0.0.1:50053';
 
-  // Consumidores de los eventos de subasta. Gallery y notification siguen en el
-  // servidor gRPC legado del monolito hasta F8.
+  // Consumidores de AuctionClosed: galeria del ganador y avisos.
   @IsString()
   @MinLength(1)
-  GALLERY_EVENTS_GRPC_URL = '127.0.0.1:50090';
+  GALLERY_EVENTS_GRPC_URL = '127.0.0.1:50057';
 
   @IsString()
   @MinLength(1)
-  NOTIFICATION_EVENTS_GRPC_URL = '127.0.0.1:50090';
+  NOTIFICATION_EVENTS_GRPC_URL = '127.0.0.1:50058';
 
   @IsInt()
   @Min(500)

@@ -38,6 +38,14 @@ export class GatewayConfig {
   @MinLength(1)
   AUDIT_GRPC_URL = '127.0.0.1:50056';
 
+  @IsString()
+  @MinLength(1)
+  GALLERY_GRPC_URL = '127.0.0.1:50057';
+
+  @IsString()
+  @MinLength(1)
+  NOTIFICATION_GRPC_URL = '127.0.0.1:50058';
+
   /** Clave publica RS256 de identity-service para autenticar la sala en vivo. Vacia la desactiva. */
   @IsString()
   JWT_PUBLIC_KEY_PATH = '';
