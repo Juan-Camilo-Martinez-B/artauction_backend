@@ -27,6 +27,7 @@ import { ApplyAuditVerdict, MarkLotInAuction, MarkLotSold, RepublishUnsoldLot } 
 import {
   BatchGetLotSnapshots,
   FindSimilarImages,
+  ListReviewQueue,
   BatchGetPublicLots,
   GetLotForViewer,
   GetRelatedLots,
@@ -107,6 +108,7 @@ const providers: Provider[] = [
           batchPublic: new BatchGetPublicLots(lots),
           batchSnapshots: new BatchGetLotSnapshots(lots),
           similarImages: new FindSimilarImages(lots),
+          reviewQueue: new ListReviewQueue(lots),
           create: new CreateLot(lots),
           signUpload: new SignImageUpload(lots, signer, tokens),
           registerImage: new RegisterLotImage(lots),

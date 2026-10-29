@@ -25,6 +25,8 @@ service CatalogService {
   rpc SignUpload(SignUploadRequest) returns (SignUploadResponse);
   rpc RegisterImage(RegisterImageRequest) returns (RegisterImageResponse);
   rpc SubmitLot(SubmitLotRequest) returns (SubmitLotResponse);
+  // Solo ROLE_ADMIN: obras en revision manual, la mas antigua primero.
+  rpc ListReviewQueue(ListReviewQueueRequest) returns (ListReviewQueueResponse);
   // Solo ROLE_ADMIN.
   rpc ResolveManualReview(ResolveManualReviewRequest) returns (ResolveManualReviewResponse);
 }
@@ -162,6 +164,14 @@ message BatchGetLotSnapshotsRequest {
 }
 
 message BatchGetLotSnapshotsResponse {
+  repeated Lot lots = 1;
+}
+
+message ListReviewQueueRequest {
+  int32 limit = 1;
+}
+
+message ListReviewQueueResponse {
   repeated Lot lots = 1;
 }
 

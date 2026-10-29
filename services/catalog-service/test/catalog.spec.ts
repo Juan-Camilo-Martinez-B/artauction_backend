@@ -5,7 +5,7 @@ import { canTransition, type LotStatus } from '../src/internal/domain/lot-status
 import type { LotPatch, LotRepository, LotTransitions, PublicLotQuery, SimilarImage } from '../src/internal/application/ports';
 import { CreateLot, RegisterLotImage, ResolveManualReview, SignImageUpload, SubmitLot } from '../src/internal/application/commands';
 import { MarkLotSold } from '../src/internal/application/event-handlers';
-import { FindSimilarImages, GetLotForViewer, ListPublicLots } from '../src/internal/application/queries';
+import { FindSimilarImages, GetLotForViewer, ListPublicLots, ListReviewQueue } from '../src/internal/application/queries';
 
 const SELLER: Actor = { userId: 'a0000000-0000-4000-8000-000000000002', role: 'SELLER' };
 const OTHER: Actor = { userId: 'a0000000-0000-4000-8000-000000000003', role: 'SELLER' };
@@ -43,6 +43,10 @@ class MemoryLots implements LotRepository {
 
   listActiveCategories() {
     return Promise.resolve([PAINTINGS]);
+  }
+
+  listByStatus(status: LotStatus, limit: number) {
+    return Promise.resolve([...this.lots.values()].filter((lot) => lot.status === status).slice(0, limit));
   }
 
   findSimilarImages(lotId: string, hashes: readonly string[], maxDistance: number) {
@@ -283,5 +287,14 @@ describe('casos de uso del catalogo', () => {
     expect(await similar.execute(mine.id, ['0000000000000000'], 6)).toEqual([]);
     await expect(similar.execute(mine.id, ['no-es-hash'], 6)).rejects.toBeInstanceOf(DomainError);
     await expect(similar.execute(mine.id, ['ffffffffffffff00'], 40)).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it('solo un administrador ve la cola de revision manual', async () => {
+    const lots = new MemoryLots();
+    const draft = await new CreateLot(lots).execute(SELLER, NEW_LOT);
+    lots.lots.set(draft.id, { ...draft, status: 'REVISION_MANUAL' });
+    const queue = new ListReviewQueue(lots);
+    expect((await queue.execute(ADMIN, 10)).map((lot) => lot.id)).toEqual([draft.id]);
+    await expectKind(queue.execute(SELLER, 10), 'PERMISSION_DENIED');
   });
 });

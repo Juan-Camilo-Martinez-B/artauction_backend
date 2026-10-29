@@ -88,6 +88,11 @@ export class PrismaLotRepository implements LotRepository {
     return row ? toLot(row) : null;
   }
 
+  async listByStatus(status: LotStatus, limit: number): Promise<Lot[]> {
+    const rows = await this.prisma.lot.findMany({ where: { status }, orderBy: { updatedAt: 'asc' }, take: limit, include: lotInclude });
+    return rows.map(toLot);
+  }
+
   async findByIds(lotIds: readonly string[]): Promise<Lot[]> {
     const ids = lotIds.filter((id) => UUID.test(id));
     if (ids.length === 0) {

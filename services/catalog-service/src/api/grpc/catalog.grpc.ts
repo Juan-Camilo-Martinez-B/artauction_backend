@@ -12,6 +12,7 @@ import type {
 import type {
   BatchGetLotSnapshots,
   FindSimilarImages,
+  ListReviewQueue,
   BatchGetPublicLots,
   GetLotForViewer,
   GetRelatedLots,
@@ -28,6 +29,7 @@ export interface CatalogUseCases {
   batchPublic: BatchGetPublicLots;
   batchSnapshots: BatchGetLotSnapshots;
   similarImages: FindSimilarImages;
+  reviewQueue: ListReviewQueue;
   create: CreateLot;
   signUpload: SignImageUpload;
   registerImage: RegisterLotImage;
@@ -145,6 +147,12 @@ export function catalogGrpcService(
       await useCases.submit.execute(callers.user(context), request.lotId);
       return catalogV1.SubmitLotResponse.fromPartial({ status: catalogV1.LotStatus.LOT_STATUS_PENDIENTE_AUDITORIA });
     }),
+
+    listReviewQueue: unary(logger, 'ListReviewQueue', async (request, context) =>
+      catalogV1.ListReviewQueueResponse.fromPartial({
+        lots: (await useCases.reviewQueue.execute(callers.user(context), request.limit)).map(lot),
+      }),
+    ),
 
     resolveManualReview: unary(logger, 'ResolveManualReview', async (request, context) => {
       const resolved = await useCases.resolve.execute(

@@ -1,5 +1,5 @@
 import { DomainError } from '@artauction/platform';
-import { canViewLot, isListedPublicly, type Category, type Lot, type RepresentationKind } from '../domain/lot';
+import { canViewLot, isListedPublicly, type Actor, type Category, type Lot, type RepresentationKind } from '../domain/lot';
 import type { LotRepository, LotSort, SimilarImage } from './ports';
 
 const MAX_PAGE_SIZE = 60;
@@ -79,6 +79,21 @@ export class BatchGetLotSnapshots {
 
   execute(lotIds: readonly string[]): Promise<Lot[]> {
     return this.lots.findByIds(uniqueIds(lotIds));
+  }
+}
+
+const MAX_REVIEW_QUEUE = 50;
+
+/** Cola de revision manual: solo la ve un administrador. */
+export class ListReviewQueue {
+  constructor(private readonly lots: LotRepository) {}
+
+  async execute(actor: Actor, limit: number): Promise<Lot[]> {
+    if (actor.role !== 'ADMIN') {
+      throw DomainError.forbidden('Solo un administrador ve la cola de revision');
+    }
+    const size = Number.isInteger(limit) && limit > 0 ? Math.min(limit, MAX_REVIEW_QUEUE) : MAX_REVIEW_QUEUE;
+    return this.lots.listByStatus('REVISION_MANUAL', size);
   }
 }
 

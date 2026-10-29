@@ -1,5 +1,5 @@
 import type { DomainEvent } from '@artauction/platform';
-import type { Dossier, ImageMetrics, LotSheet, SimilarImageMatch } from '../domain/dossier';
+import type { Dossier, Finding, ImageMetrics, LotSheet, SimilarImageMatch } from '../domain/dossier';
 import type { Assessment, DecidedBy, Verdict } from '../domain/verdict';
 
 export interface AuditRequest {
@@ -19,6 +19,25 @@ export interface AuditSummary {
   modelName: string;
   promptVersion: string;
   createdAt: Date;
+}
+
+/** Resumen con lo necesario para leer su informe completo. */
+export interface ReviewSummary {
+  summaryId: string;
+  lotId: string;
+  score: number;
+  decidedBy: DecidedBy | null;
+  modelName: string;
+  reportId: string;
+  createdAt: Date;
+}
+
+/** Hallazgo con el valor de cada evidencia que cita. */
+export interface ReviewFinding {
+  code: string;
+  severity: Finding['severity'];
+  message: string;
+  evidence: Array<{ code: string; value: string }>;
 }
 
 export interface CompletedAudit {
@@ -45,6 +64,7 @@ export interface AuditRepository {
   cachedAssessment(dossierHash: string): Promise<Assessment | null>;
   saveAssessment(dossierHash: string, assessment: Assessment): Promise<void>;
   latestSummaries(lotIds: readonly string[]): Promise<AuditSummary[]>;
+  latestForReview(lotIds: readonly string[]): Promise<ReviewSummary[]>;
 }
 
 /** Informe completo (expediente y respuesta) para quien revisa a mano. */
@@ -60,6 +80,8 @@ export interface AuditReport {
 export interface ReportStore {
   /** Idempotente por id: un reintento no duplica el informe. */
   save(report: AuditReport): Promise<void>;
+  /** Hallazgos de cada informe por id, con sus evidencias resueltas. */
+  findings(reportIds: readonly string[]): Promise<Map<string, ReviewFinding[]>>;
 }
 
 export interface CatalogPort {

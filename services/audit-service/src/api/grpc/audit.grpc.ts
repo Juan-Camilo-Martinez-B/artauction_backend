@@ -1,11 +1,37 @@
 import { auditEventsV1, auditHandlersV1, auditV1 } from '@artauction/contracts';
 import type { StructuredLogger } from '@artauction/platform';
 import { unary, type CallerResolver } from '@artauction/service-kit';
-import type { EnqueueAudit, GetLatestSummaries } from '../../internal/application/use-cases';
+import type { EnqueueAudit, GetLatestSummaries, GetReviewReports } from '../../internal/application/use-cases';
 
-/** Consulta publica de resultados: la usa el gateway para componer la ficha. */
-export function auditGrpcService(summaries: GetLatestSummaries, logger: StructuredLogger): auditV1.AuditServiceServer {
+const SEVERITY: Readonly<Record<'INFO' | 'WARNING' | 'CRITICAL', auditV1.ReviewSeverity>> = {
+  INFO: auditV1.ReviewSeverity.REVIEW_SEVERITY_INFO,
+  WARNING: auditV1.ReviewSeverity.REVIEW_SEVERITY_WARNING,
+  CRITICAL: auditV1.ReviewSeverity.REVIEW_SEVERITY_CRITICAL,
+};
+
+/** Resumenes publicos para la ficha y expedientes de revision solo para ADMIN. */
+export function auditGrpcService(
+  useCases: { summaries: GetLatestSummaries; reviews: GetReviewReports },
+  callers: CallerResolver,
+  logger: StructuredLogger,
+): auditV1.AuditServiceServer {
+  const { summaries, reviews } = useCases;
   return {
+    batchGetReviewReports: unary(logger, 'BatchGetReviewReports', async (request, context) => {
+      const reports = await reviews.execute(callers.user(context), request.lotIds);
+      return auditV1.BatchGetReviewReportsResponse.fromPartial({
+        reports: reports.map((report) => ({
+          lotId: report.lotId,
+          summaryId: report.summaryId,
+          score: report.score,
+          decidedBy: report.decidedBy ?? '',
+          modelName: report.modelName,
+          createdAt: report.createdAt,
+          findings: report.findings.map((finding) => ({ ...finding, severity: SEVERITY[finding.severity] })),
+        })),
+      });
+    }),
+
     batchGetLatestSummaries: unary(logger, 'BatchGetLatestSummaries', async (request) => {
       const rows = await summaries.execute(request.lotIds);
       return auditV1.BatchGetLatestSummariesResponse.fromPartial({

@@ -35,6 +35,8 @@ export interface LotRepository {
   findById(lotId: string): Promise<Lot | null>;
   findByIds(lotIds: readonly string[]): Promise<Lot[]>;
   findActiveCategory(slug: string): Promise<Category | null>;
+  /** Obras en un estado, la mas antigua primero. */
+  listByStatus(status: LotStatus, limit: number): Promise<Lot[]>;
   /** Imagenes de otras obras a distancia de Hamming <= maxDistance de algun hash. */
   findSimilarImages(lotId: string, hashes: readonly string[], maxDistance: number): Promise<SimilarImage[]>;
   listActiveCategories(): Promise<Category[]>;

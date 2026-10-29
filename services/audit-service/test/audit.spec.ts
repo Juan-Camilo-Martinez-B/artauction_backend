@@ -2,8 +2,8 @@ import sharp from 'sharp';
 import { StructuredLogger, type DomainEvent } from '@artauction/platform';
 import { applyRules, buildDossier, generatorMarker, type Dossier, type ImageMetrics, type LotSheet } from '../src/internal/domain/dossier';
 import { decideVerdict, nextAttemptAt, type Assessment } from '../src/internal/domain/verdict';
-import type { AiPort, AuditReport, AuditRepository, AuditRequest, CatalogPort, CompletedAudit, ImageAnalyzer, ReportStore } from '../src/internal/application/ports';
-import { EnqueueAudit, RunAuditWorker } from '../src/internal/application/use-cases';
+import type { AiPort, AuditReport, AuditRepository, AuditRequest, CatalogPort, CompletedAudit, ImageAnalyzer, ReportStore, ReviewSummary } from '../src/internal/application/ports';
+import { EnqueueAudit, GetReviewReports, RunAuditWorker } from '../src/internal/application/use-cases';
 import { MediaFetcher } from '../src/internal/infrastructure/media-fetcher';
 import { SharpImageAnalyzer } from '../src/internal/infrastructure/sharp-image-analyzer';
 
@@ -137,6 +137,21 @@ class MemoryAudits implements AuditRepository {
   latestSummaries() {
     return Promise.resolve([]);
   }
+  latestForReview(lotIds: readonly string[]) {
+    return Promise.resolve(
+      this.completed
+        .filter((audit) => lotIds.includes(audit.lotId))
+        .map((audit): ReviewSummary => ({
+          summaryId: audit.summaryId,
+          lotId: audit.lotId,
+          score: audit.assessment.score,
+          decidedBy: audit.decidedBy,
+          modelName: audit.assessment.model,
+          reportId: audit.reportId,
+          createdAt: NOW,
+        })),
+    );
+  }
 }
 
 function harness(options: { lot?: LotSheet | null; image?: ImageMetrics | null; similarSeller?: string; ai?: () => Promise<Assessment> } = {}) {
@@ -148,6 +163,17 @@ function harness(options: { lot?: LotSheet | null; image?: ImageMetrics | null; 
       reports.push(report);
       return Promise.resolve();
     },
+    findings: (ids) =>
+      Promise.resolve(
+        new Map(
+          reports
+            .filter((report) => ids.includes(report.id))
+            .map((report) => {
+              const values = new Map((report.dossier?.evidence ?? []).map((item) => [item.code, item.value]));
+              return [report.id, report.assessment.findings.map((finding) => ({ ...finding, evidence: finding.evidence.map((code) => ({ code, value: values.get(code) ?? 'sin dato' })) }))];
+            }),
+        ),
+      ),
   };
   const catalog: CatalogPort = {
     lot: () => Promise.resolve(options.lot === undefined ? LOT : options.lot),
@@ -162,7 +188,7 @@ function harness(options: { lot?: LotSheet | null; image?: ImageMetrics | null; 
     },
   };
   const worker = new RunAuditWorker({ audits, reports: store, catalog, images, ai, clock: { now: () => NOW }, logger: new StructuredLogger('test', () => undefined) });
-  return { audits, reports, aiCalls, worker };
+  return { audits, reports, aiCalls, worker, store };
 }
 
 function payloadOf(event: DomainEvent | undefined): Record<string, unknown> {
@@ -228,6 +254,21 @@ describe('worker de auditoria', () => {
     await worker.tick();
     expect(audits.completed[0]?.decidedBy).toBe('FALLBACK');
     expect(payloadOf(audits.completed[0]?.event)).toMatchObject({ verdict: 'REVISION_MANUAL' });
+  });
+
+  it('el administrador ve el expediente con el valor de cada evidencia citada', async () => {
+    const { audits, worker, store } = harness({ similarSeller: 'vendedor-b' });
+    await audits.enqueueOnce('e1', LOT_ID);
+    await worker.tick();
+    const reviews = new GetReviewReports(audits, store);
+    const [report] = await reviews.execute({ role: 'ADMIN' }, [LOT_ID]);
+    expect(report?.decidedBy).toBe('RULES');
+    expect(report?.findings[0]).toMatchObject({
+      code: 'DUPLICATE_IMAGE_OTHER_SELLER',
+      severity: 'CRITICAL',
+      evidence: [{ code: 'catalog.duplicate1', value: 'obra otro, otro vendedor, distancia 1' }],
+    });
+    await expect(reviews.execute({ role: 'SELLER' }, [LOT_ID])).rejects.toMatchObject({ kind: 'PERMISSION_DENIED' });
   });
 
   it('omite una obra que ya no espera auditoria', async () => {

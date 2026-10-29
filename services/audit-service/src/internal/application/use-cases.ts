@@ -11,7 +11,7 @@ import {
   type Assessment,
   type DecidedBy,
 } from '../domain/verdict';
-import type { AiPort, AuditRepository, AuditRequest, AuditSummary, CatalogPort, Clock, ImageAnalyzer, ReportStore } from './ports';
+import type { AiPort, AuditRepository, AuditRequest, AuditSummary, CatalogPort, Clock, ImageAnalyzer, ReportStore, ReviewFinding, ReviewSummary } from './ports';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PENDING_AUDIT = 'PENDIENTE_AUDITORIA';
@@ -138,5 +138,33 @@ export class GetLatestSummaries {
   execute(lotIds: readonly string[]): Promise<AuditSummary[]> {
     const ids = [...new Set(lotIds)].filter((id) => UUID.test(id)).slice(0, 100);
     return ids.length === 0 ? Promise.resolve([]) : this.audits.latestSummaries(ids);
+  }
+}
+
+export interface ReviewReport extends ReviewSummary {
+  findings: ReviewFinding[];
+}
+
+/**
+ * Expediente de las obras en revision manual, para que un administrador
+ * decida con los mismos argumentos que uso la auditoria. Solo ADMIN.
+ */
+export class GetReviewReports {
+  constructor(
+    private readonly audits: AuditRepository,
+    private readonly reports: ReportStore,
+  ) {}
+
+  async execute(actor: { role: string }, lotIds: readonly string[]): Promise<ReviewReport[]> {
+    if (actor.role !== 'ADMIN') {
+      throw DomainError.forbidden('Solo un administrador ve los expedientes de auditoria');
+    }
+    const ids = [...new Set(lotIds)].filter((id) => UUID.test(id)).slice(0, 100);
+    if (ids.length === 0) {
+      return [];
+    }
+    const summaries = await this.audits.latestForReview(ids);
+    const findings = await this.reports.findings(summaries.map((summary) => summary.reportId));
+    return summaries.map((summary) => ({ ...summary, findings: findings.get(summary.reportId) ?? [] }));
   }
 }

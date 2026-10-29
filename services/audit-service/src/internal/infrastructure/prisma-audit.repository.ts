@@ -2,7 +2,7 @@ import { appendToOutbox, recordInbox, sqlExecutorFrom } from '@artauction/platfo
 import { Prisma, type PrismaClient } from '../../generated/prisma';
 import type { Finding } from '../domain/dossier';
 import type { Assessment, Verdict } from '../domain/verdict';
-import type { AuditRepository, AuditRequest, AuditSummary, CompletedAudit } from '../application/ports';
+import type { AuditRepository, AuditRequest, AuditSummary, CompletedAudit, ReviewSummary } from '../application/ports';
 
 const AUDIT_SCHEMA = 'audit';
 /** Una evaluacion cacheada vale 30 dias; despues se vuelve a consultar al modelo. */
@@ -133,6 +133,23 @@ export class PrismaAuditRepository implements AuditRepository {
       critical: row.hasCriticalInconsistency,
       modelName: row.modelName,
       promptVersion: row.promptVersion,
+      createdAt: row.createdAt,
+    }));
+  }
+
+  async latestForReview(lotIds: readonly string[]): Promise<ReviewSummary[]> {
+    const rows = await this.prisma.auditSummary.findMany({
+      where: { lotId: { in: [...lotIds] } },
+      orderBy: { createdAt: 'desc' },
+      distinct: ['lotId'],
+    });
+    return rows.map((row) => ({
+      summaryId: row.id,
+      lotId: row.lotId,
+      score: row.score,
+      decidedBy: row.decidedBy === 'RULES' || row.decidedBy === 'AI' || row.decidedBy === 'FALLBACK' ? (row.decidedBy) : null,
+      modelName: row.modelName,
+      reportId: row.mongoReportId,
       createdAt: row.createdAt,
     }));
   }

@@ -16,7 +16,7 @@ import { GrpcAiClient } from './api/clients/ai-client';
 import { GrpcCatalogClient } from './api/clients/catalog-client';
 import { auditOutboxRoutes } from './api/events/outbox-routes';
 import { auditEventsGrpcService, auditGrpcService } from './api/grpc/audit.grpc';
-import { EnqueueAudit, GetLatestSummaries, RunAuditWorker } from './internal/application/use-cases';
+import { EnqueueAudit, GetLatestSummaries, GetReviewReports, RunAuditWorker } from './internal/application/use-cases';
 import { MediaFetcher } from './internal/infrastructure/media-fetcher';
 import { MongoReportStore } from './internal/infrastructure/mongo-report.store';
 import { PrismaAuditRepository } from './internal/infrastructure/prisma-audit.repository';
@@ -74,9 +74,13 @@ const providers: Provider[] = [
   },
   {
     provide: AUDIT_GRPC,
-    inject: [REPOSITORY, LOGGER],
-    useFactory: (audits: PrismaAuditRepository, logger: StructuredLogger): auditV1.AuditServiceServer =>
-      auditGrpcService(new GetLatestSummaries(audits), logger),
+    inject: [CONFIG, REPOSITORY, MONGO, LOGGER],
+    useFactory: (config: AuditConfig, audits: PrismaAuditRepository, mongo: MongoClient, logger: StructuredLogger): auditV1.AuditServiceServer =>
+      auditGrpcService(
+        { summaries: new GetLatestSummaries(audits), reviews: new GetReviewReports(audits, new MongoReportStore(mongo, config.MONGODB_DATABASE)) },
+        new CallerResolver(TokenVerifier.fromFile(config.JWT_PUBLIC_KEY_PATH)),
+        logger,
+      ),
   },
   {
     provide: AUDIT_EVENTS_GRPC,
