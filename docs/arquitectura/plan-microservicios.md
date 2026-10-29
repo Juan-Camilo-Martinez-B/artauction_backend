@@ -22,7 +22,7 @@ Solo se simulan la pasarela de pagos y el dinero real. Todo lo demas es funciona
 | `catalog-service` | Lotes, categorias, imagenes, storage, hash perceptual, ciclo de vida del lote, revision manual | PG `catalog` |
 | `auction-service` | Subastas, pujas, apertura y cierre programados, ventas, stream en vivo | PG `auction` |
 | `wallet-service` | Saldo, retenciones TCC, ledger, recargas con pasarela simulada | PG `wallet` |
-| `audit-service` | Cola pg-boss, worker, resumenes e informes | PG `audit`, Mongo `artauction_audit` |
+| `audit-service` | Cola propia (`audit_requests`), expediente de evidencias, worker, resumenes e informes | PG `audit`, Mongo `artauction_audit` |
 | `ai-service` | Unico dueno de `GEMINI_API_KEY`; REST hacia Gemini con circuit breaker | ninguno |
 | `gallery-service` | Galeria 3D personal, galeria social, follows, feed | PG `gallery`, Mongo `artauction_gallery` |
 | `notification-service` | Notificaciones | Mongo `artauction_notification` |

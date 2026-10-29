@@ -16,7 +16,7 @@ docs/arquitectura     plan, mapa de contextos y decisiones (ADR)
 src/                  monolito, se retira en la fase F9
 ```
 
-Estado: migrados `identity-service`, `catalog-service`, `wallet-service`, `auction-service` y `api-gateway`, que ya sirve la sala en vivo por Socket.IO. El resto de rutas lo atiende el monolito detrás del gateway. El monolito también expone un servidor gRPC legado (`LEGACY_GRPC_PORT`) que consume eventos en nombre de gallery, audit y notification mientras esos servicios no existen, y arranca con `AUCTIONS_IN_SERVICE=true` para no abrir ni cerrar salas.
+Estado: migrados `identity-service`, `catalog-service`, `wallet-service`, `auction-service`, `ai-service`, `audit-service` y `api-gateway`, que ya sirve la sala en vivo por Socket.IO. La auditoría arma un expediente de evidencias local y la IA razona sobre él sin ver imágenes (ADR 0009); ai-service es el único con la clave de Gemini. El resto de rutas lo atiende el monolito detrás del gateway. El monolito también expone un servidor gRPC legado (`LEGACY_GRPC_PORT`) que consume eventos en nombre de gallery y notification mientras esos servicios no existen, arranca con `AUCTIONS_IN_SERVICE=true` para no abrir ni cerrar salas y pide el diseño de galerías a ai-service.
 
 ### Levantar la pila en local
 
@@ -30,6 +30,8 @@ npx nest start                                 # monolito :3002 y gRPC legado :5
 npm start -w @artauction/catalog-service       # gRPC :50052
 npm start -w @artauction/wallet-service        # gRPC :50053
 npm start -w @artauction/auction-service       # gRPC :50054, programador de salas
+npm start -w @artauction/ai-service            # gRPC :50055, fachada de Gemini
+npm start -w @artauction/audit-service         # gRPC :50056, auditoria por expediente de evidencias
 npm start -w @artauction/api-gateway           # HTTP y Socket.IO :3001, el frontend no cambia
 ```
 
@@ -59,15 +61,15 @@ Contrato que consume:
 
 ## Módulos
 
-`identidad`, `catalogo`, `subastas`, `auditoria-ia`, `galerias-social`, `notificaciones`, `administracion`.
+`identidad`, `catalogo`, `subastas`, `galerias-social`, `notificaciones`, `administracion`. El módulo `auditoria-ia` se retiró en F7: la auditoría vive en audit-service y ai-service.
 
-No hay dependencias circulares. Cada módulo sigue controller → service → repository. La infraestructura compartida vive en `src/infra` (Postgres, Mongo, Cloud Storage, pg-boss, adaptadores de IA) y no importa módulos de negocio.
+No hay dependencias circulares. Cada módulo sigue controller → service → repository. La infraestructura compartida vive en `src/infra` (Postgres, Mongo, almacenamiento) y no importa módulos de negocio.
 
 ## Reglas de dominio que este servicio garantiza
 
 **Ciclo de vida del lote.** `BORRADOR → PENDIENTE_AUDITORIA → PUBLICADA | REVISION_MANUAL → EN_SUBASTA → VENDIDA`. Si nadie puja, vuelve a `PUBLICADA`.
 
-**Auditoría.** Nunca corre dentro de una petición HTTP. El alta de una obra encola un trabajo pg-boss. El worker llama al puerto `AiAuditPort` (adaptador Gemini o adaptador fake). Reintentos con backoff exponencial, concurrencia limitada y circuit breaker. Si el proveedor falla, la plataforma sigue operando y el lote permanece auditable. El informe completo (modelo, versión de prompt, entrada y fecha) queda en Mongo; el resumen y el score, en Postgres.
+**Auditoría.** Nunca corre dentro de una petición HTTP. Desde F7 la hace audit-service: el envío de una obra emite `LotSubmitted`, audit-service arma un expediente de evidencias (imágenes, metadatos, duplicados y reglas deterministas) y ai-service lo evalúa sin ver imágenes. Reintentos con backoff y revisión manual como respaldo: si el proveedor falla, la plataforma sigue operando. El informe completo queda en Mongo (`artauction_audit`); el resumen y el score, en Postgres. Ver el README de audit-service y el ADR 0009.
 
 **Pujas.** Transacción con `SELECT … FOR UPDATE` sobre el lote. Se validan estado, plazo e incremento mínimo. Cada puja lleva `idempotencyKey`. No se puede pujar el lote propio. Una puja en los últimos 30 s extiende el cierre otros 30 s. El precio actual no decrece. El reloj es del servidor.
 
@@ -106,7 +108,7 @@ Argon2 para contraseñas. Access token corto y refresh rotativo. Validación de 
 
 `GET /lots` responde `{ items, total, page, pageSize }` y filtra por `q`, `category`, `representation` y `sort`. Las categorías viven en `GET /lots/categories`.
 
-`/me/gallery` es la sala 3D de quien inicia sesión. El identificador sale del access token. `POST /me/gallery/generate` convierte el cuestionario en una configuración validada. Sin `GEMINI_API_KEY` lo hace el adaptador local, el mismo criterio que la auditoría.
+`/me/gallery` es la sala 3D de quien inicia sesión. El identificador sale del access token. `POST /me/gallery/generate` convierte el cuestionario en una configuración validada. La propuesta la pide a ai-service (único con la clave de Gemini) y se valida con el esquema de la galería; sin modelo, o si ai-service no responde, la hace el adaptador local.
 
 ## Estado
 

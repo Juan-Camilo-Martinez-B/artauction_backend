@@ -23,7 +23,7 @@ No contiene reglas de negocio. Hace cinco cosas:
 | `GET /health` | el propio gateway |
 | todo lo demás | monolito en `LEGACY_URL` |
 
-**Composición con degradación.** Las tarjetas y la ficha combinan el catálogo con `AuctionService.BatchGetAuctionSummaries` y `AuditService.BatchGetLatestSummaries`. Si alguno no responde, la obra sale con `auction: null` o `auditSummaries: []` en lugar de fallar: el catálogo no se cae por un servicio vecino. Mientras audit no exista, su RPC la atiende el servidor gRPC legado del monolito.
+**Composición con degradación.** Las tarjetas y la ficha combinan el catálogo con `AuctionService.BatchGetAuctionSummaries` y `AuditService.BatchGetLatestSummaries`. Si alguno no responde, la obra sale con `auction: null` o `auditSummaries: []` en lugar de fallar: el catálogo no se cae por un servicio vecino.
 
 La lista de prefijos migrados está en `src/api/http/legacy-proxy.ts` (`MIGRATED_PREFIXES`). Cada fase de la migración agrega los suyos; cuando cubran todo, el proxy se retira.
 
