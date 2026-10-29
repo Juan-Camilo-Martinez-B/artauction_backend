@@ -1,0 +1,317 @@
+# Plataforma completa de ArtAuction AI con un solo comando:
+#
+#   node scripts/generate-keys.mjs     # una vez: claves RS256, secretos de cliente y de Garage
+#   node scripts/compose-secrets.mjs   # una vez: contrasenas de Postgres y secreto del frontend
+#   npm run compose:up
+#
+# Requiere los tres repositorios como carpetas hermanas (artauction_backend,
+# artauction_bd, artauction_frontend). Al host solo llegan el frontend, el
+# gateway y Garage (lectura publica de imagenes y API S3 para las subidas del
+# navegador); Postgres, Mongo y los puertos gRPC quedan en la red interna.
+# Los secretos se leen de secrets/ en tiempo de ejecucion y nunca entran en
+# una imagen. Los puertos del host se pueden cambiar con FRONTEND_PORT,
+# GATEWAY_PORT, MEDIA_PORT y S3_PORT.
+
+name: artauction
+
+x-service: &service
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "node", "/app/scripts/docker/grpc-health.cjs"]
+    interval: 5s
+    timeout: 4s
+    retries: 30
+    start_period: 10s
+
+x-public-key: &public-key ./secrets/jwt/public.pem:/run/secrets/jwt/public.pem:ro
+
+x-grpc-env: &grpc-env
+  NODE_ENV: production
+  GRPC_HOST: 0.0.0.0
+  GRPC_TLS: "false"
+  JWT_PUBLIC_KEY_PATH: /run/secrets/jwt/public.pem
+  IDENTITY_GRPC_URL: identity-service:50051
+
+x-after-setup: &after-setup
+  db-setup:
+    condition: service_completed_successfully
+  identity-service:
+    condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: artauction
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?ejecuta node scripts/compose-secrets.mjs}
+      POSTGRES_DB: artauction
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U artauction -d artauction"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - postgres:/var/lib/postgresql/data
+
+  mongo:
+    image: mongo:7
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - mongo:/data/db
+
+  garage:
+    image: dxflrs/garage:v2.1.0
+    env_file: ./secrets/garage.env
+    ports:
+      - "${S3_PORT:-3900}:3900"
+      - "${MEDIA_PORT:-3902}:3902"
+    volumes:
+      - ./deploy/garage/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+
+  # Tareas de arranque: corren una vez y terminan.
+  db-setup:
+    build: ../artauction_bd
+    environment:
+      DATABASE_URL: postgresql://artauction:${POSTGRES_PASSWORD}@postgres:5432/artauction
+      MONGODB_URI: mongodb://mongo:27017/artauction_audit
+      IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD}
+      AUCTION_DB_PASSWORD: ${AUCTION_DB_PASSWORD}
+      WALLET_DB_PASSWORD: ${WALLET_DB_PASSWORD}
+      AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD}
+      GALLERY_DB_PASSWORD: ${GALLERY_DB_PASSWORD}
+    # Migraciones y logins siempre (son idempotentes); la semilla solo en una base vacia.
+    command:
+      - bash
+      - -c
+      - >-
+        bash scripts/migrate/apply.sh &&
+        bash scripts/roles/create-logins.sh &&
+        if [ "$$(psql -tA -c 'SELECT count(*) FROM identity.users' "$$DATABASE_URL")" = "0" ];
+        then node scripts/seed/run.mjs; else echo 'base con datos: sin semilla'; fi
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+
+  # Corre sobre la imagen de catalog-service para usar su SDK de S3 (CORS), y
+  # como root para dejar las credenciales a nombre del usuario de los servicios.
+  storage-setup:
+    build: { context: ., args: { SERVICE: catalog-service } }
+    user: root
+    command: ["node", "/scripts/bootstrap-garage.mjs"]
+    env_file: ./secrets/garage.env
+    environment:
+      GARAGE_ADMIN_URL: http://garage:3903
+      S3_BUCKET: artauction-media
+      CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-3000}
+      STORAGE_ENV_PATH: /bootstrap/storage.env
+      S3_INTERNAL_ENDPOINT: http://garage:3900
+    volumes:
+      - ./scripts/storage/bootstrap-garage.mjs:/scripts/bootstrap-garage.mjs:ro
+      - storage-bootstrap:/bootstrap
+    depends_on:
+      - garage
+
+  identity-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: identity-service } }
+    environment:
+      <<: *grpc-env
+      GRPC_PORT: 50051
+      DATABASE_URL: postgresql://identity_svc:${IDENTITY_DB_PASSWORD}@postgres:5432/artauction?schema=identity
+      MONGODB_URI: mongodb://mongo:27017/artauction_identity
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt/private.pem
+      SERVICE_CLIENTS: ${SERVICE_CLIENTS}
+    volumes:
+      - *public-key
+      - ./secrets/jwt/private.pem:/run/secrets/jwt/private.pem:ro
+    depends_on:
+      db-setup:
+        condition: service_completed_successfully
+
+  catalog-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: catalog-service } }
+    # Las credenciales S3 las escribe storage-setup en un volumen interno.
+    command: ["node", "--env-file=/bootstrap/storage.env", "dist/main.js"]
+    environment:
+      <<: *grpc-env
+      GRPC_PORT: 50052
+      DATABASE_URL: postgresql://catalog_svc:${CATALOG_DB_PASSWORD}@postgres:5432/artauction?schema=catalog
+      SERVICE_CLIENT_ID: catalog-service
+      SERVICE_CLIENT_SECRET: ${CATALOG_SERVICE_CLIENT_SECRET}
+      GALLERY_EVENTS_GRPC_URL: gallery-service:50057
+      AUDIT_EVENTS_GRPC_URL: audit-service:50056
+      AUCTION_EVENTS_GRPC_URL: auction-service:50054
+      # catalog solo firma subidas que hace el navegador: el host firmado es el que ve el navegador.
+      S3_ENDPOINT: http://localhost:${S3_PORT:-3900}
+      S3_REGION: garage
+      S3_BUCKET: artauction-media
+      MEDIA_PUBLIC_BASE_URL: http://artauction-media.web.garage.localhost:${MEDIA_PORT:-3902}
+    volumes:
+      - *public-key
+      - storage-bootstrap:/bootstrap:ro
+    depends_on:
+      <<: *after-setup
+      storage-setup:
+        condition: service_completed_successfully
+
+  wallet-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: wallet-service } }
+    environment:
+      <<: *grpc-env
+      GRPC_PORT: 50053
+      DATABASE_URL: postgresql://wallet_svc:${WALLET_DB_PASSWORD}@postgres:5432/artauction?schema=wallet
+      SERVICE_CLIENT_ID: wallet-service
+      SERVICE_CLIENT_SECRET: ${WALLET_SERVICE_CLIENT_SECRET}
+      AUCTION_GRPC_URL: auction-service:50054
+    volumes:
+      - *public-key
+    depends_on: *after-setup
+
+  auction-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: auction-service } }
+    environment:
+      <<: *grpc-env
+      GRPC_PORT: 50054
+      DATABASE_URL: postgresql://auction_svc:${AUCTION_DB_PASSWORD}@postgres:5432/artauction?schema=auction
+      SERVICE_CLIENT_ID: auction-service
+      SERVICE_CLIENT_SECRET: ${AUCTION_SERVICE_CLIENT_SECRET}
+      CATALOG_GRPC_URL: catalog-service:50052
+      WALLET_GRPC_URL: wallet-service:50053
+      GALLERY_EVENTS_GRPC_URL: gallery-service:50057
+      NOTIFICATION_EVENTS_GRPC_URL: notification-service:50058
+    volumes:
+      - *public-key
+    depends_on: *after-setup
+
+  ai-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: ai-service } }
+    # La clave de Gemini, si existe, sigue en el .env propio de ai-service (no versionado).
+    env_file:
+      - path: ./services/ai-service/.env
+        required: false
+    environment:
+      <<: *grpc-env
+      GRPC_PORT: 50055
+    volumes:
+      - *public-key
+
+  audit-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: audit-service } }
+    environment:
+      <<: *grpc-env
+      GRPC_PORT: 50056
+      DATABASE_URL: postgresql://audit_svc:${AUDIT_DB_PASSWORD}@postgres:5432/artauction?schema=audit
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DATABASE: artauction_audit
+      SERVICE_CLIENT_ID: audit-service
+      SERVICE_CLIENT_SECRET: ${AUDIT_SERVICE_CLIENT_SECRET}
+      CATALOG_GRPC_URL: catalog-service:50052
+      AI_GRPC_URL: ai-service:50055
+      AUCTION_EVENTS_GRPC_URL: auction-service:50054
+      NOTIFICATION_EVENTS_GRPC_URL: notification-service:50058
+      MEDIA_PUBLIC_BASE_URL: http://artauction-media.web.garage.localhost:${MEDIA_PORT:-3902}
+      MEDIA_INTERNAL_BASE_URL: http://garage:3902
+    volumes:
+      - *public-key
+    depends_on: *after-setup
+
+  gallery-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: gallery-service } }
+    environment:
+      <<: *grpc-env
+      GRPC_PORT: 50057
+      DATABASE_URL: postgresql://gallery_svc:${GALLERY_DB_PASSWORD}@postgres:5432/artauction?schema=gallery
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DATABASE: artauction_gallery
+      SERVICE_CLIENT_ID: gallery-service
+      SERVICE_CLIENT_SECRET: ${GALLERY_SERVICE_CLIENT_SECRET}
+      CATALOG_GRPC_URL: catalog-service:50052
+      AI_GRPC_URL: ai-service:50055
+    volumes:
+      - *public-key
+    depends_on: *after-setup
+
+  notification-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: notification-service } }
+    environment:
+      <<: *grpc-env
+      GRPC_PORT: 50058
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DATABASE: artauction_notification
+    volumes:
+      - *public-key
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  api-gateway:
+    <<: *service
+    build: { context: ., args: { SERVICE: api-gateway } }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3001/health"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+      start_period: 10s
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-3000}
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt/public.pem
+      IDENTITY_GRPC_URL: identity-service:50051
+      CATALOG_GRPC_URL: catalog-service:50052
+      WALLET_GRPC_URL: wallet-service:50053
+      AUCTION_GRPC_URL: auction-service:50054
+      AUDIT_GRPC_URL: audit-service:50056
+      GALLERY_GRPC_URL: gallery-service:50057
+      NOTIFICATION_GRPC_URL: notification-service:50058
+      GRPC_TLS: "false"
+    ports:
+      - "${GATEWAY_PORT:-3001}:3001"
+    volumes:
+      - *public-key
+    depends_on:
+      identity-service: { condition: service_healthy }
+      catalog-service: { condition: service_healthy }
+      wallet-service: { condition: service_healthy }
+      auction-service: { condition: service_healthy }
+      ai-service: { condition: service_healthy }
+      audit-service: { condition: service_healthy }
+      gallery-service: { condition: service_healthy }
+      notification-service: { condition: service_healthy }
+
+  frontend:
+    build: ../artauction_frontend
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      API_INTERNAL_URL: http://api-gateway:3001
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+
+volumes:
+  postgres:
+  mongo:
+  garage-meta:
+  garage-data:
+  storage-bootstrap:
