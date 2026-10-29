@@ -3,12 +3,9 @@ import { NotFoundException } from '@nestjs/common';
 import { type TestingModule, Test } from '@nestjs/testing';
 import type { PrismaClient } from '@prisma/client';
 import { EnvModule } from '../src/common/config/env.module';
-import { AI_AUDIT_PORT, type AiAuditPort } from '../src/infra/ai/ai-audit.port';
 import { MongoModule } from '../src/infra/mongo/mongo.module';
 import { PrismaService } from '../src/infra/postgres/prisma.service';
 import { PostgresModule } from '../src/infra/postgres/postgres.module';
-import { AuditWorker } from '../src/modules/auditoria-ia/audit.worker';
-import { AuditoriaModule } from '../src/modules/auditoria-ia/auditoria.module';
 import { CatalogoService } from '../src/modules/catalogo/catalogo.service';
 import { CatalogoModule } from '../src/modules/catalogo/catalogo.module';
 import { GaleriasModule } from '../src/modules/galerias-social/galerias.module';
@@ -26,15 +23,13 @@ process.env['JWT_ACCESS_SECRET'] ??= 'ci-access-secret-value';
 process.env['JWT_REFRESH_SECRET'] ??= 'ci-refresh-secret-value';
 process.env['CORS_ORIGINS'] ??= 'http://localhost:3000';
 
-describe('pujas, auditoría y obras privadas', () => {
+describe('pujas y obras privadas', () => {
   let moduleRef: TestingModule;
   let prisma: PrismaClient;
   let bids: BidsService;
   let auctions: AuctionsService;
   let closer: AuctionCloser;
   let catalogo: CatalogoService;
-  let worker: AuditWorker;
-  let ai: AiAuditPort;
   const userIds: string[] = [];
   const lotIds: string[] = [];
   const auctionIds: string[] = [];
@@ -46,7 +41,6 @@ describe('pujas, auditoría y obras privadas', () => {
         PostgresModule,
         MongoModule.forRoot(),
         CatalogoModule,
-        AuditoriaModule,
         GaleriasModule,
         NotificacionesModule,
         SubastasModule,
@@ -58,8 +52,6 @@ describe('pujas, auditoría y obras privadas', () => {
     auctions = moduleRef.get(AuctionsService);
     closer = moduleRef.get(AuctionCloser);
     catalogo = moduleRef.get(CatalogoService);
-    worker = moduleRef.get(AuditWorker);
-    ai = moduleRef.get(AI_AUDIT_PORT);
   });
 
   afterAll(async () => {
@@ -260,68 +252,6 @@ describe('pujas, auditoría y obras privadas', () => {
     lotIds.push(lot.id);
     await expect(catalogo.getForViewer(lot.id, stranger.id)).rejects.toBeInstanceOf(NotFoundException);
     await expect(catalogo.getForViewer(lot.id, seller.id)).resolves.toMatchObject({ id: lot.id });
-  });
-
-  it('aprueba un óleo y manda el anacronismo a revisión', async () => {
-    const seller = await user('SELLER');
-    const oil = await prisma.lot.create({
-      data: {
-        sellerId: seller.id,
-        title: 'Paisaje al óleo',
-        description: 'Obra coherente con su material y su siglo.',
-        materials: 'óleo',
-        creationYear: 1890,
-        status: 'PENDIENTE_AUDITORIA',
-        visibility: 'PRIVATE',
-      },
-    });
-    const acrylic = await prisma.lot.create({
-      data: {
-        sellerId: seller.id,
-        title: 'Retrato anacrónico',
-        description: 'Acrílico declarado en el siglo XVIII.',
-        materials: 'acrílico',
-        creationYear: 1760,
-        status: 'PENDIENTE_AUDITORIA',
-        visibility: 'PRIVATE',
-      },
-    });
-    lotIds.push(oil.id, acrylic.id);
-    await worker.process(oil.id);
-    await worker.process(acrylic.id);
-    const approved = await prisma.lot.findUniqueOrThrow({ where: { id: oil.id } });
-    const manual = await prisma.lot.findUniqueOrThrow({ where: { id: acrylic.id } });
-    expect(approved.status).toBe('PUBLICADA');
-    expect(approved.visibility).toBe('PUBLIC');
-    expect(approved.authenticityScore).toBe(82);
-    const scheduled = await prisma.auction.findUnique({ where: { lotId: oil.id } });
-    expect(scheduled?.status).toBe('PROGRAMADA');
-    expect(scheduled && scheduled.startsAt.getTime()).toBeGreaterThan(Date.now());
-    if (scheduled) {
-      auctionIds.push(scheduled.id);
-    }
-    expect(manual.status).toBe('REVISION_MANUAL');
-    expect(manual.visibility).toBe('PRIVATE');
-    expect(await prisma.auditSummary.count({ where: { lotId: { in: [oil.id, acrylic.id] } } })).toBe(2);
-  });
-
-  it('agota los reintentos y deja el lote en revisión manual', async () => {
-    const seller = await user('SELLER');
-    const lot = await prisma.lot.create({
-      data: {
-        sellerId: seller.id,
-        title: 'Lote con modelo caído',
-        description: 'La auditoría falla y no puede bloquear la plataforma.',
-        materials: 'óleo',
-        status: 'PENDIENTE_AUDITORIA',
-        visibility: 'PRIVATE',
-      },
-    });
-    lotIds.push(lot.id);
-    jest.spyOn(ai, 'audit').mockRejectedValueOnce(new Error('caida'));
-    await expect(worker.handle({ data: { lotId: lot.id }, retryCount: 4 })).resolves.toBeUndefined();
-    const stored = await prisma.lot.findUniqueOrThrow({ where: { id: lot.id } });
-    expect(stored.status).toBe('REVISION_MANUAL');
   });
 
   it('cierra una subasta vencida una sola vez', async () => {

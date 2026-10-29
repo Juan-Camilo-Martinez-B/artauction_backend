@@ -51,13 +51,19 @@ export class Environment {
   @IsString()
   JWT_PUBLIC_KEY_PATH = '';
 
+  // Transitorio hasta F8: el diseno de galerias se pide a ai-service. El
+  // monolito se identifica como gallery-service. Vacio usa el diseno local.
   @IsOptional()
   @IsString()
-  GEMINI_API_KEY = '';
+  AI_GRPC_URL = '';
 
   @IsString()
   @MinLength(1)
-  GEMINI_MODEL = 'gemini-2.5-flash';
+  IDENTITY_GRPC_URL = '127.0.0.1:50051';
+
+  @IsOptional()
+  @IsString()
+  GALLERY_SERVICE_CLIENT_SECRET = '';
 
   @IsString()
   @MinLength(1)
@@ -84,8 +90,8 @@ export class Environment {
       .filter((origin) => origin.length > 0);
   }
 
-  get geminiConfigured(): boolean {
-    return this.GEMINI_API_KEY.trim().length > 0;
+  get aiServiceConfigured(): boolean {
+    return this.AI_GRPC_URL.trim().length > 0 && this.GALLERY_SERVICE_CLIENT_SECRET.trim().length >= 20;
   }
 
   /** Clave publica RS256 de identity-service, o null si el monolito sigue con HS256. */
@@ -112,8 +118,9 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
       JWT_REFRESH_SECRET: source['JWT_REFRESH_SECRET'],
       JWT_REFRESH_TTL: source['JWT_REFRESH_TTL'] ?? '7d',
       JWT_PUBLIC_KEY_PATH: source['JWT_PUBLIC_KEY_PATH'] ?? '',
-      GEMINI_API_KEY: source['GEMINI_API_KEY'] ?? '',
-      GEMINI_MODEL: source['GEMINI_MODEL'] ?? 'gemini-2.5-flash',
+      AI_GRPC_URL: source['AI_GRPC_URL'] ?? '',
+      IDENTITY_GRPC_URL: source['IDENTITY_GRPC_URL'] ?? '127.0.0.1:50051',
+      GALLERY_SERVICE_CLIENT_SECRET: source['GALLERY_SERVICE_CLIENT_SECRET'] ?? '',
       GCS_BUCKET: source['GCS_BUCKET'] ?? 'artauction-images-dev',
       GCS_SIGNED_URL_TTL_SECONDS:
         source['GCS_SIGNED_URL_TTL_SECONDS'] !== undefined

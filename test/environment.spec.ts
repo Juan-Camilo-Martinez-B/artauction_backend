@@ -12,7 +12,7 @@ describe('loadEnvironment', () => {
     const env = loadEnvironment(base);
     expect(env.PORT).toBe(3001);
     expect(env.corsOriginList).toEqual(['http://localhost:3000']);
-    expect(env.geminiConfigured).toBe(false);
+    expect(env.aiServiceConfigured).toBe(false);
   });
 
   it('rejects a short jwt secret', () => {

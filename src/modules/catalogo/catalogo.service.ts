@@ -10,7 +10,6 @@ import { canTransition } from '../../common/domain/lot-state';
 import { canViewLot } from '../../common/domain/visibility';
 import { GALLERY_GRANTS, type GalleryGrants } from '../../common/outcomes';
 import { PrismaService } from '../../infra/postgres/prisma.service';
-import { AuditQueue } from '../../infra/queue/audit-queue';
 import { STORAGE, type StoragePort } from '../../infra/storage/storage.port';
 import { ImageHashPool } from '../../infra/workers/image-hash.pool';
 import type { CreateLotDto, ListLotsQuery, RegisterImageDto } from './dto';
@@ -28,7 +27,6 @@ const lotCardInclude = {
 export class CatalogoService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly audits: AuditQueue,
     private readonly hashes: ImageHashPool,
     @Inject(STORAGE) private readonly storage: StoragePort,
     @Optional() @Inject(GALLERY_GRANTS) private readonly grants?: GalleryGrants,
@@ -177,8 +175,8 @@ export class CatalogoService {
   async submitForAudit(lotId: string, sellerId: string): Promise<void> {
     const lot = await this.ownedLot(lotId, sellerId);
     this.assertStatus(lot.status, 'PENDIENTE_AUDITORIA');
+    // Desde F7 la auditoria la hace audit-service a partir del evento LotSubmitted de catalog-service.
     await this.prisma.lot.update({ where: { id: lotId }, data: { status: 'PENDIENTE_AUDITORIA' } });
-    await this.audits.enqueue(lotId);
   }
 
   async transition(lotId: string, to: string, patch: Prisma.LotUpdateInput = {}) {

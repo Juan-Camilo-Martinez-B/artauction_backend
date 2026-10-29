@@ -34,11 +34,9 @@ export class GatewayConfig {
   @MinLength(1)
   AUCTION_GRPC_URL = '127.0.0.1:50054';
 
-  // Mientras audit no exista como servicio, apunta al servidor gRPC legado del monolito.
-
   @IsString()
   @MinLength(1)
-  AUDIT_GRPC_URL = '127.0.0.1:50090';
+  AUDIT_GRPC_URL = '127.0.0.1:50056';
 
   /** Clave publica RS256 de identity-service para autenticar la sala en vivo. Vacia la desactiva. */
   @IsString()

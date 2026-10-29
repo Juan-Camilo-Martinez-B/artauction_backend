@@ -1,7 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { ENV, type Environment } from '../../common/config/environment';
+import { Injectable, type Logger } from '@nestjs/common';
+import type { aiV1 } from '@artauction/contracts';
+import { invoke, type ServiceTokenProvider } from '@artauction/service-kit';
 import {
-  GalleryDesignError,
   designFromPreferences,
   parsePreferences,
   randomPreferences,
@@ -26,38 +26,34 @@ export class LocalGalleryDesignAdapter implements GalleryDesignPort {
   }
 }
 
-@Injectable()
-export class GeminiGalleryDesignAdapter implements GalleryDesignPort {
+/**
+ * Pide el diseno a ai-service, unico duenio de la clave de Gemini, y lo valida
+ * con el esquema de la galeria. Si ai-service no tiene modelo, no responde o
+ * propone algo invalido, la galeria usa el diseno local: el usuario siempre
+ * obtiene una configuracion valida.
+ */
+export class AiServiceGalleryDesignAdapter implements GalleryDesignPort {
   readonly source = 'gemini' as const;
 
-  constructor(@Inject(ENV) private readonly env: Environment) {}
+  constructor(
+    private readonly ai: aiV1.AiServiceClient,
+    private readonly tokens: ServiceTokenProvider,
+    private readonly fallback: GalleryDesignPort,
+    private readonly logger: Logger,
+  ) {}
 
   async design(preferences: GalleryPreferences): Promise<GalleryConfig> {
-    if (!this.env.geminiConfigured) {
-      throw new GalleryDesignError('GEMINI_API_KEY no está configurada');
+    try {
+      const response = await invoke(
+        this.ai.designGallery.bind(this.ai),
+        { preferences: { ...preferences } },
+        { deadlineMs: 30_000, authorization: await this.tokens.authorization() },
+      );
+      return validateGalleryConfig(response.config);
+    } catch (error) {
+      this.logger.warn(`ai-service no diseno la galeria, se usa el diseno local: ${error instanceof Error ? error.message : String(error)}`);
+      return this.fallback.design(preferences);
     }
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.env.GEMINI_MODEL)}:generateContent`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-goog-api-key': this.env.GEMINI_API_KEY,
-      },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: promptFor(preferences) }] }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0.4 },
-      }),
-    });
-    if (!response.ok) {
-      throw new GalleryDesignError(`Gemini respondió ${String(response.status)}`);
-    }
-    const payload: unknown = await response.json();
-    const parsed: unknown = JSON.parse(readText(payload));
-    const record = parsed as { source?: string };
-    if (typeof parsed === 'object' && parsed !== null) {
-      record.source = 'gemini';
-    }
-    return validateGalleryConfig(parsed);
   }
 }
 
@@ -66,49 +62,4 @@ export function preferencesFromBody(body: unknown, random: boolean): GalleryPref
     return randomPreferences();
   }
   return parsePreferences(body);
-}
-
-function promptFor(preferences: GalleryPreferences): string {
-  return [
-    'Convierte estas preferencias en una configuración de galería 3D.',
-    'Responde solo JSON del esquema 1, sin texto extra.',
-    'schemaVersion debe ser 1 y source debe ser "gemini".',
-    'spaceType: MINIMAL, CLASSIC, INDUSTRIAL, CONCRETE, WOOD, FUTURIST o EXPERIMENTAL.',
-    'roomWidth 8-20, roomDepth 6-16, roomHeight 3-6, zones 1-4.',
-    'Colores #rrggbb. wall material: plaster, marble, concrete, wood o metal.',
-    'floor: wood, stone, concrete o marble.',
-    'sculptureSupport: pedestal, vitrine, platform, niche, floor o mixed.',
-    'ambientIntensity 0.15-1.2, colorTemperature 2500-6500, spotIntensity 0-2.',
-    'tour, approach y artStyles deben usar los mismos identificadores de las preferencias.',
-    'motion: slow, reduced, simple, contrast o default.',
-    'No inventes materiales fuera de esa lista.',
-    JSON.stringify(preferences),
-  ].join('\n');
-}
-
-function readText(payload: unknown): string {
-  if (typeof payload !== 'object' || payload === null || !('candidates' in payload)) {
-    throw new GalleryDesignError('Respuesta de Gemini sin candidatos');
-  }
-  const candidates = payload.candidates;
-  if (!Array.isArray(candidates) || candidates.length === 0) {
-    throw new GalleryDesignError('Respuesta de Gemini vacía');
-  }
-  const first: unknown = candidates[0];
-  if (typeof first !== 'object' || first === null || !('content' in first)) {
-    throw new GalleryDesignError('Candidato de Gemini inválido');
-  }
-  const content = first.content;
-  if (typeof content !== 'object' || content === null || !('parts' in content)) {
-    throw new GalleryDesignError('Contenido de Gemini inválido');
-  }
-  const parts = content.parts;
-  if (!Array.isArray(parts) || parts.length === 0) {
-    throw new GalleryDesignError('Gemini no devolvió texto');
-  }
-  const part: unknown = parts[0];
-  if (typeof part !== 'object' || part === null || !('text' in part) || typeof part.text !== 'string') {
-    throw new GalleryDesignError('Gemini no devolvió texto');
-  }
-  return part.text;
 }
