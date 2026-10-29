@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   workspaces:
     name: microservices
@@ -25,11 +32,114 @@ jobs:
       - name: Lint protos
         run: npm run lint:proto -w @artauction/contracts
 
+      # Compara los .proto con los de la rama base. Mientras la base no tenga
+      # contratos (el monolito) no hay contra que comparar y el paso lo avisa.
+      - name: Breaking changes in protos
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          if ! git cat-file -e FETCH_HEAD:packages/contracts/buf.yaml 2>/dev/null; then
+            echo "::notice::La rama $BASE_REF no tiene contratos gRPC; se omite la comparacion."
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/base"
+          git archive FETCH_HEAD packages/contracts/buf.yaml packages/contracts/proto | tar -x -C "$RUNNER_TEMP/base"
+          npm exec -w @artauction/contracts -- buf breaking --against "$RUNNER_TEMP/base/packages/contracts"
+
       - name: Build packages and services
         run: npm run build
 
       - name: Lint with layer boundaries
         run: npm run lint
 
+      - name: Typecheck the end-to-end suite
+        run: npm run typecheck -w @artauction/e2e
+
       - name: Test packages and services
         run: npm test
+
+  # Levanta la plataforma completa con docker compose, como en local, y corre
+  # la prueba de punta a punta contra el gateway. compose construye la base y
+  # el frontend desde carpetas hermanas, asi que se clonan junto al backend.
+  platform:
+    name: compose and e2e
+    needs: workspaces
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: artauction_backend
+    steps:
+      - name: Checkout backend
+        uses: actions/checkout@v4
+        with:
+          path: artauction_backend
+
+      - name: Checkout database
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/artauction_bd
+          ref: ${{ vars.ARTAUCTION_BD_REF || 'main' }}
+          path: artauction_bd
+          token: ${{ secrets.SIBLING_REPOS_TOKEN || github.token }}
+
+      - name: Checkout frontend
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/artauction_frontend
+          ref: ${{ vars.ARTAUCTION_FRONTEND_REF || 'main' }}
+          path: artauction_frontend
+          token: ${{ secrets.SIBLING_REPOS_TOKEN || github.token }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: artauction_backend/package-lock.json
+
+      # Secretos efimeros del runner: los mismos scripts que en local, sin
+      # imprimir nada. Sin GEMINI_API_KEY, ai-service usa la evaluacion local
+      # determinista.
+      - name: Generate secrets
+        run: |
+          node scripts/generate-keys.mjs > /dev/null
+          node scripts/compose-secrets.mjs > /dev/null
+
+      - name: Start the platform
+        run: npm run compose:up
+
+      - name: Wait for the gateway
+        run: |
+          for attempt in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:3001/health > /dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose ps
+          exit 1
+
+      - name: Install the end-to-end suite
+        run: npm ci --ignore-scripts -w @artauction/e2e
+
+      - name: End-to-end
+        run: npm run e2e
+
+      - name: Collect logs
+        if: failure()
+        run: docker compose --env-file secrets/service-clients.env --env-file secrets/compose.env logs --no-color > "$RUNNER_TEMP/compose.log"
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-logs
+          path: ${{ runner.temp }}/compose.log
+          retention-days: 7
+
+      - name: Stop the platform
+        if: always()
+        run: npm run compose:down -- -v
