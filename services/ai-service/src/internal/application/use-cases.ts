@@ -3,7 +3,9 @@ import { localAssessment, sanitizeAssessment, type ArtworkDossier, type Assessme
 import type { LanguageModel } from './ports';
 
 const AUDIT_MAX_OUTPUT_TOKENS = 600;
-const GALLERY_MAX_OUTPUT_TOKENS = 900;
+// La configuracion de una sala ocupa unos 1 800 caracteres: con 900 tokens el
+// JSON llegaba cortado. 2 048 deja margen sin abrir la puerta a respuestas largas.
+const GALLERY_MAX_OUTPUT_TOKENS = 2_048;
 const MAX_TEXT = 600;
 
 const AUDIT_SYSTEM = [
@@ -100,7 +102,7 @@ export class AuditArtwork {
 
 const GALLERY_SYSTEM = [
   'Convierte preferencias de una galeria 3D en una configuracion del esquema 1.',
-  'Responde solo JSON, sin texto extra. schemaVersion debe ser 1 y source debe ser "gemini".',
+  'Responde solo JSON compacto en una linea, sin espacios ni texto extra. schemaVersion debe ser 1 y source debe ser "gemini".',
   'spaceType: MINIMAL, CLASSIC, INDUSTRIAL, CONCRETE, WOOD, FUTURIST o EXPERIMENTAL.',
   'roomWidth 8-20, roomDepth 6-16, roomHeight 3-6, zones 1-4.',
   'Colores #rrggbb. wall material: plaster, marble, concrete, wood o metal.',
@@ -120,7 +122,10 @@ const GALLERY_SYSTEM = [
 export class DesignGallery {
   constructor(private readonly model: LanguageModel | null) {}
 
-  async execute(preferences: Record<string, unknown>): Promise<{ config: Record<string, unknown>; source: string }> {
+  async execute(
+    preferences: Record<string, unknown>,
+    responseSchema: Record<string, unknown> | null = null,
+  ): Promise<{ config: Record<string, unknown>; source: string }> {
     if (!this.model) {
       throw DomainError.precondition('No hay un modelo generativo configurado');
     }
@@ -129,7 +134,7 @@ export class DesignGallery {
       raw = await this.model.generateJson({
         system: GALLERY_SYSTEM,
         user: JSON.stringify(preferences),
-        schema: { type: 'object' },
+        schema: responseSchema ?? { type: 'object' },
         maxOutputTokens: GALLERY_MAX_OUTPUT_TOKENS,
         temperature: 0.4,
       });

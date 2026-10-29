@@ -16,7 +16,7 @@ audit-service mide las imágenes (resolución, nitidez, metadatos, duplicados en
 ## Cómo se acota el gasto
 
 - **Salida estructurada:** `responseMimeType: application/json` con `responseJsonSchema`. El modelo no gasta tokens en prosa y la respuesta se valida contra el esquema.
-- **Tope de salida:** `maxOutputTokens` de 600 para la auditoría y 900 para la galería.
+- **Tope de salida:** `maxOutputTokens` de 600 para la auditoría y 2 048 para la galería, cuya configuración ocupa unos 1 800 caracteres en JSON compacto.
 - **Razonamiento al mínimo:** los modelos 2.x usan `thinkingBudget: 0` y los 3.x en adelante `thinkingLevel: "minimal"`. Enviar ambos campos a la vez da error 400, así que el adaptador elige uno según el nombre del modelo (`GEMINI_MODEL`).
 - **Temperatura 0** en la auditoría: el mismo expediente da la misma respuesta.
 

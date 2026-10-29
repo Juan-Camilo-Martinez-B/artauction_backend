@@ -63,10 +63,10 @@ export function aiGrpcService(
       });
     }),
 
-    // Hasta F8 la galeria vive en el monolito, que se identifica como gallery-service.
+    // gallery-service envia el JSON Schema de la sala; la validacion final es suya.
     designGallery: unary(logger, 'DesignGallery', async (request, context) => {
       callers.service(context, ['gallery-service']);
-      const designed = await useCases.design.execute(request.preferences ?? {});
+      const designed = await useCases.design.execute(request.preferences ?? {}, request.responseSchema ?? null);
       return aiV1.DesignGalleryResponse.fromPartial(designed);
     }),
   };

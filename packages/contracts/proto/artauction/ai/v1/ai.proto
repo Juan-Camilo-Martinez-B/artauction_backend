@@ -61,6 +61,9 @@ message AuditArtworkResponse {
 
 message DesignGalleryRequest {
   google.protobuf.Struct preferences = 1;
+  // JSON Schema de la configuracion, definido por el duenio de la galeria. El
+  // modelo responde con esa estructura (responseJsonSchema).
+  optional google.protobuf.Struct response_schema = 2;
 }
 
 message DesignGalleryResponse {
