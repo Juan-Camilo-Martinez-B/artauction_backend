@@ -1,6 +1,6 @@
 import { DomainError } from '@artauction/platform';
 import { canViewLot, isListedPublicly, type Category, type Lot, type RepresentationKind } from '../domain/lot';
-import type { LotRepository, LotSort } from './ports';
+import type { LotRepository, LotSort, SimilarImage } from './ports';
 
 const MAX_PAGE_SIZE = 60;
 const MAX_BATCH = 100;
@@ -79,6 +79,29 @@ export class BatchGetLotSnapshots {
 
   execute(lotIds: readonly string[]): Promise<Lot[]> {
     return this.lots.findByIds(uniqueIds(lotIds));
+  }
+}
+
+const PERCEPTUAL_HASH = /^[0-9a-f]{16}$/;
+const MAX_HASHES = 20;
+const MAX_HAMMING_DISTANCE = 16;
+
+/**
+ * Busca imagenes reutilizadas en otras obras. La usa audit-service para el
+ * expediente de evidencias; los hashes son datos de catalog y no salen de aqui.
+ */
+export class FindSimilarImages {
+  constructor(private readonly lots: LotRepository) {}
+
+  async execute(lotId: string, hashes: readonly string[], maxDistance: number): Promise<SimilarImage[]> {
+    const unique = [...new Set(hashes.map((hash) => hash.toLowerCase()))];
+    if (unique.length > MAX_HASHES || unique.some((hash) => !PERCEPTUAL_HASH.test(hash))) {
+      throw DomainError.invalid(`Se esperan hasta ${String(MAX_HASHES)} hashes perceptuales de 16 caracteres hexadecimales.`);
+    }
+    if (!Number.isInteger(maxDistance) || maxDistance < 0 || maxDistance > MAX_HAMMING_DISTANCE) {
+      throw DomainError.invalid(`La distancia maxima va de 0 a ${String(MAX_HAMMING_DISTANCE)}.`);
+    }
+    return unique.length === 0 ? [] : this.lots.findSimilarImages(lotId, unique, maxDistance);
   }
 }
 

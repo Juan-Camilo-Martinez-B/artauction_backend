@@ -11,6 +11,7 @@ import type {
 } from '../../internal/application/commands';
 import type {
   BatchGetLotSnapshots,
+  FindSimilarImages,
   BatchGetPublicLots,
   GetLotForViewer,
   GetRelatedLots,
@@ -26,6 +27,7 @@ export interface CatalogUseCases {
   getForViewer: GetLotForViewer;
   batchPublic: BatchGetPublicLots;
   batchSnapshots: BatchGetLotSnapshots;
+  similarImages: FindSimilarImages;
   create: CreateLot;
   signUpload: SignImageUpload;
   registerImage: RegisterLotImage;
@@ -85,6 +87,13 @@ export function catalogGrpcService(
       callers.service(context);
       return catalogV1.BatchGetLotSnapshotsResponse.fromPartial({
         lots: (await useCases.batchSnapshots.execute(request.lotIds)).map(lot),
+      });
+    }),
+
+    findSimilarImages: unary(logger, 'FindSimilarImages', async (request, context) => {
+      callers.service(context, ['audit-service']);
+      return catalogV1.FindSimilarImagesResponse.fromPartial({
+        matches: await useCases.similarImages.execute(request.lotId, request.perceptualHashes, request.maxDistance),
       });
     }),
 

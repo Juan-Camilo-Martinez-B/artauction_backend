@@ -13,6 +13,15 @@ export interface PublicLotQuery {
   pageSize: number;
 }
 
+/** Imagen de otra obra parecida a una de la obra auditada. */
+export interface SimilarImage {
+  lotId: string;
+  sellerId: string;
+  queryHash: string;
+  matchedHash: string;
+  distance: number;
+}
+
 export interface LotPatch {
   visibility?: Visibility;
   authenticityScore?: number;
@@ -26,6 +35,8 @@ export interface LotRepository {
   findById(lotId: string): Promise<Lot | null>;
   findByIds(lotIds: readonly string[]): Promise<Lot[]>;
   findActiveCategory(slug: string): Promise<Category | null>;
+  /** Imagenes de otras obras a distancia de Hamming <= maxDistance de algun hash. */
+  findSimilarImages(lotId: string, hashes: readonly string[], maxDistance: number): Promise<SimilarImage[]>;
   listActiveCategories(): Promise<Category[]>;
   /** Crea la obra en BORRADOR y guarda los eventos en la misma transaccion. */
   create(sellerId: string, lot: NewLot, categoryId: string, events: (lot: Lot) => DomainEvent[]): Promise<Lot>;

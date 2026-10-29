@@ -26,6 +26,7 @@ import {
 import { ApplyAuditVerdict, MarkLotInAuction, MarkLotSold, RepublishUnsoldLot } from './internal/application/event-handlers';
 import {
   BatchGetLotSnapshots,
+  FindSimilarImages,
   BatchGetPublicLots,
   GetLotForViewer,
   GetRelatedLots,
@@ -105,6 +106,7 @@ const providers: Provider[] = [
           getForViewer: new GetLotForViewer(lots),
           batchPublic: new BatchGetPublicLots(lots),
           batchSnapshots: new BatchGetLotSnapshots(lots),
+          similarImages: new FindSimilarImages(lots),
           create: new CreateLot(lots),
           signUpload: new SignImageUpload(lots, signer, tokens),
           registerImage: new RegisterLotImage(lots),

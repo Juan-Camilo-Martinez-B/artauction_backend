@@ -2,10 +2,10 @@ import { DomainError, type DomainEvent } from '@artauction/platform';
 import { CATALOG_EVENTS } from '../src/internal/domain/events';
 import { canViewLot, imageUrl, parseNewLot, type Actor, type Category, type Lot, type LotImage, type NewLot } from '../src/internal/domain/lot';
 import { canTransition, type LotStatus } from '../src/internal/domain/lot-status';
-import type { LotPatch, LotRepository, LotTransitions, PublicLotQuery } from '../src/internal/application/ports';
+import type { LotPatch, LotRepository, LotTransitions, PublicLotQuery, SimilarImage } from '../src/internal/application/ports';
 import { CreateLot, RegisterLotImage, ResolveManualReview, SignImageUpload, SubmitLot } from '../src/internal/application/commands';
 import { MarkLotSold } from '../src/internal/application/event-handlers';
-import { GetLotForViewer, ListPublicLots } from '../src/internal/application/queries';
+import { FindSimilarImages, GetLotForViewer, ListPublicLots } from '../src/internal/application/queries';
 
 const SELLER: Actor = { userId: 'a0000000-0000-4000-8000-000000000002', role: 'SELLER' };
 const OTHER: Actor = { userId: 'a0000000-0000-4000-8000-000000000003', role: 'SELLER' };
@@ -43,6 +43,21 @@ class MemoryLots implements LotRepository {
 
   listActiveCategories() {
     return Promise.resolve([PAINTINGS]);
+  }
+
+  findSimilarImages(lotId: string, hashes: readonly string[], maxDistance: number) {
+    const matches: SimilarImage[] = [];
+    for (const lot of this.lots.values()) {
+      for (const image of lot.id === lotId ? [] : lot.images) {
+        for (const hash of hashes) {
+          const distance = image.perceptualHash === null ? Infinity : hamming(hash, image.perceptualHash);
+          if (distance <= maxDistance && image.perceptualHash !== null) {
+            matches.push({ lotId: lot.id, sellerId: lot.sellerId, queryHash: hash, matchedHash: image.perceptualHash, distance });
+          }
+        }
+      }
+    }
+    return Promise.resolve(matches);
   }
 
   create(sellerId: string, lot: NewLot, _categoryId: string, events: (lot: Lot) => DomainEvent[]) {
@@ -127,6 +142,16 @@ async function expectKind(promise: Promise<unknown>, kind: DomainError['kind']):
   );
   expect(error).toBeInstanceOf(DomainError);
   expect((error as DomainError).kind).toBe(kind);
+}
+
+function hamming(left: string, right: string): number {
+  let bits = BigInt(`0x${left}`) ^ BigInt(`0x${right}`);
+  let count = 0;
+  while (bits > 0n) {
+    count += Number(bits & 1n);
+    bits >>= 1n;
+  }
+  return count;
 }
 
 describe('dominio del lote', () => {
@@ -242,5 +267,21 @@ describe('casos de uso del catalogo', () => {
     const page = await new ListPublicLots(repo).execute({ page: 0, pageSize: 500, text: '   ' });
     expect(page).toMatchObject({ page: 1, pageSize: 60 });
     expect(repo.lastQuery[0]?.text).toBeNull();
+  });
+
+  it('busca imagenes parecidas en otras obras y valida la consulta', async () => {
+    const lots = new MemoryLots();
+    const create = new CreateLot(lots);
+    const mine = await create.execute(SELLER, NEW_LOT);
+    const theirs = await create.execute(OTHER, NEW_LOT);
+    lots.lots.set(theirs.id, { ...theirs, images: [{ id: 'i1', objectKey: 'k', position: 0, perceptualHash: 'ffffffffffffff00', createdAt: new Date() }] });
+    const similar = new FindSimilarImages(lots);
+    const matches = await similar.execute(mine.id, ['FFFFFFFFFFFFFF0F'], 6);
+    expect(matches).toEqual([
+      { lotId: theirs.id, sellerId: OTHER.userId, queryHash: 'ffffffffffffff0f', matchedHash: 'ffffffffffffff00', distance: 4 },
+    ]);
+    expect(await similar.execute(mine.id, ['0000000000000000'], 6)).toEqual([]);
+    await expect(similar.execute(mine.id, ['no-es-hash'], 6)).rejects.toBeInstanceOf(DomainError);
+    await expect(similar.execute(mine.id, ['ffffffffffffff00'], 40)).rejects.toBeInstanceOf(DomainError);
   });
 });

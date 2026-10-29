@@ -2,7 +2,7 @@ import { appendToOutbox, recordInbox, sqlExecutorFrom, type DomainEvent, type Sq
 import type { Prisma, PrismaClient } from '../../generated/prisma';
 import type { Category, Lot, LotImage, NewLot, RepresentationKind } from '../domain/lot';
 import { isLotStatus, PUBLIC_STATUSES, type LotStatus } from '../domain/lot-status';
-import type { LotPatch, LotRepository, LotTransitions, PublicLotQuery } from '../application/ports';
+import type { LotPatch, LotRepository, LotTransitions, PublicLotQuery, SimilarImage } from '../application/ports';
 
 export const CATALOG_SCHEMA = 'catalog';
 
@@ -95,6 +95,35 @@ export class PrismaLotRepository implements LotRepository {
     }
     const rows = await this.prisma.lot.findMany({ where: { id: { in: ids } }, include: lotInclude });
     return rows.map(toLot);
+  }
+
+  async findSimilarImages(lotId: string, hashes: readonly string[], maxDistance: number): Promise<SimilarImage[]> {
+    if (!UUID.test(lotId)) {
+      return [];
+    }
+    // Distancia de Hamming entre dHash de 64 bits. Recorre todas las imagenes
+    // con hash: a la escala del catalogo es barato; con millones haria falta un
+    // indice (BK-tree o un tipo bit con operador de vecindad).
+    const rows = await this.prisma.$queryRaw<Array<{ lot_id: string; seller_id: string; query_hash: string; matched_hash: string; distance: number }>>`
+      SELECT i.lot_id::text AS lot_id,
+             l.seller_id::text AS seller_id,
+             q.hash AS query_hash,
+             i.perceptual_hash AS matched_hash,
+             bit_count(('x' || q.hash)::bit(64) # ('x' || i.perceptual_hash)::bit(64))::int AS distance
+        FROM unnest(${hashes as string[]}::text[]) AS q(hash)
+        JOIN catalog.lot_images AS i ON i.perceptual_hash ~ '^[0-9a-f]{16}$'
+        JOIN catalog.lots AS l ON l.id = i.lot_id
+       WHERE i.lot_id <> CAST(${lotId} AS uuid)
+         AND bit_count(('x' || q.hash)::bit(64) # ('x' || i.perceptual_hash)::bit(64)) <= ${maxDistance}
+       ORDER BY distance ASC
+       LIMIT 50`;
+    return rows.map((row) => ({
+      lotId: row.lot_id,
+      sellerId: row.seller_id,
+      queryHash: row.query_hash,
+      matchedHash: row.matched_hash,
+      distance: row.distance,
+    }));
   }
 
   async findActiveCategory(slug: string): Promise<Category | null> {

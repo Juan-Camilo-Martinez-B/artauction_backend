@@ -17,6 +17,9 @@ service CatalogService {
   rpc BatchGetPublicLots(BatchGetPublicLotsRequest) returns (BatchGetPublicLotsResponse);
   // Solo con token de servicio: ignora la visibilidad.
   rpc BatchGetLotSnapshots(BatchGetLotSnapshotsRequest) returns (BatchGetLotSnapshotsResponse);
+  // Solo con token de audit-service: imagenes de otras obras con un hash
+  // perceptual a distancia de Hamming menor o igual a max_distance.
+  rpc FindSimilarImages(FindSimilarImagesRequest) returns (FindSimilarImagesResponse);
   rpc CreateLot(CreateLotRequest) returns (CreateLotResponse);
   rpc HashImage(HashImageRequest) returns (HashImageResponse);
   rpc SignUpload(SignUploadRequest) returns (SignUploadResponse);
@@ -160,6 +163,26 @@ message BatchGetLotSnapshotsRequest {
 
 message BatchGetLotSnapshotsResponse {
   repeated Lot lots = 1;
+}
+
+message FindSimilarImagesRequest {
+  // Obra auditada: sus propias imagenes no cuentan como coincidencia.
+  string lot_id = 1;
+  repeated string perceptual_hashes = 2;
+  int32 max_distance = 3;
+}
+
+message SimilarImage {
+  string lot_id = 1;
+  string seller_id = 2;
+  // Hash de la obra auditada y hash de la otra obra que se le parece.
+  string query_hash = 3;
+  string matched_hash = 4;
+  int32 distance = 5;
+}
+
+message FindSimilarImagesResponse {
+  repeated SimilarImage matches = 1;
 }
 
 message CreateLotRequest {
