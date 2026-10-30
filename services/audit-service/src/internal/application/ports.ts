@@ -21,14 +21,13 @@ export interface AuditSummary {
   createdAt: Date;
 }
 
-/** Resumen con lo necesario para leer su informe completo. */
+/** Resumen con lo necesario para leer su informe completo (misma llave). */
 export interface ReviewSummary {
   summaryId: string;
   lotId: string;
   score: number;
   decidedBy: DecidedBy | null;
   modelName: string;
-  reportId: string;
   createdAt: Date;
 }
 
@@ -46,8 +45,8 @@ export interface CompletedAudit {
   verdict: Verdict;
   assessment: Assessment;
   decidedBy: DecidedBy;
-  dossierHash: string | null;
-  reportId: string;
+  /** Expediente del informe completo; null si no se pudo armar. */
+  dossier: Dossier | null;
   event: DomainEvent;
 }
 
@@ -56,7 +55,7 @@ export interface AuditRepository {
   enqueueOnce(eventId: string, lotId: string): Promise<boolean>;
   /** Toma solicitudes vencidas con FOR UPDATE SKIP LOCKED y les pone un lease. */
   claimDue(now: Date, leaseMs: number, limit: number): Promise<AuditRequest[]>;
-  /** Guarda el resumen, el evento del outbox y cierra la solicitud, todo junto. */
+  /** Guarda el resumen, su informe completo y el evento del outbox, y cierra la solicitud: todo en una transaccion. */
   complete(requestId: string, audit: CompletedAudit): Promise<void>;
   /** La obra ya no espera auditoria: cierra la solicitud sin emitir nada. */
   skip(requestId: string, reason: string): Promise<void>;
@@ -67,21 +66,10 @@ export interface AuditRepository {
   latestForReview(lotIds: readonly string[]): Promise<ReviewSummary[]>;
 }
 
-/** Informe completo (expediente y respuesta) para quien revisa a mano. */
-export interface AuditReport {
-  id: string;
-  lotId: string;
-  decidedBy: DecidedBy;
-  dossier: Dossier | null;
-  assessment: Assessment;
-  createdAt: Date;
-}
-
+/** Lectura de los informes completos para quien revisa a mano. */
 export interface ReportStore {
-  /** Idempotente por id: un reintento no duplica el informe. */
-  save(report: AuditReport): Promise<void>;
-  /** Hallazgos de cada informe por id, con sus evidencias resueltas. */
-  findings(reportIds: readonly string[]): Promise<Map<string, ReviewFinding[]>>;
+  /** Hallazgos del informe de cada resumen, con sus evidencias resueltas. */
+  findings(summaryIds: readonly string[]): Promise<Map<string, ReviewFinding[]>>;
 }
 
 export interface CatalogPort {

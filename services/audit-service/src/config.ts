@@ -17,15 +17,6 @@ export class AuditConfig {
   @Matches(/[?&]schema=audit(&|$)/, { message: 'DATABASE_URL debe apuntar al esquema audit' })
   DATABASE_URL!: string;
 
-  /** Mongo de audit-service; los informes van a su propia base. */
-  @IsString()
-  @MinLength(1)
-  MONGODB_URI!: string;
-
-  @IsString()
-  @MinLength(1)
-  MONGODB_DATABASE = 'artauction_audit';
-
   @IsString()
   @MinLength(1)
   JWT_PUBLIC_KEY_PATH!: string;

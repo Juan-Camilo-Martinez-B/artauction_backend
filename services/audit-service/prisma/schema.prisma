@@ -21,15 +21,29 @@ model AuditSummary {
   priceMax                 Decimal  @map("price_max") @db.Decimal(12, 2)
   verdict                  String
   hasCriticalInconsistency Boolean  @default(false) @map("has_critical_inconsistency")
-  mongoReportId            String   @map("mongo_report_id")
   modelName                String   @map("model_name")
   promptVersion            String   @map("prompt_version")
   decidedBy                String?  @map("decided_by")
   dossierHash              String?  @map("dossier_hash")
   createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  report                   AuditReport?
 
   @@index([lotId, createdAt(sort: Desc)])
   @@map("audit_summaries")
+}
+
+/// Informe completo, 1 a 1 con su resumen (migracion 0022 de artauction_bd).
+model AuditReport {
+  summaryId  String       @id @map("summary_id") @db.Uuid
+  lotId      String       @map("lot_id") @db.Uuid
+  decidedBy  String       @map("decided_by")
+  dossier    Json?
+  assessment Json
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  summary    AuditSummary @relation(fields: [summaryId], references: [id], onDelete: Cascade)
+
+  @@index([lotId, createdAt(sort: Desc)])
+  @@map("reports")
 }
 
 model AuditRequest {

@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import { StructuredLogger, type DomainEvent } from '@artauction/platform';
 import { applyRules, buildDossier, generatorMarker, type Dossier, type ImageMetrics, type LotSheet } from '../src/internal/domain/dossier';
 import { decideVerdict, nextAttemptAt, type Assessment } from '../src/internal/domain/verdict';
-import type { AiPort, AuditReport, AuditRepository, AuditRequest, CatalogPort, CompletedAudit, ImageAnalyzer, ReportStore, ReviewSummary } from '../src/internal/application/ports';
+import type { AiPort, AuditRepository, AuditRequest, CatalogPort, CompletedAudit, ImageAnalyzer, ReportStore, ReviewSummary } from '../src/internal/application/ports';
 import { EnqueueAudit, GetReviewReports, RunAuditWorker } from '../src/internal/application/use-cases';
 import { MediaFetcher } from '../src/internal/infrastructure/media-fetcher';
 import { SharpImageAnalyzer } from '../src/internal/infrastructure/sharp-image-analyzer';
@@ -147,7 +147,6 @@ class MemoryAudits implements AuditRepository {
           score: audit.assessment.score,
           decidedBy: audit.decidedBy,
           modelName: audit.assessment.model,
-          reportId: audit.reportId,
           createdAt: NOW,
         })),
     );
@@ -156,21 +155,17 @@ class MemoryAudits implements AuditRepository {
 
 function harness(options: { lot?: LotSheet | null; image?: ImageMetrics | null; similarSeller?: string; ai?: () => Promise<Assessment> } = {}) {
   const audits = new MemoryAudits();
-  const reports: AuditReport[] = [];
   const aiCalls: Dossier[] = [];
+  // El informe se guarda con el resumen (complete), asi que se lee de ahi.
   const store: ReportStore = {
-    save: (report) => {
-      reports.push(report);
-      return Promise.resolve();
-    },
     findings: (ids) =>
       Promise.resolve(
         new Map(
-          reports
-            .filter((report) => ids.includes(report.id))
-            .map((report) => {
-              const values = new Map((report.dossier?.evidence ?? []).map((item) => [item.code, item.value]));
-              return [report.id, report.assessment.findings.map((finding) => ({ ...finding, evidence: finding.evidence.map((code) => ({ code, value: values.get(code) ?? 'sin dato' })) }))];
+          audits.completed
+            .filter((audit) => ids.includes(audit.summaryId))
+            .map((audit) => {
+              const values = new Map((audit.dossier?.evidence ?? []).map((item) => [item.code, item.value]));
+              return [audit.summaryId, audit.assessment.findings.map((finding) => ({ ...finding, evidence: finding.evidence.map((code) => ({ code, value: values.get(code) ?? 'sin dato' })) }))];
             }),
         ),
       ),
@@ -187,8 +182,8 @@ function harness(options: { lot?: LotSheet | null; image?: ImageMetrics | null; 
       return options.ai ? options.ai() : Promise.resolve(AI_RESULT);
     },
   };
-  const worker = new RunAuditWorker({ audits, reports: store, catalog, images, ai, clock: { now: () => NOW }, logger: new StructuredLogger('test', () => undefined) });
-  return { audits, reports, aiCalls, worker, store };
+  const worker = new RunAuditWorker({ audits, catalog, images, ai, clock: { now: () => NOW }, logger: new StructuredLogger('test', () => undefined) });
+  return { audits, aiCalls, worker, store };
 }
 
 function payloadOf(event: DomainEvent | undefined): Record<string, unknown> {
@@ -205,7 +200,7 @@ describe('worker de auditoria', () => {
   });
 
   it('consulta a la IA, cachea su evaluacion y emite AuditCompleted aprobado', async () => {
-    const { audits, reports, aiCalls, worker } = harness();
+    const { audits, aiCalls, worker } = harness();
     await audits.enqueueOnce('e1', LOT_ID);
     expect(await worker.tick()).toBe(1);
     expect(aiCalls).toHaveLength(1);
@@ -214,8 +209,9 @@ describe('worker de auditoria', () => {
     expect(audit?.decidedBy).toBe('AI');
     expect(audit?.verdict).toBe('APROBADO');
     expect(payloadOf(audit?.event)).toMatchObject({ lotId: LOT_ID, sellerId: SELLER, title: LOT.title, verdict: 'APROBADO', score: 82 });
-    expect(reports[0]?.id).toBe(audit?.summaryId);
-    expect(reports[0]?.dossier?.hash).toBe(audit?.dossierHash);
+    // El informe completo viaja en la misma transaccion que el resumen.
+    expect(audit?.dossier?.lot.lotId).toBe(LOT_ID);
+    expect(audit?.dossier?.evidence.length).toBeGreaterThan(0);
   });
 
   it('cortocircuito: una regla critica decide sin gastar tokens', async () => {

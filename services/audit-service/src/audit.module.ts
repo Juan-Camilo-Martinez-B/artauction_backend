@@ -10,7 +10,6 @@ import {
   TokenVerifier,
 } from '@artauction/platform';
 import { CallerResolver, ServiceTokenProvider } from '@artauction/service-kit';
-import { MongoClient } from 'mongodb';
 import { PrismaClient } from './generated/prisma';
 import { GrpcAiClient } from './api/clients/ai-client';
 import { GrpcCatalogClient } from './api/clients/catalog-client';
@@ -18,8 +17,8 @@ import { auditOutboxRoutes } from './api/events/outbox-routes';
 import { auditEventsGrpcService, auditGrpcService } from './api/grpc/audit.grpc';
 import { EnqueueAudit, GetLatestSummaries, GetReviewReports, RunAuditWorker } from './internal/application/use-cases';
 import { MediaFetcher } from './internal/infrastructure/media-fetcher';
-import { MongoReportStore } from './internal/infrastructure/mongo-report.store';
 import { PrismaAuditRepository } from './internal/infrastructure/prisma-audit.repository';
+import { PrismaReportStore } from './internal/infrastructure/prisma-report.store';
 import { SharpImageAnalyzer } from './internal/infrastructure/sharp-image-analyzer';
 import type { AuditConfig } from './config';
 
@@ -30,7 +29,6 @@ export const AUDIT_GRPC = Symbol('AUDIT_GRPC');
 export const AUDIT_EVENTS_GRPC = Symbol('AUDIT_EVENTS_GRPC');
 const CONFIG = Symbol('CONFIG');
 const PRISMA = Symbol('PRISMA');
-const MONGO = Symbol('MONGO');
 const REPOSITORY = Symbol('REPOSITORY');
 const CLIENTS = Symbol('CLIENTS');
 const WORKER = Symbol('WORKER');
@@ -52,11 +50,6 @@ const providers: Provider[] = [
     inject: [CONFIG],
     useFactory: (config: AuditConfig) => new PrismaClient({ datasourceUrl: config.DATABASE_URL }),
   },
-  {
-    provide: MONGO,
-    inject: [CONFIG],
-    useFactory: async (config: AuditConfig) => new MongoClient(config.MONGODB_URI).connect(),
-  },
   { provide: REPOSITORY, inject: [PRISMA], useFactory: (prisma: PrismaClient) => new PrismaAuditRepository(prisma) },
   {
     provide: CLIENTS,
@@ -74,10 +67,10 @@ const providers: Provider[] = [
   },
   {
     provide: AUDIT_GRPC,
-    inject: [CONFIG, REPOSITORY, MONGO, LOGGER],
-    useFactory: (config: AuditConfig, audits: PrismaAuditRepository, mongo: MongoClient, logger: StructuredLogger): auditV1.AuditServiceServer =>
+    inject: [CONFIG, PRISMA, REPOSITORY, LOGGER],
+    useFactory: (config: AuditConfig, prisma: PrismaClient, audits: PrismaAuditRepository, logger: StructuredLogger): auditV1.AuditServiceServer =>
       auditGrpcService(
-        { summaries: new GetLatestSummaries(audits), reviews: new GetReviewReports(audits, new MongoReportStore(mongo, config.MONGODB_DATABASE)) },
+        { summaries: new GetLatestSummaries(audits), reviews: new GetReviewReports(audits, new PrismaReportStore(prisma)) },
         new CallerResolver(TokenVerifier.fromFile(config.JWT_PUBLIC_KEY_PATH)),
         logger,
       ),
@@ -90,11 +83,10 @@ const providers: Provider[] = [
   },
   {
     provide: WORKER,
-    inject: [CONFIG, REPOSITORY, MONGO, CLIENTS, LOGGER],
-    useFactory: (config: AuditConfig, audits: PrismaAuditRepository, mongo: MongoClient, clients: Clients, logger: StructuredLogger) =>
+    inject: [CONFIG, REPOSITORY, CLIENTS, LOGGER],
+    useFactory: (config: AuditConfig, audits: PrismaAuditRepository, clients: Clients, logger: StructuredLogger) =>
       new RunAuditWorker({
         audits,
-        reports: new MongoReportStore(mongo, config.MONGODB_DATABASE),
         catalog: new GrpcCatalogClient(clients.catalog, clients.tokens),
         images: new SharpImageAnalyzer(
           new MediaFetcher({
@@ -133,7 +125,6 @@ export class AuditModule implements OnApplicationBootstrap, OnApplicationShutdow
   constructor(
     @Inject(CONFIG) private readonly config: AuditConfig,
     @Inject(PRISMA) private readonly prisma: PrismaClient,
-    @Inject(MONGO) private readonly mongo: MongoClient,
     @Inject(CLIENTS) private readonly clients: Clients,
     @Inject(WORKER) private readonly worker: RunAuditWorker,
     @Inject(RELAY) private readonly relay: { relay: OutboxRelay; close: () => void },
@@ -168,7 +159,6 @@ export class AuditModule implements OnApplicationBootstrap, OnApplicationShutdow
     for (const client of [this.clients.identity, this.clients.catalog, this.clients.ai]) {
       client.close();
     }
-    await this.mongo.close();
     await this.prisma.$disconnect();
   }
 

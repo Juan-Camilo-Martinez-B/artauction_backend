@@ -1,6 +1,6 @@
 # audit-service
 
-Auditoría de autenticidad de ArtAuction AI. Decide si una obra se publica sola o va a revisión manual, con argumentos verificables. Es el dueño del esquema `audit` (`audit_summaries`, `audit_requests`, `ai_assessments`, `outbox`, `inbox`) y de la base Mongo `artauction_audit`. Expone `artauction.audit.v1.AuditService` y `AuditEventHandlerService` por gRPC (puerto `50056`).
+Auditoría de autenticidad de ArtAuction AI. Decide si una obra se publica sola o va a revisión manual, con argumentos verificables. Es el dueño del esquema `audit` (`audit_summaries`, `reports`, `audit_requests`, `ai_assessments`, `outbox`, `inbox`). Expone `artauction.audit.v1.AuditService` y `AuditEventHandlerService` por gRPC (puerto `50056`).
 
 ## Flujo
 
@@ -17,7 +17,7 @@ catalog --LotSubmitted--> audit-service --(cola propia)--> worker
                   | no
                ai-service (Gemini o evaluacion local)
                                                             |
-            resumen + AuditCompleted (outbox) + informe (Mongo)
+            resumen + informe completo + AuditCompleted (outbox), una transaccion
                                                             |
             catalog (estado y precios), auction (programa la sala), notification (aviso)
 ```
@@ -64,7 +64,7 @@ Va a revisión manual si hay algo crítico (de las reglas o del modelo) o si el 
 - El worker toma solicitudes con `FOR UPDATE SKIP LOCKED` y un lease de 2 minutos. Un fallo, por ejemplo con ai-service caído, se reintenta con backoff: 10 s, 20 s, 40 s, 80 s.
 - Al quinto fallo emite `AuditCompleted` con revisión manual (`decided_by = FALLBACK`): la obra nunca queda atascada.
 - Si la obra ya no está `PENDIENTE_AUDITORIA`, la solicitud se cierra sin emitir nada.
-- El resumen, el evento del outbox y el cierre de la solicitud van en una sola transacción. El informe completo va antes a Mongo, idempotente por `_id`.
+- El resumen, su informe completo (`audit.reports`, con el expediente y la evaluación en JSONB), el evento del outbox y el cierre de la solicitud van en una sola transacción. El informe usa la llave del resumen, así nunca queda uno sin el otro.
 
 ## Seguridad de las descargas
 
@@ -74,7 +74,7 @@ Node en Windows no resuelve `*.localhost`. Por eso una URL de la base pública d
 
 ## Revisión manual
 
-`BatchGetReviewReports`, solo para ADMIN, devuelve por obra el último resumen con sus hallazgos. Cada hallazgo trae el **valor** de las evidencias que cita, tomado del expediente guardado en Mongo; por ejemplo, `lot.declared_year = 1910`. El administrador decide con los mismos argumentos que usó la auditoría. Los informes anteriores a F7 se leen igual, con sus hallazgos y sin evidencias.
+`BatchGetReviewReports`, solo para ADMIN, devuelve por obra el último resumen con sus hallazgos. Cada hallazgo trae el **valor** de las evidencias que cita, tomado del expediente guardado en `audit.reports`; por ejemplo, `lot.declared_year = 1910`. El administrador decide con los mismos argumentos que usó la auditoría.
 
 ## Estructura
 
@@ -86,7 +86,7 @@ src/
   internal/
     domain/          expediente, reglas, huella, veredicto y evento
     application/     EnqueueAudit, RunAuditWorker, GetLatestSummaries y puertos
-    infrastructure/  Prisma (cola, caché, resúmenes), Mongo (informes), MediaFetcher, SharpImageAnalyzer
+    infrastructure/  Prisma (cola, caché, resúmenes e informes), MediaFetcher, SharpImageAnalyzer
   audit.module.ts    raíz de composición, worker y relay del outbox
 ```
 
@@ -103,6 +103,6 @@ npm start -w @artauction/audit-service
 `npm test -w @artauction/audit-service`:
 
 - reglas (anacronismo, duplicados, resolución, nitidez, proporción, metadatos de generador) y estabilidad de la huella;
-- worker: camino con IA y caché, cortocircuito sin IA, acierto de caché, la evaluación local no se cachea, reintentos con backoff, respaldo al quinto fallo y obras que ya no esperan auditoría;
+- worker: camino con IA y caché (el informe completo viaja con el resumen), cortocircuito sin IA, acierto de caché, la evaluación local no se cachea, reintentos con backoff, respaldo al quinto fallo y obras que ya no esperan auditoría;
 - descargador que rechaza hosts no permitidos, http externo y credenciales en la URL;
 - análisis de una imagen real generada con `sharp`.

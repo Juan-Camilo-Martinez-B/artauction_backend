@@ -32,7 +32,6 @@ export class EnqueueAudit {
 
 export interface AuditDependencies {
   audits: AuditRepository;
-  reports: ReportStore;
   catalog: CatalogPort;
   images: ImageAnalyzer;
   ai: AiPort;
@@ -114,18 +113,15 @@ export class RunAuditWorker {
   private async finish(request: AuditRequest, lot: LotSheet, assessment: Assessment, decidedBy: DecidedBy, dossier: Dossier | null): Promise<void> {
     const summaryId = randomUUID();
     const verdict = decidedBy === 'FALLBACK' ? 'REVISION_MANUAL' : decideVerdict(assessment.score, assessment.critical);
-    // El informe va primero (Mongo, idempotente por id). Si la transaccion
-    // posterior falla, el reintento genera otro id y el informe huerfano no
-    // afecta a nadie: ningun resumen apunta a el.
-    await this.deps.reports.save({ id: summaryId, lotId: lot.lotId, decidedBy, dossier, assessment, createdAt: this.deps.clock.now() });
+    // Resumen, informe completo y evento entran en una sola transaccion: si
+    // falla, el reintento empieza de cero y no queda un informe sin resumen.
     await this.deps.audits.complete(request.id, {
       summaryId,
       lotId: lot.lotId,
       verdict,
       assessment,
       decidedBy,
-      dossierHash: dossier?.hash ?? null,
-      reportId: summaryId,
+      dossier,
       event: auditCompleted({ lotId: lot.lotId, sellerId: lot.sellerId, title: lot.title, verdict, assessment }),
     });
   }
@@ -164,7 +160,7 @@ export class GetReviewReports {
       return [];
     }
     const summaries = await this.audits.latestForReview(ids);
-    const findings = await this.reports.findings(summaries.map((summary) => summary.reportId));
-    return summaries.map((summary) => ({ ...summary, findings: findings.get(summary.reportId) ?? [] }));
+    const findings = await this.reports.findings(summaries.map((summary) => summary.summaryId));
+    return summaries.map((summary) => ({ ...summary, findings: findings.get(summary.summaryId) ?? [] }));
   }
 }
