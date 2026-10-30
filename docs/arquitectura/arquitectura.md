@@ -9,24 +9,24 @@ ArtAuction AI es una casa de subastas de arte con auditoría de autenticidad asi
 | Servicio | Puerto | Responsabilidad | Datos propios |
 |---|---|---|---|
 | `api-gateway` | HTTP 3001 | REST y Socket.IO del frontend, validación, rate limit, composición, OpenAPI | ninguno |
-| `identity-service` | gRPC 50051 | cuentas, login, refresh rotativo, firma JWT RS256, tokens de servicio | PG `identity` |
+| `identity-service` | gRPC 50051 | cuentas, login, refresh rotativo, firma JWT RS256, tokens de servicio | PG `identity` (cuentas y sesiones) |
 | `catalog-service` | gRPC 50052 | obras, imágenes, hash perceptual, ciclo de vida del lote, revisión manual | PG `catalog`, bucket S3 |
 | `wallet-service` | gRPC 50053 | saldo en artacoins, retenciones TCC, ledger, recargas con pasarela simulada | PG `wallet` |
 | `auction-service` | gRPC 50054 | salas, pujas, anti-sniping, programador, stream en vivo | PG `auction` |
 | `ai-service` | gRPC 50055 | única dueña de la clave de Gemini; REST hacia el modelo con circuit breaker | ninguno |
-| `audit-service` | gRPC 50056 | cola de auditoría, expediente de evidencias, reglas, informes | PG `audit`, Mongo `artauction_audit` |
-| `gallery-service` | gRPC 50057 | galería 3D personal, galería social, follows y feed | PG `gallery`, Mongo `artauction_gallery` |
-| `notification-service` | gRPC 50058 | avisos al usuario | Mongo `artauction_notification` |
+| `audit-service` | gRPC 50056 | cola de auditoría, expediente de evidencias, reglas, informes | PG `audit` (informes en JSONB) |
+| `gallery-service` | gRPC 50057 | galería 3D personal, galería social, follows y feed | PG `gallery` |
+| `notification-service` | gRPC 50058 | avisos al usuario | PG `notification` |
 
 Tres reglas sostienen el diseño:
 
-1. **Cada servicio es dueño de sus datos.** Un esquema de Postgres por servicio, con un login propio (`<servicio>_svc`) que no puede leer los demás. No hay claves foráneas entre contextos: lo que un servicio necesita de otro llega por gRPC o en un evento.
+1. **Cada servicio es dueño de sus datos.** Un solo motor, PostgreSQL, con un esquema por servicio (ADR 0003 y 0010), con un login propio (`<servicio>_svc`) que no puede leer los demás. No hay claves foráneas entre contextos: lo que un servicio necesita de otro llega por gRPC o en un evento.
 2. **gRPC síncrono solo cuando la respuesta hace falta ya.** El resto viaja como evento, por un outbox transaccional, a consumidores idempotentes.
 3. **Ningún servicio confía en la red.** Cada llamada lleva un JWT (de usuario o de servicio) que el receptor verifica con la clave pública de identity.
 
 ## Despliegue con docker compose
 
-`compose.yaml` levanta la plataforma completa. Solo el frontend, el gateway y Garage publican puertos en el host; Postgres, Mongo y los puertos gRPC quedan en la red interna de compose.
+`compose.yaml` levanta la plataforma completa. Solo el frontend, el gateway y Garage publican puertos en el host; Postgres y los puertos gRPC quedan en la red interna de compose.
 
 ```mermaid
 flowchart TB
@@ -48,7 +48,6 @@ flowchart TB
       notif[notification :50058]
     end
     pg[(Postgres 16<br/>un esquema por servicio)]
-    mg[(Mongo 7<br/>una base por servicio)]
     s3[(Garage S3<br/>:3900 API, :3902 web)]
     dbsetup[[db-setup<br/>migraciones, logins, semilla]]
     stsetup[[storage-setup<br/>bucket, llaves, CORS]]
@@ -62,20 +61,15 @@ flowchart TB
   fe -- "SSR: API_INTERNAL_URL" --> gw
   gw --> svc
   svc --> pg
-  aud --> mg
-  gal --> mg
-  notif --> mg
-  id --> mg
   cat --> s3
   ai -- REST --> gem
   dbsetup -. una vez .-> pg
-  dbsetup -. una vez .-> mg
   stsetup -. una vez .-> s3
 ```
 
 **Orden de arranque.** compose lo resuelve con `depends_on` y healthchecks:
 
-1. Postgres, Mongo y Garage.
+1. Postgres y Garage.
 2. Los jobs `db-setup` y `storage-setup`, que deben terminar con código 0:
    - `db-setup` construye la imagen de `artauction_bd`, aplica las migraciones, crea los logins de servicio y siembra la base solo si está vacía;
    - `storage-setup` crea el bucket, la llave de catalog y la de administración, el acceso web público y la política CORS.
@@ -101,7 +95,7 @@ flowchart LR
   subgraph internal[internal]
     app[application<br/>casos de uso y puertos]
     domain[domain<br/>entidades y reglas puras]
-    infra[infrastructure<br/>Prisma, Mongo, S3, outbox]
+    infra[infrastructure<br/>Prisma, S3, outbox]
   end
   grpc --> app
   events --> app
@@ -210,7 +204,7 @@ sequenceDiagram
     AUD->>AI: AuditArtwork(expediente, sin imágenes)
     AI-->>AUD: score, precio sugerido y hallazgos saneados
   end
-  AUD->>AUD: resumen en Postgres, informe en Mongo, AuditCompleted (outbox)
+  AUD->>AUD: una transacción: resumen, informe completo y AuditCompleted (outbox)
   AUD-->>CAT: AuditCompleted: PUBLICADA o REVISION_MANUAL
   AUD-->>AUC: AuditCompleted: programa la sala si se aprobó
   AUD-->>NOT: AuditCompleted: aviso al vendedor

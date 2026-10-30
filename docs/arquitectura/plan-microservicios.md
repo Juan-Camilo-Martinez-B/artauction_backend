@@ -2,6 +2,8 @@
 
 Estado: completado (F0 a F9). Rama: `feat/microservices`.
 
+Después de F9, la fase F10 retiró Mongo: hoy todo vive en PostgreSQL (ADR 0010). Las tablas de abajo describen el plan tal como se ejecutó, con Mongo.
+
 La arquitectura resultante, con sus diagramas, está en [arquitectura.md](arquitectura.md). Este documento queda como registro del plan y de cómo se ejecutó.
 
 ## Objetivo
