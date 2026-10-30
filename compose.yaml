@@ -7,14 +7,14 @@
 # Requiere los tres repositorios como carpetas hermanas (artauction_backend,
 # artauction_bd, artauction_frontend). Al host solo llegan el frontend, el
 # gateway y Garage (lectura publica de imagenes y API S3 para las subidas del
-# navegador); Postgres, Mongo y los puertos gRPC quedan en la red interna.
+# navegador); Postgres y los puertos gRPC quedan en la red interna.
 # Los secretos se leen de secrets/ en tiempo de ejecucion y nunca entran en
 # una imagen. Los puertos del host se pueden cambiar con FRONTEND_PORT,
 # GATEWAY_PORT, MEDIA_PORT y S3_PORT.
 #
 # El proyecto no se llama "artauction" a proposito: ese nombre lo toma el
 # compose de infraestructura de la carpeta raiz, que tiene servicios con los
-# mismos nombres (postgres, mongo, garage). Con el mismo proyecto, compose
+# mismos nombres (postgres, garage). Con el mismo proyecto, compose
 # recrearia esos contenedores de desarrollo.
 
 name: artauction-platform
@@ -58,16 +58,6 @@ services:
     volumes:
       - postgres:/var/lib/postgresql/data
 
-  mongo:
-    image: mongo:7
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    volumes:
-      - mongo:/data/db
-
   garage:
     image: dxflrs/garage:v2.1.0
     env_file: ./secrets/garage.env
@@ -84,13 +74,13 @@ services:
     build: ../artauction_bd
     environment:
       DATABASE_URL: postgresql://artauction:${POSTGRES_PASSWORD}@postgres:5432/artauction
-      MONGODB_URI: mongodb://mongo:27017/artauction_audit
       IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD}
       AUCTION_DB_PASSWORD: ${AUCTION_DB_PASSWORD}
       WALLET_DB_PASSWORD: ${WALLET_DB_PASSWORD}
       AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD}
       GALLERY_DB_PASSWORD: ${GALLERY_DB_PASSWORD}
+      NOTIFICATION_DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
     # Migraciones y logins siempre (son idempotentes); la semilla solo en una base vacia.
     command:
       - bash
@@ -102,8 +92,6 @@ services:
         then node scripts/seed/run.mjs; else echo 'base con datos: sin semilla'; fi
     depends_on:
       postgres:
-        condition: service_healthy
-      mongo:
         condition: service_healthy
 
   # Corre sobre la imagen de catalog-service para usar su SDK de S3 (CORS), y
@@ -132,7 +120,6 @@ services:
       <<: *grpc-env
       GRPC_PORT: 50051
       DATABASE_URL: postgresql://identity_svc:${IDENTITY_DB_PASSWORD}@postgres:5432/artauction?schema=identity
-      MONGODB_URI: mongodb://mongo:27017/artauction_identity
       JWT_PRIVATE_KEY_PATH: /run/secrets/jwt/private.pem
       SERVICE_CLIENTS: ${SERVICE_CLIENTS}
     volumes:
@@ -220,8 +207,6 @@ services:
       <<: *grpc-env
       GRPC_PORT: 50056
       DATABASE_URL: postgresql://audit_svc:${AUDIT_DB_PASSWORD}@postgres:5432/artauction?schema=audit
-      MONGODB_URI: mongodb://mongo:27017
-      MONGODB_DATABASE: artauction_audit
       SERVICE_CLIENT_ID: audit-service
       SERVICE_CLIENT_SECRET: ${AUDIT_SERVICE_CLIENT_SECRET}
       CATALOG_GRPC_URL: catalog-service:50052
@@ -241,8 +226,6 @@ services:
       <<: *grpc-env
       GRPC_PORT: 50057
       DATABASE_URL: postgresql://gallery_svc:${GALLERY_DB_PASSWORD}@postgres:5432/artauction?schema=gallery
-      MONGODB_URI: mongodb://mongo:27017
-      MONGODB_DATABASE: artauction_gallery
       SERVICE_CLIENT_ID: gallery-service
       SERVICE_CLIENT_SECRET: ${GALLERY_SERVICE_CLIENT_SECRET}
       CATALOG_GRPC_URL: catalog-service:50052
@@ -257,13 +240,12 @@ services:
     environment:
       <<: *grpc-env
       GRPC_PORT: 50058
-      MONGODB_URI: mongodb://mongo:27017
-      MONGODB_DATABASE: artauction_notification
+      DATABASE_URL: postgresql://notification_svc:${NOTIFICATION_DB_PASSWORD}@postgres:5432/artauction?schema=notification
     volumes:
       - *public-key
     depends_on:
-      mongo:
-        condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
 
   api-gateway:
     <<: *service
@@ -316,7 +298,6 @@ services:
 
 volumes:
   postgres:
-  mongo:
   garage-meta:
   garage-data:
   storage-bootstrap:

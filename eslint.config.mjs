@@ -26,7 +26,7 @@ const apiLayer = {
   message: 'La capa internal no depende de la capa api (inversion de dependencias).',
 };
 const frameworks = {
-  group: ['@nestjs/*', '@prisma/*', 'mongoose', 'pg-boss', 'socket.io', '**/generated/prisma', '**/generated/prisma/**'],
+  group: ['@nestjs/*', '@prisma/*', 'socket.io', '**/generated/prisma', '**/generated/prisma/**'],
   message: 'El dominio es TypeScript puro: sin frameworks ni persistencia.',
 };
 const outerInternalLayers = {
@@ -38,7 +38,7 @@ const infrastructureLayer = {
   message: 'application depende de puertos, no de su implementacion.',
 };
 const persistence = {
-  group: ['@prisma/*', 'mongoose', 'pg-boss', '**/generated/prisma', '**/generated/prisma/**'],
+  group: ['@prisma/*', '**/generated/prisma', '**/generated/prisma/**'],
   message: 'application usa puertos de repositorio; la persistencia vive en infrastructure.',
 };
 
