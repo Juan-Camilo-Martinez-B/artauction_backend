@@ -15,8 +15,10 @@ import {
   GetPublicProfile,
   IssueServiceToken,
   Login,
+  PurgeExpiredSessions,
   RegisterAccount,
   RotateRefreshSession,
+  SESSION_RETENTION_MS,
   UpdateProfile,
 } from '../src/internal/application/use-cases';
 import { EnvServiceClientRegistry } from '../src/internal/infrastructure/crypto-adapters';
@@ -97,6 +99,14 @@ class MemorySessions implements SessionStore {
       }
     }
     return Promise.resolve();
+  }
+
+  deleteExpired(before: Date, limit: number): Promise<number> {
+    const expired = [...this.rows.values()].filter((row) => row.expiresAt < before).slice(0, limit);
+    for (const row of expired) {
+      this.rows.delete(row.tokenHash);
+    }
+    return Promise.resolve(expired.length);
   }
 }
 
@@ -206,6 +216,36 @@ describe('rotacion de refresh', () => {
     const { rotate, pair } = await loggedIn();
     const results = await Promise.allSettled([rotate.execute(pair.refreshToken), rotate.execute(pair.refreshToken)]);
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+  });
+});
+
+describe('barrido de sesiones', () => {
+  const now = new Date('2026-10-30T12:00:00Z');
+  const session = (tokenHash: string, expiresAt: Date): RefreshSession => ({
+    userId: 'user-1',
+    tokenHash,
+    familyId: 'family-1',
+    expiresAt,
+    revokedAt: null,
+  });
+
+  it('borra solo las sesiones vencidas hace mas de un dia', async () => {
+    const store = new MemorySessions();
+    await store.create(session('vencida-hace-dos-dias', new Date(now.getTime() - 2 * SESSION_RETENTION_MS)));
+    await store.create(session('vencida-hace-una-hora', new Date(now.getTime() - 3_600_000)));
+    await store.create(session('vigente', new Date(now.getTime() + 3_600_000)));
+    const removed = await new PurgeExpiredSessions(store, { now: () => now }).execute();
+    expect(removed).toBe(1);
+    expect([...store.rows.keys()].sort()).toEqual(['vencida-hace-una-hora', 'vigente']);
+  });
+
+  it('respeta el limite de cada barrido', async () => {
+    const store = new MemorySessions();
+    for (const name of ['a', 'b', 'c']) {
+      await store.create(session(name, new Date(now.getTime() - 2 * SESSION_RETENTION_MS)));
+    }
+    expect(await new PurgeExpiredSessions(store, { now: () => now }).execute(2)).toBe(2);
+    expect(store.rows.size).toBe(1);
   });
 });
 

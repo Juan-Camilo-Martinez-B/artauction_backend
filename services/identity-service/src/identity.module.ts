@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { Inject, Module, type OnApplicationShutdown, type Provider } from '@nestjs/common';
-import { createConnection, type Connection } from 'mongoose';
+import { Inject, Module, type OnApplicationBootstrap, type OnApplicationShutdown, type Provider } from '@nestjs/common';
 import { durationToMs, StructuredLogger, TokenVerifier } from '@artauction/platform';
 import { PrismaClient } from './generated/prisma';
 import { identityGrpcService, type IdentityUseCases } from './api/grpc/identity.grpc';
@@ -11,6 +10,7 @@ import {
   GetSigningKeys,
   IssueServiceToken,
   Login,
+  PurgeExpiredSessions,
   RegisterAccount,
   RotateRefreshSession,
   UpdateProfile,
@@ -23,8 +23,8 @@ import {
   SystemClock,
   UuidGenerator,
 } from './internal/infrastructure/crypto-adapters';
-import { MongoSessionStore } from './internal/infrastructure/mongo-session.store';
 import { PrismaAccountRepository } from './internal/infrastructure/prisma-account.repository';
+import { PrismaSessionStore } from './internal/infrastructure/prisma-session.store';
 import type { IdentityConfig } from './config';
 
 // Raiz de composicion: el unico lugar que conoce a la vez los casos de uso, sus
@@ -34,7 +34,7 @@ export const CONFIG = Symbol('IDENTITY_CONFIG');
 export const LOGGER = Symbol('LOGGER');
 export const GRPC_SERVICE = Symbol('IDENTITY_GRPC_SERVICE');
 const PRISMA = Symbol('PRISMA');
-const MONGO = Symbol('MONGO');
+const SWEEPER = Symbol('SESSION_SWEEPER');
 const USE_CASES = Symbol('USE_CASES');
 
 const providers: Provider[] = [
@@ -45,15 +45,14 @@ const providers: Provider[] = [
     useFactory: (config: IdentityConfig) => new PrismaClient({ datasourceUrl: config.DATABASE_URL }),
   },
   {
-    provide: MONGO,
-    inject: [CONFIG],
-    useFactory: async (config: IdentityConfig): Promise<Connection> =>
-      createConnection(config.MONGODB_URI, { serverSelectionTimeoutMS: 5_000 }).asPromise(),
+    provide: SWEEPER,
+    inject: [PRISMA],
+    useFactory: (prisma: PrismaClient) => new PurgeExpiredSessions(new PrismaSessionStore(prisma), new SystemClock()),
   },
   {
     provide: USE_CASES,
-    inject: [CONFIG, PRISMA, MONGO],
-    useFactory: (config: IdentityConfig, prisma: PrismaClient, mongo: Connection): IdentityUseCases => {
+    inject: [CONFIG, PRISMA],
+    useFactory: (config: IdentityConfig, prisma: PrismaClient): IdentityUseCases => {
       const accounts = new PrismaAccountRepository(prisma);
       const hasher = new Argon2PasswordHasher();
       const tokens = new Rs256TokenIssuer(
@@ -61,7 +60,7 @@ const providers: Provider[] = [
         config.JWT_ACCESS_TTL,
         config.SERVICE_TOKEN_TTL,
       );
-      const store = new MongoSessionStore(mongo);
+      const store = new PrismaSessionStore(prisma);
       const codec = new OpaqueRefreshTokenCodec();
       const clock = new SystemClock();
       const sessions = new SessionIssuer(tokens, codec, store, new UuidGenerator(), clock, durationToMs(config.JWT_REFRESH_TTL));
@@ -86,10 +85,15 @@ const providers: Provider[] = [
 ];
 
 @Module({})
-export class IdentityModule implements OnApplicationShutdown {
+export class IdentityModule implements OnApplicationBootstrap, OnApplicationShutdown {
+  private timer: NodeJS.Timeout | null = null;
+  private sweeping = false;
+
   constructor(
+    @Inject(CONFIG) private readonly config: IdentityConfig,
     @Inject(PRISMA) private readonly prisma: PrismaClient,
-    @Inject(MONGO) private readonly mongo: Connection,
+    @Inject(SWEEPER) private readonly sweeper: PurgeExpiredSessions,
+    @Inject(LOGGER) private readonly logger: StructuredLogger,
   ) {}
 
   static register(config: IdentityConfig) {
@@ -100,7 +104,37 @@ export class IdentityModule implements OnApplicationShutdown {
     };
   }
 
+  onApplicationBootstrap(): void {
+    if (!this.config.SESSION_SWEEP_ENABLED) {
+      return;
+    }
+    this.timer = setInterval(() => {
+      void this.sweep();
+    }, this.config.SESSION_SWEEP_MS);
+  }
+
   async onApplicationShutdown(): Promise<void> {
-    await Promise.allSettled([this.prisma.$disconnect(), this.mongo.close()]);
+    if (this.timer) {
+      clearInterval(this.timer);
+    }
+    await this.prisma.$disconnect();
+  }
+
+  /** Un barrido a la vez; un fallo se registra y el siguiente lo reintenta. */
+  private async sweep(): Promise<void> {
+    if (this.sweeping) {
+      return;
+    }
+    this.sweeping = true;
+    try {
+      const removed = await this.sweeper.execute();
+      if (removed > 0) {
+        this.logger.log(`sesiones vencidas borradas: ${String(removed)}`, 'sessions');
+      }
+    } catch (error) {
+      this.logger.error(error instanceof Error ? error.message : String(error), undefined, 'sessions');
+    } finally {
+      this.sweeping = false;
+    }
   }
 }

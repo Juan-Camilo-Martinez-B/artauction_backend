@@ -52,6 +52,8 @@ export interface SessionStore {
    */
   revokeIfActive(tokenHash: string, replacedByHash: string, at: Date): Promise<boolean>;
   revokeFamily(familyId: string, at: Date): Promise<void>;
+  /** Borra hasta `limit` sesiones vencidas antes de `before`; devuelve cuantas. */
+  deleteExpired(before: Date, limit: number): Promise<number>;
 }
 
 export interface ServiceClientRegistry {
