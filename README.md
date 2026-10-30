@@ -139,7 +139,7 @@ Publica:
 - el catálogo de eventos de Socket.IO ([docs/websocket](docs/websocket/v1.md));
 - entre servicios, los `.proto` de `packages/contracts`, que `buf breaking` protege en cada PR.
 
-Consume: los esquemas de Postgres y Mongo de `artauction_bd`, versionados con tags semánticos. Ningún servicio redefine el modelo por su cuenta.
+Consume: el esquema de Postgres de `artauction_bd`, versionado con tags semánticos. Desde F10 PostgreSQL es el único motor (ADR 0010). Ningún servicio redefine el modelo por su cuenta.
 
 ## CI
 

@@ -1,6 +1,6 @@
 # notification-service
 
-Avisos de ArtAuction AI. Es el dueño de la base Mongo `artauction_notification` (`notifications` y su inbox `processed_events`). Expone `artauction.notification.v1.NotificationService` y `NotificationEventHandlerService` por gRPC (puerto `50058`). No llama a otros servicios.
+Avisos de ArtAuction AI. Es el dueño del esquema `notification` (`notifications` e `inbox`), con su login `notification_svc`. Expone `artauction.notification.v1.NotificationService` y `NotificationEventHandlerService` por gRPC (puerto `50058`). No llama a otros servicios.
 
 | Evento | Productor | Quién recibe el aviso |
 |---|---|---|
@@ -11,9 +11,7 @@ Cada handler acepta solo el token de servicio de su productor. `ListNotification
 
 ## Una sola vez por evento
 
-El id de cada aviso es `<evento>:<destinatario>`, y se escribe con `upsert` y `$setOnInsert`. El inbox evita reprocesar un evento, y aun si el registro del inbox se pierde, repetir el evento no duplica avisos.
-
-Los avisos migrados del monolito conservan su `ObjectId`.
+El id de cada aviso es `<evento>:<destinatario>`, y se escribe con `INSERT ... ON CONFLICT DO NOTHING`. El inbox evita reprocesar un evento, y aun si el registro del inbox se pierde, repetir el evento no duplica avisos.
 
 ## Contrato con el frontend
 
@@ -27,14 +25,14 @@ src/
   internal/
     domain/          construcción de avisos por evento
     application/     NotificationEvents, ListNotifications y el puerto NotificationStore
-    infrastructure/  Mongo (artauction_notification)
+    infrastructure/  Prisma (esquema notification)
   notification.module.ts
 ```
 
 ## Ejecutar
 
 ```bash
-cp .env.example .env
+cp .env.example .env     # completar DATABASE_URL (usuario notification_svc)
 npm run build -w @artauction/notification-service
 npm start -w @artauction/notification-service
 ```

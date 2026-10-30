@@ -56,3 +56,35 @@ model Follow {
   @@id([followerId, followeeId])
   @@map("follows")
 }
+
+/// Obra de la galeria social: propia, ganada o gratuita. El id es determinista
+/// (PROPIA:<obra>:<duena>), asi un evento repetido no duplica la fila.
+model GalleryItem {
+  id         String   @id
+  ownerId    String   @map("owner_id") @db.Uuid
+  lotId      String?  @map("lot_id") @db.Uuid
+  source     String
+  visibility String
+  title      String
+  artistName String?  @map("artist_name")
+  imageKeys  String[] @default([]) @map("image_keys")
+  acquiredAt DateTime @map("acquired_at") @db.Timestamptz(6)
+
+  @@index([ownerId, acquiredAt(sort: Desc)])
+  @@map("items")
+}
+
+/// Actividad del feed. El indice parcial de lo publico vive en la migracion 0022.
+model Activity {
+  id         String   @id
+  actorId    String   @map("actor_id") @db.Uuid
+  verb       String
+  objectType String   @map("object_type")
+  objectId   String   @map("object_id")
+  visibility String
+  summary    String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([actorId, createdAt(sort: Desc)])
+  @@map("activity")
+}

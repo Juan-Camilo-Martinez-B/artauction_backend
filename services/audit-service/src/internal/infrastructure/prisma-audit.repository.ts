@@ -3,23 +3,11 @@ import { Prisma, type PrismaClient } from '../../generated/prisma';
 import type { Finding } from '../domain/dossier';
 import type { Assessment, Verdict } from '../domain/verdict';
 import type { AuditRepository, AuditRequest, AuditSummary, CompletedAudit, ReviewSummary } from '../application/ports';
+import { isAssessment, toJsonObject } from './json-documents';
 
 const AUDIT_SCHEMA = 'audit';
 /** Una evaluacion cacheada vale 30 dias; despues se vuelve a consultar al modelo. */
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-
-function isAssessment(value: unknown): value is Assessment {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const record = value as Record<string, unknown>;
-  return (
-    typeof record['model'] === 'string' &&
-    typeof record['score'] === 'number' &&
-    typeof record['critical'] === 'boolean' &&
-    Array.isArray(record['findings'])
-  );
-}
 
 export class PrismaAuditRepository implements AuditRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -75,11 +63,20 @@ export class PrismaAuditRepository implements AuditRepository {
           priceMax: new Prisma.Decimal(audit.assessment.priceMax),
           verdict: audit.verdict,
           hasCriticalInconsistency: audit.assessment.critical,
-          mongoReportId: audit.reportId,
           modelName: audit.assessment.model,
           promptVersion: audit.assessment.promptVersion,
           decidedBy: audit.decidedBy,
-          dossierHash: audit.dossierHash,
+          dossierHash: audit.dossier?.hash ?? null,
+        },
+      });
+      // El informe usa la llave del resumen: nunca queda uno sin el otro.
+      await tx.auditReport.create({
+        data: {
+          summaryId: audit.summaryId,
+          lotId: audit.lotId,
+          decidedBy: audit.decidedBy,
+          dossier: audit.dossier === null ? Prisma.DbNull : toJsonObject(audit.dossier),
+          assessment: toJsonObject(audit.assessment),
         },
       });
       await appendToOutbox(sqlExecutorFrom(tx), AUDIT_SCHEMA, [audit.event]);
@@ -149,7 +146,6 @@ export class PrismaAuditRepository implements AuditRepository {
       score: row.score,
       decidedBy: row.decidedBy === 'RULES' || row.decidedBy === 'AI' || row.decidedBy === 'FALLBACK' ? (row.decidedBy) : null,
       modelName: row.modelName,
-      reportId: row.mongoReportId,
       createdAt: row.createdAt,
     }));
   }

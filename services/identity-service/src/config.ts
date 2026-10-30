@@ -21,10 +21,6 @@ export class IdentityConfig {
 
   @IsString()
   @MinLength(1)
-  MONGODB_URI!: string;
-
-  @IsString()
-  @MinLength(1)
   JWT_PRIVATE_KEY_PATH!: string;
 
   @IsString()
@@ -42,6 +38,14 @@ export class IdentityConfig {
 
   @IsString()
   SERVICE_CLIENTS = '';
+
+  /** Cada cuanto se borran las sesiones de refresh vencidas. */
+  @IsInt()
+  @Min(60_000)
+  SESSION_SWEEP_MS = 3_600_000;
+
+  @IsBoolean()
+  SESSION_SWEEP_ENABLED = true;
 
   @IsBoolean()
   GRPC_TLS = false;

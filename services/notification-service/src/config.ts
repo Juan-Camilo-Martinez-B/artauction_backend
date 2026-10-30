@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min, MinLength } from 'class-validator';
 import type { TlsSettings } from '@artauction/platform';
 
 export class NotificationConfig {
@@ -14,12 +14,8 @@ export class NotificationConfig {
   GRPC_PORT = 50058;
 
   @IsString()
-  @MinLength(1)
-  MONGODB_URI!: string;
-
-  @IsString()
-  @MinLength(1)
-  MONGODB_DATABASE = 'artauction_notification';
+  @Matches(/[?&]schema=notification(&|$)/, { message: 'DATABASE_URL debe apuntar al esquema notification' })
+  DATABASE_URL!: string;
 
   /** Clave publica de identity-service: verifica usuarios y servicios que llaman. */
   @IsString()

@@ -1,6 +1,6 @@
 # gallery-service
 
-Galería 3D personal y galería social de ArtAuction AI. Es el dueño del esquema `gallery` (`personal_galleries`, `personal_gallery_artworks`, `follows`, `inbox`) y de la base Mongo `artauction_gallery` (`gallery_items`, `activity_feed`). Expone `artauction.gallery.v1.GalleryService` y `GalleryEventHandlerService` por gRPC (puerto `50057`).
+Galería 3D personal y galería social de ArtAuction AI. Es el dueño del esquema `gallery` (`personal_galleries`, `personal_gallery_artworks`, `follows`, `items`, `activity`, `inbox`). Expone `artauction.gallery.v1.GalleryService` y `GalleryEventHandlerService` por gRPC (puerto `50057`).
 
 ## Galería 3D personal
 
@@ -29,12 +29,12 @@ El esquema de la configuración (`GalleryConfig`, versión 1) es de este servici
 
 ### Eventos sin duplicados
 
-El inbox está en Postgres y los efectos en Mongo, así que no comparten transacción. Por eso los documentos tienen **ids deterministas**:
+El inbox y los efectos están en el mismo esquema, pero los escriben puertos distintos y no comparten transacción. Por eso las filas tienen **ids deterministas**:
 
 - obra: `PROPIA:<lot>:<dueño>` o `GANADA:<lot>:<ganador>`;
 - actividad: `win:<evento>` y `follow:<seguidor>:<seguido>`.
 
-Las escrituras son `upsert` con `$setOnInsert`. Si el proceso cae entre el efecto y el registro en el inbox, el reintento reescribe el mismo documento. Los documentos migrados del monolito conservan su `ObjectId`.
+Las escrituras son `INSERT ... ON CONFLICT DO NOTHING`. Si el proceso cae entre el efecto y el registro en el inbox, el reintento choca con la misma fila y no la duplica.
 
 ## Estructura
 
@@ -45,7 +45,7 @@ src/
   internal/
     domain/          gallery-design (esquema 1, preferencias, diseño local, JSON Schema) y reglas de la sala
     application/     PersonalGalleryUseCases, SocialUseCases, GalleryEventHandlers y puertos
-    infrastructure/  Prisma (esquema gallery) y Mongo (artauction_gallery)
+    infrastructure/  Prisma (esquema gallery)
   gallery.module.ts  raíz de composición
 ```
 

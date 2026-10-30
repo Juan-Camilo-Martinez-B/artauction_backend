@@ -176,6 +176,25 @@ export class IssueServiceToken {
   }
 }
 
+/** Una sesion vencida se conserva un dia, como hacia el indice TTL de Mongo. */
+export const SESSION_RETENTION_MS = 86_400_000;
+
+/**
+ * Borra las sesiones de refresh vencidas hace mas de un dia. Una sesion
+ * vencida ya no rota (assessRefresh la rechaza), asi que borrarla no cambia
+ * ninguna respuesta; solo evita que la tabla crezca sin limite.
+ */
+export class PurgeExpiredSessions {
+  constructor(
+    private readonly store: SessionStore,
+    private readonly clock: Clock,
+  ) {}
+
+  async execute(limit = 1_000): Promise<number> {
+    return this.store.deleteExpired(new Date(this.clock.now().getTime() - SESSION_RETENTION_MS), limit);
+  }
+}
+
 export class GetSigningKeys {
   constructor(private readonly tokens: TokenIssuer) {}
 
