@@ -2,30 +2,31 @@ import { Inject, Module, type DynamicModule, type OnApplicationShutdown, type Pr
 import type { notificationHandlersV1, notificationV1 } from '@artauction/contracts';
 import { StructuredLogger, TokenVerifier } from '@artauction/platform';
 import { CallerResolver } from '@artauction/service-kit';
-import { MongoClient } from 'mongodb';
+import { PrismaClient } from './generated/prisma';
 import { notificationEventsGrpcService, notificationGrpcService } from './api/grpc/notification.grpc';
 import { ListNotifications, NotificationEvents } from './internal/application/use-cases';
-import { MongoNotificationStore } from './internal/infrastructure/mongo-notification.store';
+import { PrismaNotificationStore } from './internal/infrastructure/prisma-notification.store';
 import type { NotificationConfig } from './config';
 
-// Raiz de composicion de notification-service: solo Mongo, sin llamadas a otros servicios.
+// Raiz de composicion de notification-service: solo su esquema de Postgres, sin
+// llamadas a otros servicios.
 
 export const LOGGER = Symbol('LOGGER');
 export const NOTIFICATION_GRPC = Symbol('NOTIFICATION_GRPC');
 export const NOTIFICATION_EVENTS_GRPC = Symbol('NOTIFICATION_EVENTS_GRPC');
 const CONFIG = Symbol('CONFIG');
-const MONGO = Symbol('MONGO');
+const PRISMA = Symbol('PRISMA');
 const STORE = Symbol('STORE');
 const CALLERS = Symbol('CALLERS');
 
 const providers: Provider[] = [
   { provide: LOGGER, useValue: new StructuredLogger('notification-service') },
-  { provide: MONGO, inject: [CONFIG], useFactory: (config: NotificationConfig) => new MongoClient(config.MONGODB_URI).connect() },
   {
-    provide: STORE,
-    inject: [CONFIG, MONGO],
-    useFactory: (config: NotificationConfig, mongo: MongoClient) => new MongoNotificationStore(mongo.db(config.MONGODB_DATABASE)),
+    provide: PRISMA,
+    inject: [CONFIG],
+    useFactory: (config: NotificationConfig) => new PrismaClient({ datasourceUrl: config.DATABASE_URL }),
   },
+  { provide: STORE, inject: [PRISMA], useFactory: (prisma: PrismaClient) => new PrismaNotificationStore(prisma) },
   {
     provide: CALLERS,
     inject: [CONFIG],
@@ -34,14 +35,14 @@ const providers: Provider[] = [
   {
     provide: NOTIFICATION_GRPC,
     inject: [STORE, CALLERS, LOGGER],
-    useFactory: (store: MongoNotificationStore, callers: CallerResolver, logger: StructuredLogger): notificationV1.NotificationServiceServer =>
+    useFactory: (store: PrismaNotificationStore, callers: CallerResolver, logger: StructuredLogger): notificationV1.NotificationServiceServer =>
       notificationGrpcService(new ListNotifications(store), callers, logger),
   },
   {
     provide: NOTIFICATION_EVENTS_GRPC,
     inject: [STORE, CALLERS, LOGGER],
     useFactory: (
-      store: MongoNotificationStore,
+      store: PrismaNotificationStore,
       callers: CallerResolver,
       logger: StructuredLogger,
     ): notificationHandlersV1.NotificationEventHandlerServiceServer =>
@@ -51,7 +52,7 @@ const providers: Provider[] = [
 
 @Module({})
 export class NotificationModule implements OnApplicationShutdown {
-  constructor(@Inject(MONGO) private readonly mongo: MongoClient) {}
+  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
 
   static register(config: NotificationConfig): DynamicModule {
     return {
@@ -62,6 +63,6 @@ export class NotificationModule implements OnApplicationShutdown {
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.mongo.close();
+    await this.prisma.$disconnect();
   }
 }

@@ -1,0 +1,28 @@
+// Solo el esquema `notification`. La URL lleva ?schema=notification y el usuario
+// notification_svc no tiene permisos sobre otros esquemas. El DDL vive en
+// artauction_bd (migracion 0022): este servicio no ejecuta migraciones. El inbox
+// se usa con SQL desde @artauction/platform.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Aviso a un usuario. El id es <evento>:<destinatario>: un evento repetido no
+/// lo duplica.
+model Notification {
+  id        String    @id
+  userId    String    @map("user_id") @db.Uuid
+  kind      String
+  payload   Json      @default("{}")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  readAt    DateTime? @map("read_at") @db.Timestamptz(6)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
+}

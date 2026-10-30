@@ -5,10 +5,11 @@
   "description": "Avisos de ArtAuction AI: resultado de auditoria y cierre de subasta, una sola vez por evento.",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "generate": "prisma generate --schema prisma/schema.prisma",
+    "build": "npm run generate && tsc -p tsconfig.build.json && node -e \"require('node:fs').cpSync('src/generated', 'dist/generated', { recursive: true })\"",
+    "typecheck": "npm run generate && tsc --noEmit -p tsconfig.json",
     "start": "node --env-file-if-exists=.env dist/main.js",
-    "test": "jest"
+    "test": "npm run generate && jest"
   },
   "dependencies": {
     "@artauction/contracts": "1.0.0",
@@ -16,9 +17,12 @@
     "@artauction/service-kit": "0.1.0",
     "@nestjs/common": "^11.2.7",
     "@nestjs/core": "^11.2.7",
+    "@prisma/client": "^6.19.3",
     "class-validator": "^0.15.1",
-    "mongodb": "6.20.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3"
   }
 }
