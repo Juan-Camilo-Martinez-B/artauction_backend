@@ -20,14 +20,6 @@ export class GalleryConfigEnv {
   /** Galeria social (obras y actividad) en la base Mongo propia del servicio. */
   @IsString()
   @MinLength(1)
-  MONGODB_URI!: string;
-
-  @IsString()
-  @MinLength(1)
-  MONGODB_DATABASE = 'artauction_gallery';
-
-  @IsString()
-  @MinLength(1)
   JWT_PUBLIC_KEY_PATH!: string;
 
   @IsString()
