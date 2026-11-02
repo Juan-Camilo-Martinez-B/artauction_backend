@@ -69,27 +69,117 @@ export function isSupport(value: string): value is Support {
   return (SUPPORTS as readonly string[]).includes(value);
 }
 
-function roomDepth(config: Record<string, unknown> | null): number {
-  const architecture = config?.['architecture'];
-  if (typeof architecture !== 'object' || architecture === null) {
-    return DEFAULT_ROOM_DEPTH;
-  }
-  const depth = (architecture as Record<string, unknown>)['roomDepth'];
-  return typeof depth === 'number' ? depth : DEFAULT_ROOM_DEPTH;
+interface RoomSize {
+  width: number;
+  depth: number;
 }
 
-/** Posicion inicial de una obra nueva: en fila de tres, en la pared del fondo o sobre pedestal. */
-export function initialPlacement(gallery: PersonalGallery, lot: PublicLot): Omit<Artwork, 'id' | 'lotId'> {
-  const column = gallery.artworks.length % 3;
-  const threeD = lot.representationKind === 'THREE_D';
+const DEFAULT_ROOM_WIDTH = 12;
+/** Ancho de cada hueco de pared y separacion de los pedestales, en metros. */
+const WALL_SLOT = 2;
+const CORNER_MARGIN = 0.9;
+const EYE_LEVEL = 1.55;
+const WALL_OFFSET = 0.04;
+const OBJECT_WALL_CLEARANCE = 2.6;
+const OBJECT_SPACING = 2.4;
+
+function roomSize(config: Record<string, unknown> | null): RoomSize {
+  const architecture = config?.['architecture'];
+  const values = typeof architecture === 'object' && architecture !== null ? (architecture as Record<string, unknown>) : {};
+  const width = values['roomWidth'];
+  const depth = values['roomDepth'];
   return {
-    posX: threeD ? -2 + column * 2 : -3.2 + column * 2.4,
-    posY: threeD ? 0 : 1.55,
-    posZ: threeD ? 0.4 : -(roomDepth(gallery.appliedConfig) / 2 - 0.08),
-    rotY: 0,
-    scale: 1,
-    support: threeD ? 'PEDESTAL' : 'WALL',
+    width: typeof width === 'number' ? width : DEFAULT_ROOM_WIDTH,
+    depth: typeof depth === 'number' ? depth : DEFAULT_ROOM_DEPTH,
   };
+}
+
+type WallSide = 'back' | 'left' | 'right' | 'front';
+const WALL_ORDER: readonly WallSide[] = ['back', 'left', 'right', 'front'];
+
+// Geometria de las paredes: la misma de src/lib/gallery/layout.ts en el frontend.
+function wallPoint(side: WallSide, t: number, room: RoomSize): { x: number; z: number; rotY: number } {
+  switch (side) {
+    case 'back':
+      return { x: t, z: -room.depth / 2 + WALL_OFFSET, rotY: 0 };
+    case 'left':
+      return { x: -room.width / 2 + WALL_OFFSET, z: -t, rotY: Math.PI / 2 };
+    case 'right':
+      return { x: room.width / 2 - WALL_OFFSET, z: t, rotY: -Math.PI / 2 };
+    case 'front':
+      return { x: -t, z: room.depth / 2 - WALL_OFFSET, rotY: Math.PI };
+  }
+}
+
+function wallSideOf(rotY: number): WallSide {
+  const turns = ((Math.round(rotY / (Math.PI / 2)) % 4) + 4) % 4;
+  return (['back', 'left', 'front', 'right'] as const)[turns] ?? 'back';
+}
+
+function wallCoordinate(artwork: Pick<Artwork, 'posX' | 'posZ' | 'rotY'>): number {
+  switch (wallSideOf(artwork.rotY)) {
+    case 'back':
+      return artwork.posX;
+    case 'left':
+      return -artwork.posZ;
+    case 'right':
+      return artwork.posZ;
+    case 'front':
+      return -artwork.posX;
+  }
+}
+
+/** Huecos de pared en orden de recorrido, centrados en cada pared. */
+function wallSlots(room: RoomSize): Array<{ side: WallSide; t: number }> {
+  const slots: Array<{ side: WallSide; t: number }> = [];
+  for (const side of WALL_ORDER) {
+    const length = side === 'back' || side === 'front' ? room.width : room.depth;
+    const count = Math.max(1, Math.floor((length - 2 * CORNER_MARGIN) / WALL_SLOT));
+    for (let index = 0; index < count; index += 1) {
+      slots.push({ side, t: (index - (count - 1) / 2) * WALL_SLOT });
+    }
+  }
+  return slots;
+}
+
+/** Reticula de pedestales del centro hacia afuera (como objectGrid del frontend). */
+function floorSlots(room: RoomSize): Array<{ x: number; z: number }> {
+  const columns = Math.max(1, Math.floor(Math.max(0, room.width - 2 * OBJECT_WALL_CLEARANCE) / OBJECT_SPACING) + 1);
+  const rows = Math.max(1, Math.floor(Math.max(0, room.depth - 2 * OBJECT_WALL_CLEARANCE) / OBJECT_SPACING) + 1);
+  const points: Array<{ x: number; z: number }> = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      points.push({ x: (column - (columns - 1) / 2) * OBJECT_SPACING, z: (row - (rows - 1) / 2) * OBJECT_SPACING });
+    }
+  }
+  return points.sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z) || a.z - b.z || a.x - b.x);
+}
+
+/**
+ * Posicion inicial de una obra nueva: el primer hueco libre. Las obras murales
+ * recorren las paredes (fondo, izquierda, derecha, entrada) en huecos de 2 m;
+ * los objetos van en pedestales en una reticula en el centro. Un hueco esta
+ * ocupado si ya hay una obra cerca, asi se respetan las piezas que el duenio
+ * movio o retiro. Si todo esta ocupado, la obra va al primer hueco y el
+ * boton "Organizar" de la sala reparte todo segun las medidas reales.
+ */
+export function initialPlacement(gallery: PersonalGallery, lot: PublicLot): Omit<Artwork, 'id' | 'lotId'> {
+  const room = roomSize(gallery.appliedConfig);
+  if (lot.representationKind === 'THREE_D') {
+    const objects = gallery.artworks.filter((artwork) => artwork.support !== 'WALL');
+    const slots = floorSlots(room);
+    const free = slots.find((slot) => objects.every((artwork) => Math.hypot(artwork.posX - slot.x, artwork.posZ - slot.z) >= OBJECT_SPACING / 2));
+    const point = free ?? slots[0] ?? { x: 0, z: 0 };
+    return { posX: point.x, posY: 0, posZ: point.z, rotY: 0, scale: 1, support: 'PEDESTAL' };
+  }
+  const hung = gallery.artworks.filter((artwork) => artwork.support === 'WALL');
+  const slots = wallSlots(room);
+  const free = slots.find((slot) =>
+    hung.every((artwork) => wallSideOf(artwork.rotY) !== slot.side || Math.abs(wallCoordinate(artwork) - slot.t) >= WALL_SLOT / 2),
+  );
+  const slot = free ?? slots[0] ?? { side: 'back' as const, t: 0 };
+  const point = wallPoint(slot.side, slot.t, room);
+  return { posX: point.x, posY: EYE_LEVEL, posZ: point.z, rotY: point.rotY, scale: 1, support: 'WALL' };
 }
 
 function finite(value: number | undefined, fallback: number): number {
