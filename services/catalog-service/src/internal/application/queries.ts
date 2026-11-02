@@ -97,6 +97,21 @@ export class ListReviewQueue {
   }
 }
 
+const MAX_AUCTION_CANDIDATES = 50;
+
+/**
+ * Candidatas a una subasta rotativa, para auction-service. El orden al azar
+ * reparte la cartelera entre todo el catalogo; auction descarta las obras que
+ * ya tienen sala.
+ */
+export class ListAuctionCandidates {
+  constructor(private readonly lots: LotRepository) {}
+
+  execute(limit: number): Promise<Lot[]> {
+    return this.lots.sampleAuctionable(clampInt(limit, 20, 1, MAX_AUCTION_CANDIDATES));
+  }
+}
+
 const PERCEPTUAL_HASH = /^[0-9a-f]{16}$/;
 const MAX_HASHES = 20;
 const MAX_HAMMING_DISTANCE = 16;

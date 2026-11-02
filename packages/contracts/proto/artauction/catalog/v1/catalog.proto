@@ -20,6 +20,10 @@ service CatalogService {
   // Solo con token de audit-service: imagenes de otras obras con un hash
   // perceptual a distancia de Hamming menor o igual a max_distance.
   rpc FindSimilarImages(FindSimilarImagesRequest) returns (FindSimilarImagesResponse);
+  // Solo con token de auction-service: muestra al azar de obras publicadas y
+  // publicas con precio sugerido, candidatas a una subasta rotativa. Auction
+  // descarta las que ya tienen sala.
+  rpc ListAuctionCandidates(ListAuctionCandidatesRequest) returns (ListAuctionCandidatesResponse);
   rpc CreateLot(CreateLotRequest) returns (CreateLotResponse);
   rpc HashImage(HashImageRequest) returns (HashImageResponse);
   rpc SignUpload(SignUploadRequest) returns (SignUploadResponse);
@@ -172,6 +176,14 @@ message ListReviewQueueRequest {
 }
 
 message ListReviewQueueResponse {
+  repeated Lot lots = 1;
+}
+
+message ListAuctionCandidatesRequest {
+  int32 limit = 1;
+}
+
+message ListAuctionCandidatesResponse {
   repeated Lot lots = 1;
 }
 

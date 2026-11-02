@@ -5,7 +5,7 @@ import { canTransition, type LotStatus } from '../src/internal/domain/lot-status
 import type { LotPatch, LotRepository, LotTransitions, PublicLotQuery, SimilarImage } from '../src/internal/application/ports';
 import { CreateLot, RegisterLotImage, ResolveManualReview, SignImageUpload, SubmitLot } from '../src/internal/application/commands';
 import { MarkLotSold } from '../src/internal/application/event-handlers';
-import { FindSimilarImages, GetLotForViewer, ListPublicLots, ListReviewQueue } from '../src/internal/application/queries';
+import { FindSimilarImages, GetLotForViewer, ListAuctionCandidates, ListPublicLots, ListReviewQueue } from '../src/internal/application/queries';
 
 const SELLER: Actor = { userId: 'a0000000-0000-4000-8000-000000000002', role: 'SELLER' };
 const OTHER: Actor = { userId: 'a0000000-0000-4000-8000-000000000003', role: 'SELLER' };
@@ -47,6 +47,16 @@ class MemoryLots implements LotRepository {
 
   listByStatus(status: LotStatus, limit: number) {
     return Promise.resolve([...this.lots.values()].filter((lot) => lot.status === status).slice(0, limit));
+  }
+
+  readonly sampleLimits: number[] = [];
+
+  sampleAuctionable(limit: number) {
+    this.sampleLimits.push(limit);
+    const auctionable = [...this.lots.values()].filter(
+      (lot) => lot.status === 'PUBLICADA' && lot.visibility === 'PUBLIC' && lot.suggestedPriceMin !== null,
+    );
+    return Promise.resolve(auctionable.slice(0, limit));
   }
 
   findSimilarImages(lotId: string, hashes: readonly string[], maxDistance: number) {
@@ -296,5 +306,14 @@ describe('casos de uso del catalogo', () => {
     const queue = new ListReviewQueue(lots);
     expect((await queue.execute(ADMIN, 10)).map((lot) => lot.id)).toEqual([draft.id]);
     await expectKind(queue.execute(SELLER, 10), 'PERMISSION_DENIED');
+  });
+
+  it('acota la muestra de candidatas a subasta rotativa', async () => {
+    const lots = new MemoryLots();
+    const candidates = new ListAuctionCandidates(lots);
+    await candidates.execute(0);
+    await candidates.execute(500);
+    await candidates.execute(7);
+    expect(lots.sampleLimits).toEqual([20, 50, 7]);
   });
 });
