@@ -14,6 +14,23 @@ PROGRAMADA --(starts_at, programador)--> ACTIVA --(ends_at)--> CERRADA      (con
 - **Apertura automática.** `AuditCompleted`, cuando el veredicto es aprobado, y `LotPublished` crean la sala con una ventana al azar entre 15 minutos y 48 horas. La duración crece con el score de autenticidad: 30 minutos con score 40 y 180 con score 100. Son idempotentes: una obra tiene como mucho una subasta.
 - **Apertura manual.** `OpenAuction`, para el vendedor dueño de la obra o un administrador. La obra debe estar `APROBADO` o `PUBLICADA` en catalog, que se consulta por gRPC.
 - **Programador.** Cada `SCHEDULER_INTERVAL_MS` abre las salas vencidas y cierra o reprograma las que terminan. Lo hace en lotes, con `FOR UPDATE SKIP LOCKED` y los índices parciales `auctions_due_to_open_idx` y `auctions_due_to_close_idx`.
+- **Rotación del catálogo.** En la misma pasada, después del cierre, `RotateCatalogAuctions` mantiene la cartelera con `AUTO_AUCTION_SLOTS` salas (3 por defecto). Cuenta las salas activas y las programadas que abren dentro de la espera máxima. Si falta alguna, pide a catalog una muestra al azar de obras publicadas (`ListAuctionCandidates`) y programa salas cortas sobre las que no tienen subasta.
+
+## Subastas rotativas
+
+| Variable | Por defecto | Qué controla |
+|---|---|---|
+| `AUTO_AUCTION_ENABLED` | `true` | enciende la rotación |
+| `AUTO_AUCTION_SLOTS` | `3` | salas en cartelera, activas o por abrir |
+| `AUTO_AUCTION_MIN_MINUTES`, `AUTO_AUCTION_MAX_MINUTES` | `15`, `30` | duración al azar de cada sala |
+| `AUTO_AUCTION_MAX_LEAD_SECONDS` | `300` | la sala abre entre 1 minuto y este tiempo después de crearse |
+| `AUTO_AUCTION_PRICE_FACTOR` | `0.1` | la salida es el punto medio de la auditoría por este factor, con un mínimo de 50 |
+
+Las salidas de la semilla quedan entre 238 y 675 artacoins. Así se puede pujar con una o dos recargas, y se conserva la proporción entre obras. El incremento es el de siempre: el 5 % de la salida, con un mínimo de 10. El dinero sigue el flujo normal: el ganador paga, y el vendedor de la obra cobra el precio menos `PLATFORM_FEE_BPS`. Si la sala cierra sin pujas, se reprograma como cualquier otra; la obra ya tiene subasta y no vuelve a la muestra.
+
+**Varias instancias.** El turno corre dentro de una transacción con `pg_try_advisory_xact_lock`: si otra instancia lo tiene, esta lo salta. Dentro del turno se vuelve a contar la cartelera, y la restricción única de `lot_id` impide dos salas para la misma obra.
+
+**Cartelera pública.** `ListLiveAuctions` devuelve primero las salas activas, ordenadas por cierre, y luego las programadas dentro de `horizon_minutes` (6 horas por defecto, máximo 48), ordenadas por apertura. El gateway la sirve en `GET /auctions/live`, compuesta con la ficha pública de cada obra.
 
 ## Reglas de puja
 
@@ -94,4 +111,6 @@ npm start -w @artauction/auction-service
 
 - reglas de la sala: precio de salida, incremento, anti-sniping, obra propia, retiro y duración por score;
 - puja con TCC: reserva antes de la transacción, repetición de la clave sin segunda reserva, puja inválida sin tocar el bolsillo, falta de saldo, dos postores con el mismo importe y retiro del líder;
-- programador: cierre con ganador, reprogramación de la sala vacía y apertura con `AuctionStarted`.
+- programador: cierre con ganador, reprogramación de la sala vacía y apertura con `AuctionStarted`;
+- rotación (`test/rotation.spec.ts`): huecos de la cartelera, salida escalada, ventana y duración, obras que ya tienen sala, turno tomado por otra instancia y cupo que no se excede;
+- cartelera: límites de tamaño y de horizonte.

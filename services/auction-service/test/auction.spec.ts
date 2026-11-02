@@ -3,8 +3,9 @@ import { AUCTION_EVENTS, type Auction, type Bid } from '../src/internal/domain/a
 import { canWithdraw, durationMinutes, evaluateBid } from '../src/internal/domain/auction-rules';
 import { toCents } from '../src/internal/domain/money';
 import { PlaceBid, WithdrawBid } from '../src/internal/application/bidding';
-import type { AuctionPatch, AuctionRepository, AuctionUnitOfWork, LiveNotice } from '../src/internal/application/ports';
-import { RunScheduler } from '../src/internal/application/scheduling';
+import type { AuctionPatch, AuctionRepository, AuctionUnitOfWork, CatalogPort, LiveNotice } from '../src/internal/application/ports';
+import { ListLiveAuctions } from '../src/internal/application/queries';
+import { OpenAuction, RunScheduler } from '../src/internal/application/scheduling';
 
 const NOW = new Date('2026-10-28T15:00:00Z');
 const SELLER = 'a0000000-0000-4000-8000-000000000002';
@@ -31,6 +32,7 @@ function activeAuction(overrides: Partial<Auction> = {}): Auction {
     extensionCount: 0,
     durationMinutes: 60,
     saleDescription: null,
+    origin: 'SCHEDULED',
     ...overrides,
   };
 }
@@ -54,6 +56,7 @@ class MemoryAuctions implements AuctionRepository {
         this.log.push('lock');
         return Promise.resolve({ ...this.auction });
       },
+      lockByLot: (lotId) => Promise.resolve(this.auction.lotId === lotId ? { ...this.auction } : null),
       bidByKey: (key) => Promise.resolve(this.bids.find((bid) => bid.idempotencyKey === key) ?? null),
       activeBidCount: () => Promise.resolve(this.bids.filter((bid) => bid.active).length),
       activeBidderAt: (_id, amount) =>
@@ -137,6 +140,22 @@ class MemoryAuctions implements AuctionRepository {
 
   dueToOpen() {
     return Promise.resolve(this.auction.status === 'PROGRAMADA' ? [this.auction.id] : []);
+  }
+
+  liveQueries: Array<{ horizonMs: number; limit: number }> = [];
+
+  listLive(_now: Date, horizonMs: number, limit: number) {
+    this.liveQueries.push({ horizonMs, limit });
+    return Promise.resolve([{ ...this.auction }]);
+  }
+
+  // La rotacion se prueba en rotation.spec.ts con su propio doble.
+  countLive() {
+    return Promise.resolve(0);
+  }
+
+  withRotationLock() {
+    return Promise.resolve(null);
   }
 
   dueToClose() {
@@ -304,5 +323,56 @@ describe('planificador', () => {
     expect((await new RunScheduler(repo, new RecordingLive(), clock).execute()).opened).toBe(1);
     expect(repo.auction.status).toBe('ACTIVA');
     expect(repo.outbox[0]?.type).toBe(AUCTION_EVENTS.started);
+  });
+});
+
+describe('cartelera en vivo', () => {
+  it('acota el tamaño y el horizonte de la cartelera', async () => {
+    const auctions = new MemoryAuctions(activeAuction());
+    const live = new ListLiveAuctions(auctions, clock);
+    await live.execute(0, 0);
+    await live.execute(500, 100_000);
+    await live.execute(5, 30);
+    expect(auctions.liveQueries).toEqual([
+      { limit: 12, horizonMs: 6 * 60 * 60_000 },
+      { limit: 24, horizonMs: 48 * 60 * 60_000 },
+      { limit: 5, horizonMs: 30 * 60_000 },
+    ]);
+  });
+});
+
+describe('apertura manual', () => {
+  const catalog: CatalogPort = {
+    lot: (lotId) => Promise.resolve({ lotId, sellerId: SELLER, title: 'Retrato de la costa', status: 'PUBLICADA' }),
+    auctionCandidates: () => Promise.resolve([]),
+  };
+  const seller = { userId: SELLER, role: 'SELLER' };
+  const terms = (lotId: string) => ({
+    lotId,
+    startPrice: '100',
+    minIncrement: '10',
+    startsAt: new Date(NOW.getTime() + 8_000),
+    endsAt: new Date(NOW.getTime() + 55_000),
+  });
+
+  it('el vendedor abre ya la sala programada de su obra con sus términos', async () => {
+    const programmed = activeAuction({
+      status: 'PROGRAMADA',
+      origin: 'ROTATION',
+      startPrice: '500.00',
+      currentPrice: '500.00',
+      startsAt: new Date(NOW.getTime() + 24 * 3_600_000),
+      endsAt: new Date(NOW.getTime() + 25 * 3_600_000),
+    });
+    const repo = new MemoryAuctions(programmed);
+    const opened = await new OpenAuction(repo, catalog, clock).execute(seller, terms(programmed.lotId));
+    expect(opened).toMatchObject({ id: AUCTION_ID, origin: 'MANUAL', startPrice: '100.00', currentPrice: '100.00', minIncrement: '10.00' });
+    expect(opened.endsAt.getTime()).toBe(NOW.getTime() + 55_000);
+  });
+
+  it('no toca una sala que ya abrió', async () => {
+    const repo = new MemoryAuctions(activeAuction());
+    await expectKind(new OpenAuction(repo, catalog, clock).execute(seller, terms(activeAuction().lotId)), 'CONFLICT');
+    expect(repo.auction.status).toBe('ACTIVA');
   });
 });

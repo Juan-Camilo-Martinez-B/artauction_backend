@@ -30,6 +30,8 @@ model Auction {
   extensionCount  Int      @default(0) @map("extension_count")
   durationMinutes Int      @default(60) @map("duration_minutes")
   saleDescription String?  @map("sale_description")
+  // SCHEDULED (al aprobar la obra), MANUAL (vendedor o admin) o ROTATION (cartelera).
+  origin          String   @default("SCHEDULED")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 

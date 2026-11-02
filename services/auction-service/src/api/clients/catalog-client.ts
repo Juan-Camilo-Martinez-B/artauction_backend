@@ -1,6 +1,6 @@
 import { catalogV1 } from '@artauction/contracts';
 import { invoke, type ServiceTokenProvider } from '@artauction/service-kit';
-import type { CatalogPort, LotSnapshot } from '../../internal/application/ports';
+import type { AuctionCandidate, CatalogPort, LotSnapshot } from '../../internal/application/ports';
 
 const STATUS_NAMES: ReadonlyMap<catalogV1.LotStatus, string> = new Map([
   [catalogV1.LotStatus.LOT_STATUS_BORRADOR, 'BORRADOR'],
@@ -13,7 +13,7 @@ const STATUS_NAMES: ReadonlyMap<catalogV1.LotStatus, string> = new Map([
   [catalogV1.LotStatus.LOT_STATUS_VENDIDA, 'VENDIDA'],
 ]);
 
-/** Implementa CatalogPort con la consulta interna BatchGetLotSnapshots. */
+/** Implementa CatalogPort con las consultas internas BatchGetLotSnapshots y ListAuctionCandidates. */
 export class GrpcCatalogClient implements CatalogPort {
   constructor(
     private readonly catalog: catalogV1.CatalogServiceClient,
@@ -30,5 +30,21 @@ export class GrpcCatalogClient implements CatalogPort {
       return null;
     }
     return { lotId: lot.id, sellerId: lot.sellerId, title: lot.title, status: STATUS_NAMES.get(lot.status) ?? 'BORRADOR' };
+  }
+
+  async auctionCandidates(limit: number): Promise<AuctionCandidate[]> {
+    const response = await invoke(this.catalog.listAuctionCandidates.bind(this.catalog), { limit }, {
+      deadlineMs: 3_000,
+      authorization: await this.tokens.authorization(),
+    });
+    return response.lots.flatMap((lot) => {
+      const priceMin = Number(lot.suggestedPriceMin);
+      const priceMax = Number(lot.suggestedPriceMax);
+      // Sin precio sugerido no hay terminos de salida: la obra se omite.
+      if (!Number.isFinite(priceMin) || !Number.isFinite(priceMax) || lot.suggestedPriceMin === undefined) {
+        return [];
+      }
+      return [{ lotId: lot.id, sellerId: lot.sellerId, title: lot.title, description: lot.description, priceMin, priceMax }];
+    });
   }
 }

@@ -11,6 +11,9 @@ export interface Bid {
   createdAt: Date;
 }
 
+/** Quien creo la sala. La rotacion solo recicla las suyas. */
+export type AuctionOrigin = 'SCHEDULED' | 'MANUAL' | 'ROTATION';
+
 export interface Auction {
   id: string;
   lotId: string;
@@ -28,6 +31,7 @@ export interface Auction {
   extensionCount: number;
   durationMinutes: number;
   saleDescription: string | null;
+  origin: AuctionOrigin;
 }
 
 export const AUCTION_EVENTS = {

@@ -6,7 +6,7 @@ import type { Auction, Bid } from '../../internal/domain/auction';
 import type { AuctionStatus } from '../../internal/domain/auction-rules';
 import type { PlaceBid, WithdrawBid } from '../../internal/application/bidding';
 import type { LiveNotice } from '../../internal/application/ports';
-import type { BatchGetAuctionSummaries, GetAuction, GetBidByReservation } from '../../internal/application/queries';
+import type { BatchGetAuctionSummaries, GetAuction, GetBidByReservation, ListLiveAuctions } from '../../internal/application/queries';
 import type { OpenAuction } from '../../internal/application/scheduling';
 import type { LiveBus } from '../live/live-bus';
 
@@ -16,6 +16,7 @@ export interface AuctionUseCases {
   placeBid: PlaceBid;
   withdrawBid: WithdrawBid;
   summaries: BatchGetAuctionSummaries;
+  live: ListLiveAuctions;
   bidByReservation: GetBidByReservation;
 }
 
@@ -24,6 +25,19 @@ const STATUS_TO_PROTO: Readonly<Record<AuctionStatus, auctionV1.AuctionStatus>> 
   ACTIVA: auctionV1.AuctionStatus.AUCTION_STATUS_ACTIVA,
   CERRADA: auctionV1.AuctionStatus.AUCTION_STATUS_CERRADA,
 };
+
+function summaryToProto(auction: Auction): auctionV1.AuctionSummary {
+  return auctionV1.AuctionSummary.fromPartial({
+    auctionId: auction.id,
+    lotId: auction.lotId,
+    status: STATUS_TO_PROTO[auction.status],
+    currentPrice: auction.currentPrice,
+    startsAt: auction.startsAt,
+    endsAt: auction.endsAt,
+    saleDescription: auction.saleDescription ?? undefined,
+    currency: auction.currency,
+  });
+}
 
 function bidToProto(bid: Bid): auctionV1.Bid {
   return auctionV1.Bid.fromPartial(bid);
@@ -128,18 +142,12 @@ export function auctionGrpcService(
 
     batchGetAuctionSummaries: unary(logger, 'BatchGetAuctionSummaries', async (request) => {
       const auctions = await useCases.summaries.execute(request.lotIds);
-      return auctionV1.BatchGetAuctionSummariesResponse.fromPartial({
-        summaries: auctions.map((auction) => ({
-          auctionId: auction.id,
-          lotId: auction.lotId,
-          status: STATUS_TO_PROTO[auction.status],
-          currentPrice: auction.currentPrice,
-          startsAt: auction.startsAt,
-          endsAt: auction.endsAt,
-          saleDescription: auction.saleDescription ?? undefined,
-          currency: auction.currency,
-        })),
-      });
+      return auctionV1.BatchGetAuctionSummariesResponse.fromPartial({ summaries: auctions.map(summaryToProto) });
+    }),
+
+    listLiveAuctions: unary(logger, 'ListLiveAuctions', async (request) => {
+      const auctions = await useCases.live.execute(request.limit, request.horizonMinutes);
+      return auctionV1.ListLiveAuctionsResponse.fromPartial({ summaries: auctions.map(summaryToProto) });
     }),
 
     getBidByReservation: unary(logger, 'GetBidByReservation', async (request, context) => {

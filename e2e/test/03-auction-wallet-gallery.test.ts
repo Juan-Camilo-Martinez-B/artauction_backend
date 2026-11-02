@@ -9,7 +9,7 @@ interface WalletView {
 }
 
 interface CatalogPage {
-  items: Array<{ id: string; title: string; sellerId: string; status: string; auction: unknown }>;
+  items: Array<{ id: string; title: string; sellerId: string; status: string; auction: { status: string } | null }>;
 }
 
 const CARD = { cardNumber: '4242424242424242', cardName: 'E2E Postor', expMonth: 12, expYear: 2030, cvv: '123' };
@@ -47,9 +47,18 @@ describe('bolsillo, sala en vivo, liquidacion y galeria', () => {
     seller = await seedAccount(process.env['E2E_SELLER_EMAIL'] ?? 'seller@artauction.local');
     buyerA = await register('postor-a', 'USER');
     buyerB = await register('postor-b', 'USER');
-    // Obras publicas de la semilla sin subasta: la prueba abre una sala inmediata.
+    // Obras publicas de la semilla sin sala abierta: la prueba abre una sala inmediata.
+    // Sirve tambien una obra con sala programada (por ejemplo, de la rotacion):
+    // no tiene pujas y el vendedor puede abrirla ya con sus terminos.
     const page = await call<CatalogPage>('GET', '/lots?pageSize=60');
-    const free = page.body.items.filter((lot) => lot.sellerId === seller.userId && ['APROBADO', 'PUBLICADA'].includes(lot.status) && lot.auction === null);
+    const free = page.body.items.filter(
+      (lot) =>
+        lot.sellerId === seller.userId &&
+        ['APROBADO', 'PUBLICADA'].includes(lot.status) &&
+        (lot.auction === null || lot.auction.status === 'PROGRAMADA'),
+    );
+    // Primero las obras sin sala: una sala programada podria abrirse justo antes.
+    free.sort((left, right) => Number(left.auction !== null) - Number(right.auction !== null));
     assert.ok(free.length >= 2, 'la semilla no tiene obras libres para subastar');
     lotId = free[0]?.id ?? '';
     otherLotId = free[1]?.id ?? '';

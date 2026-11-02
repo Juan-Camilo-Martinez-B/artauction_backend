@@ -96,3 +96,72 @@ export function scheduleWindow(now: Date, duration: number, randomUnit: () => nu
   const startsAt = new Date(now.getTime() + MIN_LEAD_MS + Math.floor(unit * (MAX_LEAD_MS - MIN_LEAD_MS)));
   return { startsAt, endsAt: new Date(startsAt.getTime() + clampDuration(duration) * 60_000) };
 }
+
+/**
+ * Subastas rotativas del catalogo: salas cortas que abren a los pocos minutos
+ * sobre obras publicadas sin subasta, para que siempre haya algo en vivo.
+ */
+export interface RotationPolicy {
+  /** Salas que se mantienen en cartelera (activas o por abrir pronto). */
+  slots: number;
+  minMinutes: number;
+  maxMinutes: number;
+  /** Espera maxima entre crear la sala y abrirla. */
+  maxLeadMs: number;
+  /** Fraccion del precio sugerido por la auditoria que se usa como salida. */
+  priceFactor: number;
+}
+
+/** La sala nunca abre en el mismo instante en que se crea: da tiempo a anunciarla. */
+export const MIN_ROTATION_LEAD_MS = 60_000;
+
+export function assertRotationPolicy(policy: RotationPolicy): RotationPolicy {
+  if (!Number.isInteger(policy.slots) || policy.slots < 0) {
+    throw new Error('AUTO_AUCTION_SLOTS debe ser un entero no negativo');
+  }
+  if (policy.minMinutes < 1 || policy.maxMinutes < policy.minMinutes) {
+    throw new Error('La duracion minima de la rotacion debe ser positiva y no mayor que la maxima');
+  }
+  if (policy.maxLeadMs < MIN_ROTATION_LEAD_MS) {
+    throw new Error('La espera maxima de la rotacion debe ser de al menos un minuto');
+  }
+  if (!(policy.priceFactor > 0 && policy.priceFactor <= 1)) {
+    throw new Error('AUTO_AUCTION_PRICE_FACTOR debe estar entre 0 (excluido) y 1');
+  }
+  return policy;
+}
+
+/** Cuantas salas faltan para llenar la cartelera. */
+export function rotationDeficit(liveCount: number, slots: number): number {
+  return Math.max(0, slots - liveCount);
+}
+
+/** Salida de una sala rotativa: el punto medio de la auditoria escalado por el factor. */
+export function rotationOpeningCoins(priceMin: number, priceMax: number, factor: number): number {
+  const midpoint = (Math.max(0, priceMin) + Math.max(0, priceMax)) / 2;
+  return Math.max(MIN_OPENING_COINS, Math.round(midpoint * factor));
+}
+
+/** Ventana de una sala rotativa: abre entre 1 minuto y la espera maxima, y dura entre el minimo y el maximo. */
+export function rotationWindow(
+  now: Date,
+  policy: RotationPolicy,
+  randomUnit: () => number = Math.random,
+): { startsAt: Date; endsAt: Date; minutes: number } {
+  const unit = () => Math.min(0.999999, Math.max(0, randomUnit()));
+  const lead = MIN_ROTATION_LEAD_MS + Math.floor(unit() * (policy.maxLeadMs - MIN_ROTATION_LEAD_MS));
+  const minutes = policy.minMinutes + Math.floor(unit() * (policy.maxMinutes - policy.minMinutes + 1));
+  const startsAt = new Date(now.getTime() + lead);
+  return { startsAt, endsAt: new Date(startsAt.getTime() + minutes * 60_000), minutes };
+}
+
+/** Copia barajada (Fisher-Yates) con la fuente de azar dada, para poder fijarla en pruebas. */
+export function shuffled<T>(items: readonly T[], randomUnit: () => number = Math.random): T[] {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const unit = Math.min(0.999999, Math.max(0, randomUnit()));
+    const other = Math.floor(unit * (index + 1));
+    [copy[index], copy[other]] = [copy[other] as T, copy[index] as T];
+  }
+  return copy;
+}

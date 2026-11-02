@@ -12,6 +12,9 @@ service AuctionService {
   rpc PlaceBid(PlaceBidRequest) returns (PlaceBidResponse);
   rpc WithdrawBid(WithdrawBidRequest) returns (WithdrawBidResponse);
   rpc BatchGetAuctionSummaries(BatchGetAuctionSummariesRequest) returns (BatchGetAuctionSummariesResponse);
+  // Cartelera publica: salas activas (la que cierra antes primero) y luego las
+  // programadas para abrir dentro de horizon_minutes (la que abre antes primero).
+  rpc ListLiveAuctions(ListLiveAuctionsRequest) returns (ListLiveAuctionsResponse);
   // Solo con token de servicio. Lo usa wallet antes de liberar una reserva vencida.
   rpc GetBidByReservation(GetBidByReservationRequest) returns (GetBidByReservationResponse);
   // Eventos en vivo de una sala. El gateway los reenvia por Socket.IO.
@@ -117,6 +120,15 @@ message BatchGetAuctionSummariesRequest {
 }
 
 message BatchGetAuctionSummariesResponse {
+  repeated AuctionSummary summaries = 1;
+}
+
+message ListLiveAuctionsRequest {
+  int32 limit = 1;
+  int32 horizon_minutes = 2;
+}
+
+message ListLiveAuctionsResponse {
   repeated AuctionSummary summaries = 1;
 }
 
