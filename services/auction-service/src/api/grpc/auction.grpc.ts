@@ -2,9 +2,10 @@ import type { ServerWritableStream } from '@grpc/grpc-js';
 import { auctionV1 } from '@artauction/contracts';
 import { DomainError, type StructuredLogger } from '@artauction/platform';
 import { unary, type CallerResolver } from '@artauction/service-kit';
-import type { Auction, Bid } from '../../internal/domain/auction';
-import type { AuctionStatus } from '../../internal/domain/auction-rules';
-import type { PlaceBid, WithdrawBid } from '../../internal/application/bidding';
+import type { Auction, Bid, CloseReason } from '../../internal/domain/auction';
+import { buyNowOpen, type AuctionStatus } from '../../internal/domain/auction-rules';
+import { toCents } from '../../internal/domain/money';
+import type { BuyNow, PlaceBid, WithdrawBid } from '../../internal/application/bidding';
 import type { LiveNotice } from '../../internal/application/ports';
 import type { BatchGetAuctionSummaries, GetAuction, GetBidByReservation, ListLiveAuctions } from '../../internal/application/queries';
 import type { OpenAuction } from '../../internal/application/scheduling';
@@ -14,6 +15,7 @@ export interface AuctionUseCases {
   getAuction: GetAuction;
   openAuction: OpenAuction;
   placeBid: PlaceBid;
+  buyNow: BuyNow;
   withdrawBid: WithdrawBid;
   summaries: BatchGetAuctionSummaries;
   live: ListLiveAuctions;
@@ -26,6 +28,26 @@ const STATUS_TO_PROTO: Readonly<Record<AuctionStatus, auctionV1.AuctionStatus>> 
   CERRADA: auctionV1.AuctionStatus.AUCTION_STATUS_CERRADA,
 };
 
+const CLOSE_REASON_TO_PROTO: Readonly<Record<CloseReason, auctionV1.CloseReason>> = {
+  TIME: auctionV1.CloseReason.CLOSE_REASON_TIME,
+  BUY_NOW: auctionV1.CloseReason.CLOSE_REASON_BUY_NOW,
+};
+
+/** Compra inmediata y su vigencia, con el reloj del servidor. */
+function buyNowFields(auction: Auction) {
+  return {
+    buyNowPrice: auction.buyNowPrice,
+    buyNowAvailable: buyNowOpen({
+      now: new Date(),
+      status: auction.status,
+      endsAt: auction.endsAt,
+      currentPriceCents: toCents(auction.currentPrice),
+      buyNowCents: toCents(auction.buyNowPrice),
+    }),
+    closedBy: auction.closedBy ? CLOSE_REASON_TO_PROTO[auction.closedBy] : auctionV1.CloseReason.CLOSE_REASON_UNSPECIFIED,
+  };
+}
+
 function summaryToProto(auction: Auction): auctionV1.AuctionSummary {
   return auctionV1.AuctionSummary.fromPartial({
     auctionId: auction.id,
@@ -36,6 +58,7 @@ function summaryToProto(auction: Auction): auctionV1.AuctionSummary {
     endsAt: auction.endsAt,
     saleDescription: auction.saleDescription ?? undefined,
     currency: auction.currency,
+    ...buyNowFields(auction),
   });
 }
 
@@ -61,6 +84,7 @@ function auctionToProto(auction: Auction, bids: Bid[] = []): auctionV1.Auction {
     durationMinutes: auction.durationMinutes,
     saleDescription: auction.saleDescription ?? undefined,
     bids: bids.map(bidToProto),
+    ...buyNowFields(auction),
   });
 }
 
@@ -86,7 +110,13 @@ function noticeToProto(notice: LiveNotice): auctionV1.WatchAuctionResponse {
     serverTime,
     event: {
       $case: 'auctionClosed',
-      value: { auctionId: notice.auctionId, lotId: notice.lotId, winnerId: notice.winnerId ?? undefined, amount: notice.amount },
+      value: {
+        auctionId: notice.auctionId,
+        lotId: notice.lotId,
+        winnerId: notice.winnerId ?? undefined,
+        amount: notice.amount,
+        closedBy: CLOSE_REASON_TO_PROTO[notice.closedBy],
+      },
     },
   });
 }
@@ -129,6 +159,14 @@ export function auctionGrpcService(
         idempotencyKey: request.idempotencyKey,
       });
       return auctionV1.PlaceBidResponse.fromPartial(placed);
+    }),
+
+    buyNow: unary(logger, 'BuyNow', async (request, context) => {
+      const bought = await useCases.buyNow.execute(callers.user(context).userId, {
+        auctionId: request.auctionId,
+        idempotencyKey: request.idempotencyKey,
+      });
+      return auctionV1.BuyNowResponse.fromPartial(bought);
     }),
 
     withdrawBid: unary(logger, 'WithdrawBid', async (request, context) => {

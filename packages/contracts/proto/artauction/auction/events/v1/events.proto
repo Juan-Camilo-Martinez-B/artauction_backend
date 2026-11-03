@@ -40,6 +40,11 @@ message AuctionClosed {
   string seller_id = 4;
   string winner_id = 5;
   string amount = 6;
+  // Cerro por compra inmediata y no por tiempo.
+  bool buy_now = 7;
+  // Quienes tenian una oferta activa y no ganaron: wallet ya les devuelve lo
+  // retenido; notification les avisa.
+  repeated string losing_bidder_ids = 8;
 }
 
 // La subasta termino sin pujas y se reprogramo.

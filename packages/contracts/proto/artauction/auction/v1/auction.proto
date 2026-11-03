@@ -11,6 +11,9 @@ service AuctionService {
   rpc OpenAuction(OpenAuctionRequest) returns (OpenAuctionResponse);
   rpc PlaceBid(PlaceBidRequest) returns (PlaceBidResponse);
   rpc WithdrawBid(WithdrawBidRequest) returns (WithdrawBidResponse);
+  // Compra inmediata: paga buy_now_price, gana la sala y la cierra. Solo con la
+  // sala activa y mientras buy_now_available. Idempotente por idempotency_key.
+  rpc BuyNow(BuyNowRequest) returns (BuyNowResponse);
   rpc BatchGetAuctionSummaries(BatchGetAuctionSummariesRequest) returns (BatchGetAuctionSummariesResponse);
   // Cartelera publica: salas activas (la que cierra antes primero) y luego las
   // programadas para abrir dentro de horizon_minutes (la que abre antes primero).
@@ -35,6 +38,15 @@ message Bid {
   string amount = 4;
   bool active = 5;
   google.protobuf.Timestamp created_at = 6;
+  // Verdadero si fue una compra inmediata.
+  bool buy_now = 7;
+}
+
+// Por que cerro una sala.
+enum CloseReason {
+  CLOSE_REASON_UNSPECIFIED = 0;
+  CLOSE_REASON_TIME = 1;
+  CLOSE_REASON_BUY_NOW = 2;
 }
 
 message Auction {
@@ -54,6 +66,11 @@ message Auction {
   int32 duration_minutes = 14;
   optional string sale_description = 15;
   repeated Bid bids = 16;
+  // Precio con el que cualquiera se lleva la obra al instante.
+  string buy_now_price = 17;
+  // La sala esta activa y el precio no llego al 80 % de buy_now_price.
+  bool buy_now_available = 18;
+  CloseReason closed_by = 19;
 }
 
 message AuctionSummary {
@@ -65,6 +82,9 @@ message AuctionSummary {
   google.protobuf.Timestamp ends_at = 6;
   optional string sale_description = 7;
   string currency = 8;
+  string buy_now_price = 9;
+  bool buy_now_available = 10;
+  CloseReason closed_by = 11;
 }
 
 message GetAuctionRequest {
@@ -103,6 +123,19 @@ message PlaceBidResponse {
   // Verdadero si la misma clave ya se habia aceptado.
   bool idempotent = 6;
   string current_price = 7;
+}
+
+message BuyNowRequest {
+  string auction_id = 1;
+  string idempotency_key = 2;
+}
+
+message BuyNowResponse {
+  string auction_id = 1;
+  string bid_id = 2;
+  string amount = 3;
+  // Verdadero si la misma clave ya habia comprado la obra.
+  bool idempotent = 4;
 }
 
 message WithdrawBidRequest {
@@ -159,6 +192,7 @@ message AuctionClosedNotice {
   string lot_id = 2;
   optional string winner_id = 3;
   string amount = 4;
+  CloseReason closed_by = 5;
 }
 
 message WatchAuctionResponse {

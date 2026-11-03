@@ -1,8 +1,8 @@
 import { DomainError, type DomainEvent } from '@artauction/platform';
 import { AUCTION_EVENTS, type Auction, type Bid } from '../src/internal/domain/auction';
-import { canWithdraw, durationMinutes, evaluateBid } from '../src/internal/domain/auction-rules';
+import { buyNowCoins, buyNowOpen, canWithdraw, durationMinutes, evaluateBid } from '../src/internal/domain/auction-rules';
 import { toCents } from '../src/internal/domain/money';
-import { PlaceBid, WithdrawBid } from '../src/internal/application/bidding';
+import { BuyNow, PlaceBid, WithdrawBid } from '../src/internal/application/bidding';
 import type { AuctionPatch, AuctionRepository, AuctionUnitOfWork, CatalogPort, LiveNotice } from '../src/internal/application/ports';
 import { ListLiveAuctions } from '../src/internal/application/queries';
 import { OpenAuction, RunScheduler } from '../src/internal/application/scheduling';
@@ -33,6 +33,8 @@ function activeAuction(overrides: Partial<Auction> = {}): Auction {
     durationMinutes: 60,
     saleDescription: null,
     origin: 'SCHEDULED',
+    buyNowPrice: '2400.00',
+    closedBy: null,
     ...overrides,
   };
 }
@@ -63,10 +65,11 @@ class MemoryAuctions implements AuctionRepository {
         Promise.resolve(this.bids.find((bid) => bid.active && toCents(bid.amount) === toCents(amount))?.bidderId ?? null),
       topActiveBid: () =>
         Promise.resolve([...this.bids].filter((bid) => bid.active).sort((a, b) => toCents(b.amount) - toCents(a.amount))[0] ?? null),
+      activeBidderIds: () => Promise.resolve([...new Set(this.bids.filter((bid) => bid.active).map((bid) => bid.bidderId))]),
       bidderActiveBid: (_id, bidderId) => Promise.resolve(this.bids.find((bid) => bid.active && bid.bidderId === bidderId) ?? null),
-      insertBid: (bid) => {
+      insertBid: ({ buyNow, ...bid }) => {
         this.seq += 1;
-        const created = { id: `bid-${String(this.seq)}`, active: true, createdAt: NOW, ...bid };
+        const created = { id: `bid-${String(this.seq)}`, active: true, createdAt: NOW, buyNow: buyNow === true, ...bid };
         this.bids.push(created);
         return Promise.resolve(created);
       },
@@ -301,7 +304,7 @@ describe('puja con TCC', () => {
 describe('planificador', () => {
   it('cierra con ganador, registra la venta y avisa a la sala', async () => {
     const repo = new MemoryAuctions(activeAuction({ endsAt: new Date(NOW.getTime() - 1) }));
-    repo.bids.push({ id: 'b1', auctionId: AUCTION_ID, bidderId: LEO, amount: '900.00', active: true, createdAt: NOW, idempotencyKey: 'k1' });
+    repo.bids.push({ id: 'b1', auctionId: AUCTION_ID, bidderId: LEO, amount: '900.00', active: true, buyNow: false, createdAt: NOW, idempotencyKey: 'k1' });
     const live = new RecordingLive();
     expect(await new RunScheduler(repo, live, clock).execute()).toEqual({ opened: 0, closed: 1, rescheduled: 0 });
     expect(repo.auction).toMatchObject({ status: 'CERRADA', winnerId: LEO, currentPrice: '900.00' });
@@ -374,5 +377,84 @@ describe('apertura manual', () => {
     const repo = new MemoryAuctions(activeAuction());
     await expectKind(new OpenAuction(repo, catalog, clock).execute(seller, terms(activeAuction().lotId)), 'CONFLICT');
     expect(repo.auction.status).toBe('ACTIVA');
+  });
+});
+
+describe('compra inmediata', () => {
+  function buying(auction = activeAuction(), walletFails = false) {
+    const repo = new MemoryAuctions(auction);
+    const wallet = new RecordingWallet(repo, walletFails);
+    const live = new RecordingLive();
+    return { repo, wallet, live, buy: new BuyNow(repo, wallet, live, clock) };
+  }
+
+  it('el precio es la salida por 3, redondeado hacia arriba a multiplos de 50, y siempre mayor que la salida', () => {
+    expect(buyNowCoins(600)).toBe(1800);
+    expect(buyNowCoins(238)).toBe(750);
+    expect(buyNowCoins(50)).toBe(150);
+    expect(buyNowCoins(1000, 1.5)).toBe(1500);
+    expect(buyNowCoins(100, 1.01)).toBe(150);
+    expect(() => buyNowCoins(100, 1)).toThrow();
+  });
+
+  it('se ofrece con la sala abierta hasta que el precio llega al 80 %', () => {
+    const base = { now: NOW, status: 'ACTIVA' as const, endsAt: new Date(NOW.getTime() + 60_000), buyNowCents: 240_000 };
+    expect(buyNowOpen({ ...base, currentPriceCents: 191_900 })).toBe(true);
+    expect(buyNowOpen({ ...base, currentPriceCents: 192_000 })).toBe(false);
+    expect(buyNowOpen({ ...base, status: 'PROGRAMADA', currentPriceCents: 80_000 })).toBe(false);
+    expect(buyNowOpen({ ...base, endsAt: NOW, currentPriceCents: 80_000 })).toBe(false);
+  });
+
+  it('cobra el precio, cierra la sala, registra la venta y avisa a los demas postores', async () => {
+    const { repo, wallet, live, buy } = buying();
+    repo.bids.push({ id: 'b1', auctionId: AUCTION_ID, bidderId: NORA, amount: '900.00', active: true, buyNow: false, createdAt: NOW, idempotencyKey: 'nora-0001' });
+    const bought = await buy.execute(LEO, { auctionId: AUCTION_ID, idempotencyKey: 'leo-buy-001' });
+    expect(bought).toMatchObject({ auctionId: AUCTION_ID, amount: '2400.00', idempotent: false });
+    // La reserva va antes de bloquear la sala, con la misma clave.
+    expect(repo.log).toEqual(['tryHold', 'lock']);
+    expect(wallet.calls).toEqual([expect.objectContaining({ reservationId: 'leo-buy-001', nextCoins: 2400 })]);
+    expect(repo.auction).toMatchObject({ status: 'CERRADA', closedBy: 'BUY_NOW', winnerId: LEO, currentPrice: '2400.00' });
+    expect(repo.sales).toEqual([expect.objectContaining({ buyerId: LEO, sellerId: SELLER, amount: '2400.00' })]);
+    // Primero se confirma la reserva y despues se liquida la sala.
+    expect(repo.outbox.map((event) => event.type)).toEqual([AUCTION_EVENTS.bidAccepted, AUCTION_EVENTS.closed]);
+    expect(repo.outbox[1]).toMatchObject({ payload: { winnerId: LEO, amount: '2400.00', buyNow: true, losingBidderIds: [NORA] } });
+    expect(live.notices).toEqual([expect.objectContaining({ kind: 'auction-closed', winnerId: LEO, closedBy: 'BUY_NOW' })]);
+  });
+
+  it('repetir la compra con la misma clave no cobra dos veces', async () => {
+    const { repo, wallet, buy } = buying();
+    await buy.execute(LEO, { auctionId: AUCTION_ID, idempotencyKey: 'leo-buy-001' });
+    const again = await buy.execute(LEO, { auctionId: AUCTION_ID, idempotencyKey: 'leo-buy-001' });
+    expect(again.idempotent).toBe(true);
+    expect(wallet.calls).toHaveLength(1);
+    expect(repo.sales).toHaveLength(1);
+    await expectKind(buy.execute(NORA, { auctionId: AUCTION_ID, idempotencyKey: 'leo-buy-001' }), 'CONFLICT');
+  });
+
+  it('una segunda compra llega tarde: la sala ya cerro y no se cobra', async () => {
+    const { repo, buy } = buying();
+    await buy.execute(LEO, { auctionId: AUCTION_ID, idempotencyKey: 'leo-buy-001' });
+    await expectKind(buy.execute(NORA, { auctionId: AUCTION_ID, idempotencyKey: 'nora-buy-01' }), 'FAILED_PRECONDITION');
+    expect(repo.sales).toHaveLength(1);
+  });
+
+  it('no compra el vendedor, ni una sala programada, ni pasado el 80 %, y sin saldo no cambia nada', async () => {
+    await expectKind(buying().buy.execute(SELLER, { auctionId: AUCTION_ID, idempotencyKey: 'seller-buy-1' }), 'PERMISSION_DENIED');
+    await expectKind(buying(activeAuction({ status: 'PROGRAMADA' })).buy.execute(LEO, { auctionId: AUCTION_ID, idempotencyKey: 'leo-buy-001' }), 'FAILED_PRECONDITION');
+    await expectKind(buying(activeAuction({ currentPrice: '1920.00' })).buy.execute(LEO, { auctionId: AUCTION_ID, idempotencyKey: 'leo-buy-001' }), 'FAILED_PRECONDITION');
+    const broke = buying(activeAuction(), true);
+    await expectKind(broke.buy.execute(LEO, { auctionId: AUCTION_ID, idempotencyKey: 'leo-buy-001' }), 'INVALID_ARGUMENT');
+    expect(broke.repo.auction.status).toBe('ACTIVA');
+    expect(broke.repo.outbox).toEqual([]);
+    await expectKind(buying().buy.execute(LEO, { auctionId: AUCTION_ID, idempotencyKey: 'x' }), 'INVALID_ARGUMENT');
+  });
+
+  it('el cierre por tiempo queda marcado y lleva a los postores que no ganaron', async () => {
+    const repo = new MemoryAuctions(activeAuction({ endsAt: new Date(NOW.getTime() - 1) }));
+    repo.bids.push({ id: 'b1', auctionId: AUCTION_ID, bidderId: LEO, amount: '900.00', active: true, buyNow: false, createdAt: NOW, idempotencyKey: 'k1' });
+    repo.bids.push({ id: 'b2', auctionId: AUCTION_ID, bidderId: NORA, amount: '850.00', active: true, buyNow: false, createdAt: NOW, idempotencyKey: 'k2' });
+    await new RunScheduler(repo, new RecordingLive(), clock).execute();
+    expect(repo.auction.closedBy).toBe('TIME');
+    expect(repo.outbox[0]).toMatchObject({ payload: { winnerId: LEO, buyNow: false, losingBidderIds: [NORA] } });
   });
 });

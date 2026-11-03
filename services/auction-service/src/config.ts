@@ -88,6 +88,12 @@ export class AuctionConfig {
   @Max(1)
   AUTO_AUCTION_PRICE_FACTOR = 0.1;
 
+  /** Compra inmediata: la salida por este factor, redondeada hacia arriba a multiplos de 50. */
+  @IsNumber()
+  @Min(1.5)
+  @Max(10)
+  BUY_NOW_FACTOR = 3;
+
   @IsBoolean()
   GRPC_TLS = false;
 

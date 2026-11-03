@@ -18,7 +18,7 @@ import { auctionOutboxRoutes } from './api/events/outbox-routes';
 import { auctionEventsGrpcService } from './api/grpc/auction-events.grpc';
 import { auctionGrpcService } from './api/grpc/auction.grpc';
 import { LiveBus } from './api/live/live-bus';
-import { PlaceBid, WithdrawBid } from './internal/application/bidding';
+import { BuyNow, PlaceBid, WithdrawBid } from './internal/application/bidding';
 import { BatchGetAuctionSummaries, GetAuction, GetBidByReservation, ListLiveAuctions } from './internal/application/queries';
 import { OpenAuction, RotateCatalogAuctions, RunScheduler, ScheduleApprovedLot } from './internal/application/scheduling';
 import { assertRotationPolicy } from './internal/domain/auction-rules';
@@ -79,21 +79,24 @@ const providers: Provider[] = [
   },
   {
     provide: AUCTION_GRPC,
-    inject: [REPOSITORY, CLIENTS, CALLERS, LIVE, LOGGER],
+    inject: [REPOSITORY, CLIENTS, CALLERS, LIVE, LOGGER, CONFIG],
     useFactory: (
       auctions: PrismaAuctionRepository,
       clients: Clients,
       callers: CallerResolver,
       live: LiveBus,
       logger: StructuredLogger,
+      config: AuctionConfig,
     ): auctionV1.AuctionServiceServer => {
       // Una sola cola por sala para pujas y retiros: nunca corren a la vez en la misma subasta.
       const lane = new KeyedSerialQueue();
       return auctionGrpcService(
         {
           getAuction: new GetAuction(auctions),
-          openAuction: new OpenAuction(auctions, new GrpcCatalogClient(clients.catalog, clients.tokens), clock),
+          openAuction: new OpenAuction(auctions, new GrpcCatalogClient(clients.catalog, clients.tokens), clock, config.BUY_NOW_FACTOR),
           placeBid: new PlaceBid(auctions, new GrpcWalletClient(clients.wallet, clients.tokens), live, clock, lane),
+          // La compra comparte la cola de la sala con las pujas: nunca compiten por la reserva.
+          buyNow: new BuyNow(auctions, new GrpcWalletClient(clients.wallet, clients.tokens), live, clock, lane),
           withdrawBid: new WithdrawBid(auctions, clock, lane),
           summaries: new BatchGetAuctionSummaries(auctions),
           live: new ListLiveAuctions(auctions, clock),
@@ -107,13 +110,14 @@ const providers: Provider[] = [
   },
   {
     provide: AUCTION_EVENTS_GRPC,
-    inject: [REPOSITORY, CALLERS, LOGGER],
+    inject: [REPOSITORY, CALLERS, LOGGER, CONFIG],
     useFactory: (
       auctions: PrismaAuctionRepository,
       callers: CallerResolver,
       logger: StructuredLogger,
+      config: AuctionConfig,
     ): auctionHandlersV1.AuctionEventHandlerServiceServer =>
-      auctionEventsGrpcService(new ScheduleApprovedLot(auctions, clock), callers, logger),
+      auctionEventsGrpcService(new ScheduleApprovedLot(auctions, clock, Math.random, config.BUY_NOW_FACTOR), callers, logger),
   },
   {
     provide: SCHEDULER,
@@ -134,6 +138,7 @@ const providers: Provider[] = [
           maxMinutes: config.AUTO_AUCTION_MAX_MINUTES,
           maxLeadMs: config.AUTO_AUCTION_MAX_LEAD_SECONDS * 1000,
           priceFactor: config.AUTO_AUCTION_PRICE_FACTOR,
+          buyNowFactor: config.BUY_NOW_FACTOR,
         }),
       ),
   },

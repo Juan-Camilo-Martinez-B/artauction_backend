@@ -9,7 +9,12 @@ export interface Bid {
   amount: string;
   active: boolean;
   createdAt: Date;
+  /** Compra inmediata y no una puja. */
+  buyNow: boolean;
 }
+
+/** Por que cerro la sala: al vencer el tiempo o por una compra inmediata. */
+export type CloseReason = 'TIME' | 'BUY_NOW';
 
 /** Quien creo la sala. La rotacion solo recicla las suyas. */
 export type AuctionOrigin = 'SCHEDULED' | 'MANUAL' | 'ROTATION';
@@ -32,6 +37,9 @@ export interface Auction {
   durationMinutes: number;
   saleDescription: string | null;
   origin: AuctionOrigin;
+  /** Precio con el que cualquiera se lleva la obra al instante. Decimal en texto. */
+  buyNowPrice: string;
+  closedBy: CloseReason | null;
 }
 
 export const AUCTION_EVENTS = {
@@ -70,7 +78,19 @@ export function bidWithdrawn(auctionId: string, bidderId: string): DomainEvent {
   return { type: AUCTION_EVENTS.bidWithdrawn, aggregateId: auctionId, payload: { auctionId, bidderId } };
 }
 
-export function auctionClosed(input: { auctionId: string; lotId: string; sellerId: string; winnerId: string; amount: string }): DomainEvent {
+/**
+ * Cierre con ganador. Lleva si fue por compra inmediata y quienes pujaron y
+ * no ganaron, para avisarles.
+ */
+export function auctionClosed(input: {
+  auctionId: string;
+  lotId: string;
+  sellerId: string;
+  winnerId: string;
+  amount: string;
+  buyNow: boolean;
+  losingBidderIds: string[];
+}): DomainEvent {
   return { type: AUCTION_EVENTS.closed, aggregateId: input.auctionId, payload: { ...input } };
 }
 

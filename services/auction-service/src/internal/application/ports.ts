@@ -1,5 +1,5 @@
 import type { DomainEvent } from '@artauction/platform';
-import type { Auction, AuctionOrigin, Bid } from '../domain/auction';
+import type { Auction, AuctionOrigin, Bid, CloseReason } from '../domain/auction';
 import type { AuctionStatus } from '../domain/auction-rules';
 
 export interface NewAuction {
@@ -13,6 +13,7 @@ export interface NewAuction {
   durationMinutes: number;
   saleDescription: string | null;
   origin: AuctionOrigin;
+  buyNowPrice: string;
 }
 
 export interface AuctionPatch {
@@ -29,6 +30,8 @@ export interface AuctionPatch {
   resetExtensions?: boolean;
   winnerId?: string | null;
   winningBidId?: string | null;
+  buyNowPrice?: string;
+  closedBy?: CloseReason | null;
 }
 
 /**
@@ -46,7 +49,9 @@ export interface AuctionUnitOfWork {
   activeBidderAt(auctionId: string, amount: string): Promise<string | null>;
   topActiveBid(auctionId: string): Promise<Bid | null>;
   bidderActiveBid(auctionId: string, bidderId: string): Promise<Bid | null>;
-  insertBid(bid: { auctionId: string; bidderId: string; amount: string; idempotencyKey: string }): Promise<Bid>;
+  insertBid(bid: { auctionId: string; bidderId: string; amount: string; idempotencyKey: string; buyNow?: boolean }): Promise<Bid>;
+  /** Postores con una oferta activa en la sala. */
+  activeBidderIds(auctionId: string): Promise<string[]>;
   deactivateBids(auctionId: string, bidderId?: string): Promise<void>;
   /** Permite bajar el precio actual en esta transaccion (retiro o reprogramacion). */
   allowPriceRewind(): Promise<void>;
@@ -132,7 +137,7 @@ export type LiveNotice =
       endsAt: Date;
       extended: boolean;
     }
-  | { kind: 'auction-closed'; auctionId: string; lotId: string; winnerId: string | null; amount: string };
+  | { kind: 'auction-closed'; auctionId: string; lotId: string; winnerId: string | null; amount: string; closedBy: CloseReason };
 
 /** Avisos en vivo de una sala, publicados despues de confirmar la transaccion. */
 export interface LiveFeed {

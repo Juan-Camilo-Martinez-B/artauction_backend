@@ -1,6 +1,6 @@
 import { appendToOutbox, recordInbox, sqlExecutorFrom, type DomainEvent } from '@artauction/platform';
 import { Prisma, type PrismaClient } from '../../generated/prisma';
-import type { Auction, AuctionOrigin, Bid } from '../domain/auction';
+import type { Auction, AuctionOrigin, Bid, CloseReason } from '../domain/auction';
 import type { AuctionStatus } from '../domain/auction-rules';
 import type { AuctionPatch, AuctionRepository, AuctionUnitOfWork, NewAuction, RotationTurn } from '../application/ports';
 
@@ -13,6 +13,7 @@ type BidRow = Prisma.BidGetPayload<object>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES: ReadonlySet<string> = new Set(['PROGRAMADA', 'ACTIVA', 'CERRADA']);
 const ORIGINS: ReadonlySet<string> = new Set(['SCHEDULED', 'MANUAL', 'ROTATION']);
+const CLOSE_REASONS: ReadonlySet<string> = new Set(['TIME', 'BUY_NOW']);
 // Llave del advisory lock que serializa la rotacion entre instancias.
 const ROTATION_LOCK = 'auction.rotation';
 
@@ -45,6 +46,8 @@ function toAuction(row: AuctionRow): Auction {
     durationMinutes: row.durationMinutes,
     saleDescription: row.saleDescription,
     origin: row.origin as AuctionOrigin,
+    buyNowPrice: row.buyNowPrice.toFixed(2),
+    closedBy: row.closedBy !== null && CLOSE_REASONS.has(row.closedBy) ? (row.closedBy as CloseReason) : null,
   };
 }
 
@@ -56,6 +59,7 @@ function toBid(row: BidRow): Bid {
     amount: row.amount.toFixed(2),
     active: row.active,
     createdAt: row.createdAt,
+    buyNow: row.kind === 'BUY_NOW',
   };
 }
 
@@ -74,6 +78,8 @@ function patchData(patch: AuctionPatch): Prisma.AuctionUpdateInput {
   if (patch.resetExtensions) data.extensionCount = 0;
   if (patch.winnerId !== undefined) data.winnerId = patch.winnerId;
   if (patch.winningBidId !== undefined) data.winningBidId = patch.winningBidId;
+  if (patch.buyNowPrice !== undefined) data.buyNowPrice = patch.buyNowPrice;
+  if (patch.closedBy !== undefined) data.closedBy = patch.closedBy;
   return data;
 }
 
@@ -137,8 +143,12 @@ function unitOfWork(tx: Tx): AuctionUnitOfWork {
       const row = await tx.bid.findFirst({ where: { auctionId, bidderId, active: true }, orderBy: { amount: 'desc' } });
       return row ? toBid(row) : null;
     },
-    async insertBid(bid) {
-      return toBid(await tx.bid.create({ data: { ...bid, active: true } }));
+    async insertBid({ buyNow, ...bid }) {
+      return toBid(await tx.bid.create({ data: { ...bid, active: true, kind: buyNow ? 'BUY_NOW' : 'BID' } }));
+    },
+    async activeBidderIds(auctionId) {
+      const rows = await tx.bid.findMany({ where: { auctionId, active: true }, distinct: ['bidderId'], select: { bidderId: true } });
+      return rows.map((row) => row.bidderId);
     },
     async deactivateBids(auctionId, bidderId) {
       await tx.bid.updateMany({ where: { auctionId, active: true, ...(bidderId ? { bidderId } : {}) }, data: { active: false } });
@@ -313,5 +323,6 @@ function newAuctionData(auction: NewAuction): Prisma.AuctionCreateInput {
     durationMinutes: auction.durationMinutes,
     saleDescription: auction.saleDescription,
     origin: auction.origin,
+    buyNowPrice: auction.buyNowPrice,
   };
 }
