@@ -3,6 +3,7 @@ import { Server, type Socket } from 'socket.io';
 import type { auctionV1 } from '@artauction/contracts';
 import { isServiceError, toHttpError, type StructuredLogger, type TokenVerifier } from '@artauction/platform';
 import { invoke } from '@artauction/service-kit';
+import { closeReasonName } from '../http/auctions/auction.presenter';
 import { RoomStreams, type RoomNotice, type WatchSource } from './room-streams';
 
 // Contrato de eventos del frontend (src/lib/ws/events.ts). Se mantiene igual
@@ -257,6 +258,8 @@ export class LiveRoom {
       lotId: closed.lotId,
       winnerId: closed.winnerId ?? null,
       amount: closed.amount,
+      // Campo nuevo y opcional para el cliente: la version del evento no cambia.
+      closedBy: closeReasonName(closed.closedBy) ?? 'TIME',
       serverTime,
     });
   }

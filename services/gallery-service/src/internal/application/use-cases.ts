@@ -273,7 +273,7 @@ export class GalleryEventHandlers {
    * AuctionClosed con ganador: la obra cambia de dueno. Sale de la galeria y de
    * la sala del autor, entra en las del ganador y se publica la actividad.
    */
-  async auctionClosed(event: { eventId: string; lotId: string; sellerId: string; winnerId: string | null }): Promise<void> {
+  async auctionClosed(event: { eventId: string; lotId: string; sellerId: string; winnerId: string | null; buyNow?: boolean }): Promise<void> {
     const winnerId = event.winnerId;
     if (!winnerId) {
       return;
@@ -302,13 +302,14 @@ export class GalleryEventHandlers {
         acquiredAt: now,
       });
       await hang(this.galleries, winnerId, lot);
+      // Una compra inmediata se cuenta distinto en el feed que una victoria por tiempo.
       await this.social.upsertActivity(`win:${event.eventId}`, {
         actorId: winnerId,
-        verb: 'WIN',
+        verb: event.buyNow === true ? 'BUY_NOW' : 'WIN',
         objectType: 'LOT',
         objectId: lot.lotId,
         visibility: 'PUBLIC',
-        summary: `Ganó ${lot.title}`,
+        summary: event.buyNow === true ? `Compró ${lot.title} al instante` : `Ganó ${lot.title}`,
         createdAt: now,
       });
     });

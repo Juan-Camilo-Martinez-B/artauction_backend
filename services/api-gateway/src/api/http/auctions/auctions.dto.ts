@@ -24,6 +24,14 @@ export class OpenAuctionDto {
   endsAt!: string;
 }
 
+export class BuyNowDto {
+  // La misma regla que en una puja: repetir la clave no compra dos veces.
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  idempotencyKey!: string;
+}
+
 export class PlaceBidDto {
   @IsString()
   @Matches(AMOUNT)

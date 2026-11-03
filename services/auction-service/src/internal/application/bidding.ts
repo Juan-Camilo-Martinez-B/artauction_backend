@@ -1,6 +1,6 @@
 import { DomainError, KeyedSerialQueue } from '@artauction/platform';
-import { bidAccepted, bidWithdrawn, type Auction } from '../domain/auction';
-import { canWithdraw, evaluateBid, rejectionError } from '../domain/auction-rules';
+import { auctionClosed, bidAccepted, bidWithdrawn, type Auction } from '../domain/auction';
+import { buyNowRejectionError, canWithdraw, evaluateBid, evaluateBuyNow, rejectionError } from '../domain/auction-rules';
 import { assertWholeCoins, fromCents, publishedAmount, toCents } from '../domain/money';
 import type { AuctionRepository, AuctionUnitOfWork, Clock, LiveFeed, WalletPort } from './ports';
 
@@ -170,6 +170,137 @@ export class PlaceBid {
       idempotent: true,
       currentPrice: auction.currentPrice,
     };
+  }
+}
+
+export interface BoughtNow {
+  auctionId: string;
+  bidId: string;
+  amount: string;
+  idempotent: boolean;
+}
+
+/**
+ * Compra inmediata. Sigue los pasos de una puja, con la misma retencion TCC y
+ * la misma clave de idempotencia, pero su puja (kind BUY_NOW) gana la sala y la
+ * cierra en la misma transaccion: el outbox entrega primero BidAccepted (wallet
+ * confirma la reserva) y luego AuctionClosed (wallet cobra, libera a los demas
+ * y paga al vendedor). Si dos personas compran a la vez, gana la que bloquea la
+ * sala primero; la reserva de la otra la devuelve el barrido de wallet.
+ */
+export class BuyNow {
+  constructor(
+    private readonly auctions: AuctionRepository,
+    private readonly wallet: WalletPort,
+    private readonly live: LiveFeed,
+    private readonly clock: Clock,
+    private readonly lane: KeyedSerialQueue = new KeyedSerialQueue(),
+  ) {}
+
+  execute(buyerId: string, input: { auctionId: string; idempotencyKey: string }): Promise<BoughtNow> {
+    return this.lane.run(input.auctionId, () => this.buy(buyerId, input));
+  }
+
+  private async buy(buyerId: string, input: { auctionId: string; idempotencyKey: string }): Promise<BoughtNow> {
+    if (!IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
+      throw DomainError.invalid('La clave de idempotencia de la compra no es valida.');
+    }
+    const repeated = await this.auctions.bidByKey(input.idempotencyKey);
+    if (repeated) {
+      return this.replay(repeated, buyerId, input.auctionId);
+    }
+    const snapshot = await this.auctions.findById(input.auctionId);
+    if (!snapshot) {
+      throw DomainError.notFound('Subasta no encontrada');
+    }
+    this.assertAvailable(snapshot, buyerId);
+    const price = snapshot.buyNowPrice;
+    const coins = assertWholeCoins(toCents(price));
+
+    await this.wallet.tryHold({ reservationId: input.idempotencyKey, auctionId: input.auctionId, bidderId: buyerId, nextCoins: coins });
+
+    const bought = await this.auctions.transaction(async (uow) => {
+      const auction = await uow.lock(input.auctionId);
+      if (!auction) {
+        throw DomainError.notFound('Subasta no encontrada');
+      }
+      const raced = await uow.bidByKey(input.idempotencyKey);
+      if (raced) {
+        return { ...this.replay(raced, buyerId, input.auctionId), lotId: auction.lotId, fresh: false };
+      }
+      // Con el estado fresco: otra compra o una puja alta pudo ganar la carrera.
+      this.assertAvailable(auction, buyerId);
+      await uow.deactivateBids(auction.id, buyerId);
+      const bid = await uow.insertBid({ auctionId: auction.id, bidderId: buyerId, amount: auction.buyNowPrice, idempotencyKey: input.idempotencyKey, buyNow: true });
+      const losingBidderIds = (await uow.activeBidderIds(auction.id)).filter((bidderId) => bidderId !== buyerId);
+      await uow.update(auction.id, {
+        status: 'CERRADA',
+        closedBy: 'BUY_NOW',
+        currentPrice: auction.buyNowPrice,
+        winnerId: buyerId,
+        winningBidId: bid.id,
+      });
+      await uow.recordSale({
+        auctionId: auction.id,
+        lotId: auction.lotId,
+        buyerId,
+        sellerId: auction.sellerId,
+        amount: auction.buyNowPrice,
+        currency: auction.currency,
+      });
+      await uow.emit([
+        bidAccepted({
+          auctionId: auction.id,
+          bidId: bid.id,
+          bidderId: buyerId,
+          amount: auction.buyNowPrice,
+          endsAt: auction.endsAt,
+          extended: false,
+          reservationId: input.idempotencyKey,
+          heldCoins: coins,
+        }),
+        auctionClosed({
+          auctionId: auction.id,
+          lotId: auction.lotId,
+          sellerId: auction.sellerId,
+          winnerId: buyerId,
+          amount: auction.buyNowPrice,
+          buyNow: true,
+          losingBidderIds,
+        }),
+      ]);
+      const result: BoughtNow = { auctionId: auction.id, bidId: bid.id, amount: auction.buyNowPrice, idempotent: false };
+      return { ...result, lotId: auction.lotId, fresh: true };
+    });
+
+    const { fresh, lotId, ...result } = bought;
+    if (fresh) {
+      this.live.publish({ kind: 'auction-closed', auctionId: result.auctionId, lotId, winnerId: buyerId, amount: result.amount, closedBy: 'BUY_NOW' });
+    }
+    return result;
+  }
+
+  private assertAvailable(auction: Auction, buyerId: string): void {
+    const decision = evaluateBuyNow({
+      now: this.clock.now(),
+      status: auction.status,
+      sellerId: auction.sellerId,
+      buyerId,
+      endsAt: auction.endsAt,
+      currentPriceCents: toCents(auction.currentPrice),
+      buyNowCents: toCents(auction.buyNowPrice),
+    });
+    if (!decision.ok) {
+      throw buyNowRejectionError(decision.code);
+    }
+  }
+
+  /** Misma clave: la misma compra si es del mismo comprador y sala; si no, conflicto. */
+  private replay(bid: { id: string; auctionId: string; bidderId: string; amount: string; buyNow: boolean }, buyerId: string, auctionId: string): BoughtNow {
+    if (!bid.buyNow || bid.bidderId !== buyerId || bid.auctionId !== auctionId) {
+      throw DomainError.conflict('idempotencyKey reutilizada');
+    }
+    return { auctionId, bidId: bid.id, amount: bid.amount, idempotent: true };
   }
 }
 

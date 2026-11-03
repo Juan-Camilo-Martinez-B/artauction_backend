@@ -5,7 +5,7 @@ Avisos de ArtAuction AI. Es el dueño del esquema `notification` (`notifications
 | Evento | Productor | Quién recibe el aviso |
 |---|---|---|
 | `AuditCompleted` | audit-service | El vendedor (`AUDIT`, con el veredicto) |
-| `AuctionClosed` | auction-service | El vendedor y, si lo hay, el ganador (`AUCTION_CLOSED`, con el importe) |
+| `AuctionClosed` | auction-service | El vendedor y, si lo hay, el ganador (`AUCTION_CLOSED`, con el importe y `closedBy`: `TIME` o `BUY_NOW`). Los demás postores reciben `AUCTION_LOST`: la sala cerró y lo retenido volvió a su bolsillo. Nadie recibe dos avisos del mismo cierre |
 | `LotReturnedToDraft` | catalog-service | El vendedor (`LOT_RETURNED`, con el título y el motivo para corregir la obra) |
 
 Cada handler acepta solo el token de servicio de su productor. `ListNotifications` devuelve los últimos 50 avisos de quien llama.

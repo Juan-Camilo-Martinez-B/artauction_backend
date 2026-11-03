@@ -22,7 +22,7 @@ No contiene reglas de negocio. Hace cinco cosas:
 | `POST /admin/lots/:id/resolve` | catalog-service (el rol ADMIN lo comprueba el servicio). `verdict` es `APROBADO` (con `priceMin` y `priceMax` opcionales u obligatorios si la obra no tiene precio), `BORRADOR` (con `reason`) o `REAUDITAR` |
 | `GET /wallet`, `POST /wallet/top-ups` | wallet-service. La recarga exige la cabecera `Idempotency-Key` (400 sin ella); 20 por minuto |
 | `GET /auctions/live` | cartelera: `ListLiveAuctions` de auction compuesto con `BatchGetPublicLots` de catalog, en el formato de `GET /lots`, con `serverTime`. `limit` (1 a 24) y `horizonMinutes` (1 a 2880) |
-| `GET /auctions/:id`, `POST /auctions`, `POST /auctions/:id/bids`, `POST /auctions/:id/withdraw` | auction-service. Las pujas no exponen su clave de idempotencia; 30 pujas por minuto |
+| `GET /auctions/:id`, `POST /auctions`, `POST /auctions/:id/bids`, `POST /auctions/:id/withdraw`, `POST /auctions/:id/buy-now` | auction-service. Las pujas no exponen su clave de idempotencia; 30 pujas por minuto. La compra inmediata exige `idempotencyKey` (10 por minuto). Las salas y las tarjetas del catálogo traen `buyNowPrice`, `buyNowAvailable` y `closedBy`, y `auction:closed` en Socket.IO trae `closedBy` |
 | `/me/gallery/*` | gallery-service. El gateway completa cada obra colgada con su ficha pública de catalog; una obra que dejó de ser pública no se muestra |
 | `GET /galleries/:ownerId`, `POST /users/:id/follow`, `GET /feed` | gallery-service |
 | `GET /notifications` | notification-service. Repone como `null` los valores nulos que un `map` de proto no transporta |

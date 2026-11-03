@@ -5,9 +5,9 @@ import { invoke } from '@artauction/service-kit';
 import { AUCTION_CLIENT, CATALOG_CLIENT } from '../../../clients/grpc-clients';
 import type { GatewayConfig } from '../../../config';
 import { GATEWAY_CONFIG } from '../tokens';
-import { auctionDetailJson, placedBidJson } from './auction.presenter';
+import { auctionDetailJson, boughtNowJson, placedBidJson } from './auction.presenter';
 import { lotJson } from '../catalog/lot.presenter';
-import { LiveAuctionsQuery, OpenAuctionDto, PlaceBidDto } from './auctions.dto';
+import { BuyNowDto, LiveAuctionsQuery, OpenAuctionDto, PlaceBidDto } from './auctions.dto';
 
 /**
  * Rutas /auctions, servidas por auction-service. La autorizacion (rol de
@@ -94,6 +94,22 @@ export class AuctionsController {
       this.options(authorization),
     );
     return placedBidJson(placed);
+  }
+
+  /** Compra inmediata: paga el precio de compra, gana la sala y la cierra. */
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post(':id/buy-now')
+  async buyNow(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: BuyNowDto,
+  ) {
+    const bought = await invoke(
+      this.auctions.buyNow.bind(this.auctions),
+      { auctionId: id, idempotencyKey: body.idempotencyKey },
+      this.options(authorization),
+    );
+    return boughtNowJson(bought);
   }
 
   @Post(':id/withdraw')

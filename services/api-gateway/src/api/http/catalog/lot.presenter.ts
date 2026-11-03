@@ -30,6 +30,8 @@ export interface AuctionCardJson {
   endsAt: string | null;
   saleDescription: string | null;
   currency: string;
+  buyNowPrice: string;
+  buyNowAvailable: boolean;
 }
 
 export interface CategoryJson {
@@ -70,6 +72,8 @@ export function auctionJson(summary: auctionV1.AuctionSummary): AuctionCardJson 
     endsAt: summary.endsAt?.toISOString() ?? null,
     saleDescription: summary.saleDescription ?? null,
     currency: summary.currency,
+    buyNowPrice: summary.buyNowPrice,
+    buyNowAvailable: summary.buyNowAvailable,
   };
 }
 

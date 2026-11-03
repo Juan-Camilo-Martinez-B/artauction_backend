@@ -1,7 +1,9 @@
 import { DomainError } from '@artauction/platform';
 import { auctionClosed, auctionRescheduled, auctionStarted, type Auction } from '../domain/auction';
 import {
+  buyNowCoins,
   clampDuration,
+  DEFAULT_BUY_NOW_FACTOR,
   durationMinutes,
   incrementCoins,
   openingCoins,
@@ -18,12 +20,18 @@ import type { AuctionCandidate, AuctionRepository, CatalogPort, Clock, LiveFeed,
 
 const SCHEDULABLE_LOT_STATUSES = new Set(['APROBADO', 'PUBLICADA']);
 
+/** Precio de compra inmediata de una salida en artacoins, como decimal en texto. */
+function buyNowPrice(openingCoinsValue: number, factor: number): string {
+  return fromCents(buyNowCoins(openingCoinsValue, factor) * 100);
+}
+
 /** Apertura manual de un vendedor sobre una obra suya ya publicada. */
 export class OpenAuction {
   constructor(
     private readonly auctions: AuctionRepository,
     private readonly catalog: CatalogPort,
     private readonly clock: Clock,
+    private readonly buyNowFactor: number = DEFAULT_BUY_NOW_FACTOR,
   ) {}
 
   async execute(
@@ -54,6 +62,7 @@ export class OpenAuction {
     const terms = {
       startPrice: fromCents(startCents),
       minIncrement: fromCents(incrementCents),
+      buyNowPrice: buyNowPrice(startCents / 100, this.buyNowFactor),
       startsAt: input.startsAt,
       endsAt: input.endsAt,
       durationMinutes: clampDuration((input.endsAt.getTime() - input.startsAt.getTime()) / 60_000),
@@ -102,6 +111,7 @@ export class ScheduleApprovedLot {
     private readonly auctions: AuctionRepository,
     private readonly clock: Clock,
     private readonly random: () => number = Math.random,
+    private readonly buyNowFactor: number = DEFAULT_BUY_NOW_FACTOR,
   ) {}
 
   async execute(event: {
@@ -125,6 +135,7 @@ export class ScheduleApprovedLot {
         lotTitle: event.title,
         startPrice: fromCents(opening * 100),
         minIncrement: fromCents(incrementCoins(opening) * 100),
+        buyNowPrice: buyNowPrice(opening, this.buyNowFactor),
         startsAt: window.startsAt,
         endsAt: window.endsAt,
         durationMinutes: minutes,
@@ -222,6 +233,7 @@ export class RotateCatalogAuctions {
       lotTitle: candidate.title,
       startPrice: fromCents(opening * 100),
       minIncrement: fromCents(incrementCoins(opening) * 100),
+      buyNowPrice: buyNowPrice(opening, this.policy.buyNowFactor ?? DEFAULT_BUY_NOW_FACTOR),
       startsAt: window.startsAt,
       endsAt: window.endsAt,
       durationMinutes: window.minutes,
@@ -302,8 +314,10 @@ export class RunScheduler {
         await uow.emit([auctionRescheduled(auctionId, auction.lotId)]);
         return { outcome: 'rescheduled' as const, auction, winnerId: null, amount: auction.startPrice };
       }
+      const losingBidderIds = (await uow.activeBidderIds(auctionId)).filter((bidderId) => bidderId !== winning.bidderId);
       await uow.update(auctionId, {
         status: 'CERRADA',
+        closedBy: 'TIME',
         winnerId: winning.bidderId,
         winningBidId: winning.id,
         currentPrice: winning.amount,
@@ -323,6 +337,8 @@ export class RunScheduler {
           sellerId: auction.sellerId,
           winnerId: winning.bidderId,
           amount: winning.amount,
+          buyNow: false,
+          losingBidderIds,
         }),
       ]);
       return { outcome: 'closed' as const, auction, winnerId: winning.bidderId, amount: winning.amount };
@@ -337,6 +353,7 @@ export class RunScheduler {
         lotId: result.auction.lotId,
         winnerId: result.winnerId,
         amount: result.amount,
+        closedBy: 'TIME',
       });
     }
     return result.outcome;

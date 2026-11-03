@@ -63,6 +63,66 @@ export function rejectionError(code: BidRejection): DomainError {
   }
 }
 
+/** Compra inmediata: la salida por este factor, redondeada hacia arriba a multiplos de 50. */
+export const DEFAULT_BUY_NOW_FACTOR = 3;
+const BUY_NOW_STEP_COINS = 50;
+/** La compra inmediata se ofrece mientras el precio actual no llegue a esta fraccion de su valor. */
+export const BUY_NOW_AVAILABLE_RATIO = 0.8;
+
+export function buyNowCoins(openingCoins: number, factor: number = DEFAULT_BUY_NOW_FACTOR): number {
+  if (!Number.isFinite(factor) || factor <= 1) {
+    throw new Error('El factor de compra inmediata debe ser mayor que 1');
+  }
+  const rounded = Math.ceil((openingCoins * factor) / BUY_NOW_STEP_COINS) * BUY_NOW_STEP_COINS;
+  // Siempre por encima de la salida, aunque el factor sea bajo.
+  return Math.max(rounded, (Math.floor(openingCoins / BUY_NOW_STEP_COINS) + 1) * BUY_NOW_STEP_COINS);
+}
+
+export type BuyNowRejection = 'NOT_ACTIVE' | 'CLOSED' | 'OWN_LOT' | 'UNAVAILABLE';
+
+/** Sala abierta, sin vencer y con el precio por debajo del 80 % de la compra inmediata. */
+export function buyNowOpen(input: { now: Date; status: AuctionStatus; endsAt: Date; currentPriceCents: number; buyNowCents: number }): boolean {
+  return (
+    input.status === 'ACTIVA' &&
+    input.now.getTime() < input.endsAt.getTime() &&
+    input.currentPriceCents < input.buyNowCents * BUY_NOW_AVAILABLE_RATIO
+  );
+}
+
+export function evaluateBuyNow(input: {
+  now: Date;
+  status: AuctionStatus;
+  sellerId: string;
+  buyerId: string;
+  endsAt: Date;
+  currentPriceCents: number;
+  buyNowCents: number;
+}): { ok: true } | { ok: false; code: BuyNowRejection } {
+  if (input.status !== 'ACTIVA') {
+    return { ok: false, code: 'NOT_ACTIVE' };
+  }
+  if (input.now.getTime() >= input.endsAt.getTime()) {
+    return { ok: false, code: 'CLOSED' };
+  }
+  if (input.buyerId === input.sellerId) {
+    return { ok: false, code: 'OWN_LOT' };
+  }
+  return buyNowOpen(input) ? { ok: true } : { ok: false, code: 'UNAVAILABLE' };
+}
+
+export function buyNowRejectionError(code: BuyNowRejection): DomainError {
+  switch (code) {
+    case 'OWN_LOT':
+      return DomainError.forbidden('No puedes comprar tu propia obra');
+    case 'UNAVAILABLE':
+      return DomainError.precondition('La compra inmediata ya no esta disponible: las pujas llegaron al 80 % de su precio.');
+    case 'NOT_ACTIVE':
+      return DomainError.precondition('La compra inmediata solo esta disponible con la sala abierta');
+    case 'CLOSED':
+      return DomainError.precondition('La subasta ya cerro');
+  }
+}
+
 export function canWithdraw(now: Date, endsAt: Date): boolean {
   return endsAt.getTime() - now.getTime() >= WITHDRAW_LEAD_MS;
 }
@@ -110,6 +170,8 @@ export interface RotationPolicy {
   maxLeadMs: number;
   /** Fraccion del precio sugerido por la auditoria que se usa como salida. */
   priceFactor: number;
+  /** Factor de compra inmediata sobre la salida; sin el, DEFAULT_BUY_NOW_FACTOR. */
+  buyNowFactor?: number;
 }
 
 /** La sala nunca abre en el mismo instante en que se crea: da tiempo a anunciarla. */

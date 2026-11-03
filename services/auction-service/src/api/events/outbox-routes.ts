@@ -29,6 +29,11 @@ function metadata(message: OutboxMessage): commonV1.EventMetadata {
   });
 }
 
+function textList(payload: Record<string, unknown>, key: string): string[] {
+  const value = payload[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
 function text(payload: Record<string, unknown>, key: string): string {
   const value = payload[key];
   return typeof value === 'string' ? value : '';
@@ -86,6 +91,8 @@ export function auctionOutboxRoutes(
       sellerId: text(message.payload, 'sellerId'),
       winnerId: text(message.payload, 'winnerId'),
       amount: text(message.payload, 'amount'),
+      buyNow: message.payload['buyNow'] === true,
+      losingBidderIds: textList(message.payload, 'losingBidderIds'),
     });
   const rescheduled = (message: OutboxMessage) =>
     auctionEventsV1.AuctionRescheduled.fromPartial({
