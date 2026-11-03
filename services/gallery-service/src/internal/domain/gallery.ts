@@ -53,7 +53,7 @@ export interface GalleryItem {
 
 export interface Activity {
   actorId: string;
-  verb: 'PUBLISH' | 'BID' | 'WIN' | 'FOLLOW' | 'AUDIT';
+  verb: 'PUBLISH' | 'BID' | 'WIN' | 'BUY_NOW' | 'FOLLOW' | 'AUDIT';
   objectType: 'LOT' | 'AUCTION' | 'USER' | 'AUDIT';
   objectId: string;
   visibility: Visibility;

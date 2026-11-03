@@ -1,7 +1,11 @@
 // Avisos para los usuarios. Cada aviso nace de un evento; su id combina el
 // evento y el destinatario, asi repetir el evento no duplica el aviso.
 
-export type NotificationKind = 'AUDIT' | 'AUCTION_CLOSED' | 'LOT_RETURNED';
+/**
+ * AUCTION_CLOSED la reciben el ganador y el vendedor; AUCTION_LOST, quienes
+ * pujaron en una sala que cerro sin ganarla (lo retenido ya les volvio).
+ */
+export type NotificationKind = 'AUDIT' | 'AUCTION_CLOSED' | 'AUCTION_LOST' | 'LOT_RETURNED';
 
 export interface Notification {
   id: string;
@@ -38,17 +42,37 @@ export function auctionClosed(input: {
   sellerId: string;
   winnerId: string | null;
   amount: string;
+  /** Cerro por compra inmediata y no por tiempo. */
+  buyNow?: boolean;
+  losingBidderIds?: readonly string[];
   now: Date;
 }): Notification[] {
+  const closedBy = input.buyNow === true ? 'BUY_NOW' : 'TIME';
+  const payload = { auctionId: input.auctionId, lotId: input.lotId, winnerId: input.winnerId, amount: input.amount, closedBy };
   const recipients = [...new Set(input.winnerId ? [input.sellerId, input.winnerId] : [input.sellerId])];
-  return recipients.map((userId) => ({
+  const parties: Notification[] = recipients.map((userId) => ({
     id: notificationId(input.eventId, userId),
     userId,
     kind: 'AUCTION_CLOSED',
-    payload: { auctionId: input.auctionId, lotId: input.lotId, winnerId: input.winnerId, amount: input.amount },
+    payload,
     createdAt: input.now,
     readAt: null,
   }));
+  // Ni el vendedor ni el ganador reciben dos avisos del mismo cierre.
+  const losers = [...new Set(input.losingBidderIds ?? [])].filter((userId) => !recipients.includes(userId));
+  return [
+    ...parties,
+    ...losers.map(
+      (userId): Notification => ({
+        id: notificationId(input.eventId, userId),
+        userId,
+        kind: 'AUCTION_LOST',
+        payload,
+        createdAt: input.now,
+        readAt: null,
+      }),
+    ),
+  ];
 }
 
 /** Obra devuelta a borrador: el vendedor recibe el motivo para corregirla. */

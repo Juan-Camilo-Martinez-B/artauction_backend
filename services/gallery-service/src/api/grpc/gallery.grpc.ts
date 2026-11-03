@@ -211,6 +211,7 @@ export function galleryEventsGrpcService(
           lotId: event.lotId,
           sellerId: event.sellerId,
           winnerId: event.winnerId || null,
+          buyNow: event.buyNow,
         });
       }
       return galleryHandlersV1.HandleAuctionClosedResponse.fromPartial({});

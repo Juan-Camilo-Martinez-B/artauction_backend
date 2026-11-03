@@ -313,4 +313,13 @@ describe('propiedad de las obras', () => {
     await handlers.lotVisibilityChanged({ eventId: 'e5', lotId: LOT, ownerId: OWNER, visibility: 'PUBLIC' });
     expect(await social.itemOf(OWNER, LOT)).toMatchObject({ visibility: 'PRIVATE' });
   });
+
+  it('una compra inmediata sale en el feed como compra al instante', async () => {
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial();
+    const handlers = new GalleryEventHandlers(galleries, social, catalog, clock);
+    await handlers.auctionClosed({ eventId: 'e7', lotId: LOT, sellerId: OWNER, winnerId: OTHER, buyNow: true });
+    expect([...social.activity.values()]).toEqual([expect.objectContaining({ verb: 'BUY_NOW', summary: 'Compró Study in Black and Green al instante' })]);
+    expect(await social.itemOf(OTHER, LOT)).toMatchObject({ source: 'GANADA' });
+  });
 });

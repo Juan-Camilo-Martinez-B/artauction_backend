@@ -36,6 +36,27 @@ describe('avisos', () => {
     expect(auctionClosed({ eventId: 'e3', auctionId: 'a1', lotId: 'l1', sellerId: SELLER, winnerId: null, amount: '0', now: NOW })).toHaveLength(1);
   });
 
+  it('una compra inmediata avisa al comprador, al vendedor y a quienes pujaron, sin duplicar a nadie', () => {
+    const LOSER = 'a0000000-0000-4000-8000-000000000003';
+    const notices = auctionClosed({
+      eventId: 'e9',
+      auctionId: 'a1',
+      lotId: 'l1',
+      sellerId: SELLER,
+      winnerId: WINNER,
+      amount: '1800.00',
+      buyNow: true,
+      losingBidderIds: [LOSER, WINNER, LOSER],
+      now: NOW,
+    });
+    expect(notices.map((item) => [item.userId, item.kind])).toEqual([
+      [SELLER, 'AUCTION_CLOSED'],
+      [WINNER, 'AUCTION_CLOSED'],
+      [LOSER, 'AUCTION_LOST'],
+    ]);
+    expect(notices.every((item) => item.payload['closedBy'] === 'BUY_NOW')).toBe(true);
+  });
+
   it('un evento repetido no duplica avisos, aunque se pierda el registro del inbox', async () => {
     const store = new MemoryStore();
     const events = new NotificationEvents(store, { now: () => NOW });

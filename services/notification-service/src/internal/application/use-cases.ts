@@ -32,7 +32,16 @@ export class NotificationEvents {
     );
   }
 
-  auctionClosed(event: { eventId: string; auctionId: string; lotId: string; sellerId: string; winnerId: string | null; amount: string }): Promise<void> {
+  auctionClosed(event: {
+    eventId: string;
+    auctionId: string;
+    lotId: string;
+    sellerId: string;
+    winnerId: string | null;
+    amount: string;
+    buyNow?: boolean;
+    losingBidderIds?: readonly string[];
+  }): Promise<void> {
     return this.once(event.eventId, 'auction.AuctionClosed', () =>
       this.store.saveAll(auctionClosed({ ...event, now: this.clock.now() })),
     );

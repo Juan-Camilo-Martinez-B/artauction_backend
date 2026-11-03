@@ -64,6 +64,8 @@ export function notificationEventsGrpcService(
           sellerId: event.sellerId,
           winnerId: event.winnerId || null,
           amount: event.amount,
+          buyNow: event.buyNow,
+          losingBidderIds: event.losingBidderIds,
         });
       }
       return notificationHandlersV1.HandleAuctionClosedResponse.fromPartial({});
