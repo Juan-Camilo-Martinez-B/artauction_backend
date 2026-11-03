@@ -1,7 +1,7 @@
 import sharp from 'sharp';
 import { StructuredLogger, type DomainEvent } from '@artauction/platform';
 import { applyRules, buildDossier, generatorMarker, type Dossier, type ImageMetrics, type LotSheet } from '../src/internal/domain/dossier';
-import { decideVerdict, nextAttemptAt, type Assessment } from '../src/internal/domain/verdict';
+import { decideVerdict, nextAttemptAt, verdictFor, type Assessment } from '../src/internal/domain/verdict';
 import type { AiPort, AuditRepository, AuditRequest, CatalogPort, CompletedAudit, ImageAnalyzer, ReportStore, ReviewSummary } from '../src/internal/application/ports';
 import { EnqueueAudit, GetReviewReports, RunAuditWorker } from '../src/internal/application/use-cases';
 import { MediaFetcher } from '../src/internal/infrastructure/media-fetcher';
@@ -88,6 +88,11 @@ describe('expediente y reglas', () => {
     expect(decideVerdict(82, false)).toBe('APROBADO');
     expect(decideVerdict(39, false)).toBe('REVISION_MANUAL');
     expect(decideVerdict(95, true)).toBe('REVISION_MANUAL');
+    const warning = { code: 'X', severity: 'WARNING' as const, message: 'x', evidence: [] };
+    expect(verdictFor({ score: 85, critical: false, findings: [] }, 'LOCAL')).toBe('APROBADO');
+    expect(verdictFor({ score: 73, critical: false, findings: [warning] }, 'LOCAL')).toBe('REVISION_MANUAL');
+    expect(verdictFor({ score: 73, critical: false, findings: [warning] }, 'AI')).toBe('APROBADO');
+    expect(verdictFor({ score: 90, critical: false, findings: [] }, 'FALLBACK')).toBe('REVISION_MANUAL');
     expect(nextAttemptAt(NOW, 1).getTime() - NOW.getTime()).toBe(10_000);
     expect(nextAttemptAt(NOW, 3).getTime() - NOW.getTime()).toBe(40_000);
     expect(nextAttemptAt(NOW, 20).getTime() - NOW.getTime()).toBe(300_000);
@@ -233,11 +238,15 @@ describe('worker de auditoria', () => {
     expect(audits.completed).toHaveLength(2);
   });
 
-  it('no cachea la evaluacion local para que una clave posterior consulte al modelo', async () => {
-    const { audits, worker } = harness({ ai: () => Promise.resolve({ ...AI_RESULT, model: 'local-rules' }) });
+  it('registra la evaluacion local como LOCAL y no la cachea, para que Gemini la revise despues', async () => {
+    const { audits, aiCalls, worker } = harness({ ai: () => Promise.resolve({ ...AI_RESULT, model: 'local-rules' }) });
     await audits.enqueueOnce('e1', LOT_ID);
     await worker.tick();
     expect(audits.cache.size).toBe(0);
+    expect(audits.completed[0]?.decidedBy).toBe('LOCAL');
+    await audits.enqueueOnce('e2', LOT_ID);
+    await worker.tick();
+    expect(aiCalls).toHaveLength(2);
   });
 
   it('reintenta con backoff si la IA falla y al quinto intento va a revision manual', async () => {
