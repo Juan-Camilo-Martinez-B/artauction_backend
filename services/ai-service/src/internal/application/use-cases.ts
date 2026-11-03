@@ -68,34 +68,40 @@ export function auditPayload(dossier: ArtworkDossier): string {
   });
 }
 
+/** Aviso de que la auditoria uso el respaldo local; lo implementa el logger. */
+export interface FallbackListener {
+  warn(message: string, context?: string): void;
+}
+
 /**
- * Audita una obra con el modelo configurado o, sin modelo, con la evaluacion
- * local determinista. Un fallo del modelo sale como UNAVAILABLE para que
- * audit-service reintente.
+ * Audita una obra con el modelo configurado. Sin modelo, o si el modelo falla
+ * (cuota agotada, caida, timeout o respuesta invalida), responde de inmediato
+ * con la evaluacion local determinista, marcada con su propio modelo
+ * (local-rules) para que audit-service la registre como LOCAL y no como IA.
  */
 export class AuditArtwork {
-  constructor(private readonly model: LanguageModel | null) {}
+  constructor(
+    private readonly model: LanguageModel | null,
+    private readonly listener: FallbackListener | null = null,
+  ) {}
 
   async execute(dossier: ArtworkDossier): Promise<Assessment> {
     if (!this.model) {
       return localAssessment(dossier);
     }
-    let raw: unknown;
     try {
-      raw = await this.model.generateJson({
+      const raw = await this.model.generateJson({
         system: AUDIT_SYSTEM,
         user: auditPayload(dossier),
         schema: AUDIT_SCHEMA,
         maxOutputTokens: AUDIT_MAX_OUTPUT_TOKENS,
         temperature: 0,
       });
-    } catch (error) {
-      throw toUnavailable(error);
-    }
-    try {
       return sanitizeAssessment(raw, dossier, this.model.name);
     } catch (error) {
-      throw toUnavailable(error);
+      const reason = error instanceof Error ? error.message : 'el modelo no respondio';
+      this.listener?.warn(`auditoria de ${dossier.lotId} con evaluacion local: ${reason}`, 'ai');
+      return localAssessment(dossier);
     }
   }
 }

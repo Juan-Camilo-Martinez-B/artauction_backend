@@ -27,16 +27,30 @@ audit-service mide las imágenes (resolución, nitidez, metadatos, duplicados en
 - Un hallazgo **crítico de las reglas** marca la evaluación como crítica aunque el modelo diga lo contrario.
 - Score, precios, códigos y longitud de los mensajes se acotan antes de responder.
 
-## Sin clave
+## Respaldo local
 
-Con `GEMINI_API_KEY` vacía:
+La evaluación local determinista (`local-rules`) parte de 85 y descuenta 12 puntos por cada advertencia de las reglas; con una regla crítica da 28. `AuditArtwork` la usa:
 
-- `AuditArtwork` usa la evaluación local determinista (`local-rules`): parte de 85 y descuenta por cada hallazgo de las reglas.
-- `DesignGallery` responde `FAILED_PRECONDITION` y la galería usa su diseño local.
+- con `GEMINI_API_KEY` vacía;
+- **en cuanto Gemini falla**: cuota agotada (429), caída (5xx), timeout, circuit breaker abierto o una respuesta que no se puede sanear. No se deja la obra esperando: se responde de inmediato y queda un `warn` en el log con el motivo.
+
+La respuesta lleva `model = local-rules`. Con eso audit-service la registra como `decided_by = LOCAL` (no como IA), no la guarda en la caché y solo aprueba una obra sin advertencias; lo demás va a revisión manual, donde el administrador puede pedir **re-auditar con IA**.
+
+`DesignGallery` no tiene respaldo aquí: responde `FAILED_PRECONDITION` o `UNAVAILABLE` y gallery-service usa su diseño local.
 
 ## Resiliencia
 
-Cada llamada a Gemini tiene timeout (`GEMINI_TIMEOUT_MS`). Se reintenta solo ante 429, 5xx o un corte de red, con backoff exponencial y jitter, y pasa por un circuit breaker (3 fallos seguidos lo abren 30 s). Un fallo sale como `UNAVAILABLE` para que audit-service reintente más tarde. La clave viaja en la cabecera `x-goog-api-key`, nunca en la URL.
+Cada llamada a Gemini tiene timeout (`GEMINI_TIMEOUT_MS`) y pasa por un circuit breaker (3 fallos seguidos lo abren 30 s). Solo un 5xx, un timeout o un corte de red se reintentan, **una vez**. Un 429 no se reintenta: la cuota agotada no se arregla repitiendo y el respaldo local responde enseguida. Un 400 tampoco. La clave viaja en la cabecera `x-goog-api-key`, nunca en la URL.
+
+## Consumo de tokens
+
+Tras cada respuesta correcta se registra una línea `info` con contexto `gemini-usage` y las cifras de `usageMetadata` (tokens de entrada, de salida y total). Solo van cifras: ni el expediente ni la respuesta llegan al log. Para ver el gasto en desarrollo:
+
+```bash
+grep gemini-usage ai.log
+```
+
+La cuota restante no la expone la API de Gemini; se consulta en Google AI Studio.
 
 Gemini se llama por REST porque no ofrece gRPC público estable (ADR 0002).
 
@@ -68,4 +82,5 @@ npm start -w @artauction/ai-service
 
 - descarte de citas inventadas y prevalencia de una regla crítica;
 - evaluación local determinista y recorte del expediente;
-- adaptador de Gemini con un `fetch` falso: clave en cabecera, esquema de salida, configuración de razonamiento por modelo, reintento de un 503 y ningún reintento ante un 400.
+- adaptador de Gemini con un `fetch` falso: clave en cabecera, esquema de salida, configuración de razonamiento por modelo, un solo reintento ante un 503 y ninguno ante un 429 o un 400, y lectura de `usageMetadata`;
+- respaldo local cuando el modelo falla o responde algo que no se puede sanear.

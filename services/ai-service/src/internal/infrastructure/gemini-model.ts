@@ -1,26 +1,41 @@
 import { CircuitBreaker, DomainError, retry } from '@artauction/platform';
 import type { JsonGenerationRequest, LanguageModel } from '../application/ports';
 
+/** Tokens que consumio una llamada, segun usageMetadata de Gemini. */
+export interface TokenUsage {
+  model: string;
+  promptTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
 export interface GeminiOptions {
   apiKey: string;
   model: string;
   timeoutMs: number;
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+  /** Se llama tras cada respuesta correcta, para registrar el gasto de tokens. */
+  onUsage?: (usage: TokenUsage) => void;
 }
 
-/** Error HTTP de Gemini; solo 429 y 5xx valen un reintento. */
-class GeminiHttpError extends Error {
+/** Error HTTP de Gemini, con el codigo para decidir si vale reintentar. */
+export class GeminiHttpError extends Error {
   constructor(readonly status: number) {
     super(`Gemini respondio ${String(status)}`);
   }
 }
 
-function retryable(error: unknown): boolean {
+/**
+ * Solo un 5xx, un timeout o un corte de red valen el unico reintento. Un 429
+ * es cuota agotada: reintentar solo gasta tiempo, y quien llama tiene su
+ * propio respaldo (la evaluacion local en la auditoria, el diseno local en la
+ * galeria). Un 4xx distinto es un error de la peticion y no cambia al repetirla.
+ */
+export function retryable(error: unknown): boolean {
   if (error instanceof GeminiHttpError) {
-    return error.status === 429 || error.status >= 500;
+    return error.status >= 500;
   }
-  // Timeout o corte de red.
   return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError' || error.name === 'TypeError');
 }
 
@@ -49,7 +64,7 @@ export class GeminiModel implements LanguageModel {
     this.breaker.assertClosed(Date.now());
     try {
       const text = await retry(() => this.call(request), {
-        attempts: 3,
+        attempts: 2,
         baseDelayMs: 500,
         maxDelayMs: 4_000,
         shouldRetry: retryable,
@@ -87,7 +102,12 @@ export class GeminiModel implements LanguageModel {
     if (!response.ok) {
       throw new GeminiHttpError(response.status);
     }
-    return readText(await response.json());
+    const payload: unknown = await response.json();
+    const usage = readUsage(payload, this.options.model);
+    if (usage) {
+      this.options.onUsage?.(usage);
+    }
+    return readText(payload);
   }
 }
 
@@ -98,6 +118,18 @@ export function thinkingConfigFor(model: string): Record<string, unknown> {
 
 function field(value: unknown, key: string): unknown {
   return typeof value === 'object' && value !== null && key in value ? (value as Record<string, unknown>)[key] : undefined;
+}
+
+export function readUsage(payload: unknown, model: string): TokenUsage | null {
+  const metadata = field(payload, 'usageMetadata');
+  if (metadata === undefined) {
+    return null;
+  }
+  const count = (key: string) => {
+    const value = field(metadata, key);
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  };
+  return { model, promptTokens: count('promptTokenCount'), outputTokens: count('candidatesTokenCount'), totalTokens: count('totalTokenCount') };
 }
 
 export function readText(payload: unknown): string {
