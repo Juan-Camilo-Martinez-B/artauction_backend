@@ -54,4 +54,15 @@ describe('avisos', () => {
       kind: 'INVALID_ARGUMENT',
     });
   });
+
+  it('una obra devuelta avisa solo al vendedor, con el motivo', async () => {
+    const store = new MemoryStore();
+    const events = new NotificationEvents(store, { now: () => NOW });
+    const returned = { eventId: 'e4', lotId: 'l1', sellerId: SELLER, title: 'Roma', reason: 'Las medidas no son creibles.' };
+    await events.lotReturnedToDraft(returned);
+    await events.lotReturnedToDraft(returned);
+    expect(await new ListNotifications(store).execute(SELLER)).toEqual([
+      { id: `e4:${SELLER}`, userId: SELLER, kind: 'LOT_RETURNED', payload: { lotId: 'l1', title: 'Roma', reason: 'Las medidas no son creibles.' }, createdAt: NOW, readAt: null },
+    ]);
+  });
 });

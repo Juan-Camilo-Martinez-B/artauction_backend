@@ -1,7 +1,7 @@
 // Avisos para los usuarios. Cada aviso nace de un evento; su id combina el
 // evento y el destinatario, asi repetir el evento no duplica el aviso.
 
-export type NotificationKind = 'AUDIT' | 'AUCTION_CLOSED';
+export type NotificationKind = 'AUDIT' | 'AUCTION_CLOSED' | 'LOT_RETURNED';
 
 export interface Notification {
   id: string;
@@ -49,4 +49,18 @@ export function auctionClosed(input: {
     createdAt: input.now,
     readAt: null,
   }));
+}
+
+/** Obra devuelta a borrador: el vendedor recibe el motivo para corregirla. */
+export function lotReturned(input: { eventId: string; lotId: string; sellerId: string; title: string; reason: string; now: Date }): Notification[] {
+  return [
+    {
+      id: notificationId(input.eventId, input.sellerId),
+      userId: input.sellerId,
+      kind: 'LOT_RETURNED',
+      payload: { lotId: input.lotId, title: input.title, reason: input.reason },
+      createdAt: input.now,
+      readAt: null,
+    },
+  ];
 }
