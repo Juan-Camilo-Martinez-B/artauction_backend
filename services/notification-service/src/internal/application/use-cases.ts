@@ -1,5 +1,5 @@
 import { DomainError } from '@artauction/platform';
-import { auctionClosed, auditFinished, type Notification } from '../domain/notification';
+import { auctionClosed, auditFinished, lotReturned, type Notification } from '../domain/notification';
 
 const LIST_LIMIT = 50;
 
@@ -35,6 +35,12 @@ export class NotificationEvents {
   auctionClosed(event: { eventId: string; auctionId: string; lotId: string; sellerId: string; winnerId: string | null; amount: string }): Promise<void> {
     return this.once(event.eventId, 'auction.AuctionClosed', () =>
       this.store.saveAll(auctionClosed({ ...event, now: this.clock.now() })),
+    );
+  }
+
+  lotReturnedToDraft(event: { eventId: string; lotId: string; sellerId: string; title: string; reason: string }): Promise<void> {
+    return this.once(event.eventId, 'catalog.LotReturnedToDraft', () =>
+      this.store.saveAll(lotReturned({ ...event, now: this.clock.now() })),
     );
   }
 

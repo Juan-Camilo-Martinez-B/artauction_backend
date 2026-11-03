@@ -22,12 +22,14 @@ import {
   ResolveManualReview,
   SignImageUpload,
   SubmitLot,
+  UpdateLot,
 } from './internal/application/commands';
 import { ApplyAuditVerdict, MarkLotInAuction, MarkLotSold, RepublishUnsoldLot } from './internal/application/event-handlers';
 import {
   BatchGetLotSnapshots,
   FindSimilarImages,
   ListAuctionCandidates,
+  ListMyLots,
   ListReviewQueue,
   BatchGetPublicLots,
   GetLotForViewer,
@@ -116,6 +118,8 @@ const providers: Provider[] = [
           registerImage: new RegisterLotImage(lots),
           hashImage: new HashLotImage(lots, hashes),
           submit: new SubmitLot(lots),
+          update: new UpdateLot(lots),
+          myLots: new ListMyLots(lots),
           resolve: new ResolveManualReview(lots),
         },
         callers,
@@ -158,6 +162,7 @@ const providers: Provider[] = [
           gallery: config.GALLERY_EVENTS_GRPC_URL,
           audit: config.AUDIT_EVENTS_GRPC_URL,
           auction: config.AUCTION_EVENTS_GRPC_URL,
+          notification: config.NOTIFICATION_EVENTS_GRPC_URL,
         },
         channelCredentials(config.tls),
         tokens,

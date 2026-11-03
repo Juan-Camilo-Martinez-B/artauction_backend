@@ -4,11 +4,13 @@ package artauction.notification.v1;
 
 import "artauction/auction/events/v1/events.proto";
 import "artauction/audit/events/v1/events.proto";
+import "artauction/catalog/events/v1/events.proto";
 
 // Eventos que notification-service convierte en avisos para los usuarios.
 service NotificationEventHandlerService {
   rpc HandleAuditCompleted(HandleAuditCompletedRequest) returns (HandleAuditCompletedResponse);
   rpc HandleAuctionClosed(HandleAuctionClosedRequest) returns (HandleAuctionClosedResponse);
+  rpc HandleLotReturnedToDraft(HandleLotReturnedToDraftRequest) returns (HandleLotReturnedToDraftResponse);
 }
 
 message HandleAuditCompletedRequest {
@@ -22,3 +24,9 @@ message HandleAuctionClosedRequest {
 }
 
 message HandleAuctionClosedResponse {}
+
+message HandleLotReturnedToDraftRequest {
+  artauction.catalog.events.v1.LotReturnedToDraft event = 1;
+}
+
+message HandleLotReturnedToDraftResponse {}

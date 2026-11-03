@@ -68,5 +68,20 @@ export function notificationEventsGrpcService(
       }
       return notificationHandlersV1.HandleAuctionClosedResponse.fromPartial({});
     }),
+
+    handleLotReturnedToDraft: unary(logger, 'HandleLotReturnedToDraft', async (request, context) => {
+      callers.service(context, ['catalog-service']);
+      const event = request.event;
+      if (event) {
+        await events.lotReturnedToDraft({
+          eventId: event.metadata?.eventId ?? '',
+          lotId: event.lotId,
+          sellerId: event.sellerId,
+          title: event.title,
+          reason: event.reason,
+        });
+      }
+      return notificationHandlersV1.HandleLotReturnedToDraftResponse.fromPartial({});
+    }),
   };
 }

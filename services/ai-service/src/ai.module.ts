@@ -26,7 +26,18 @@ const providers: Provider[] = [
         logger.warn('GEMINI_API_KEY vacia: la auditoria usa la evaluacion local y DesignGallery no esta disponible', 'ai');
         return null;
       }
-      return new GeminiModel({ apiKey: config.GEMINI_API_KEY, model: config.GEMINI_MODEL, timeoutMs: config.GEMINI_TIMEOUT_MS });
+      return new GeminiModel({
+        apiKey: config.GEMINI_API_KEY,
+        model: config.GEMINI_MODEL,
+        timeoutMs: config.GEMINI_TIMEOUT_MS,
+        // Solo cifras: ni la peticion ni la respuesta van al log.
+        onUsage: (usage) => {
+          logger.log(
+            `tokens de ${usage.model}: entrada ${String(usage.promptTokens)}, salida ${String(usage.outputTokens)}, total ${String(usage.totalTokens)}`,
+            'gemini-usage',
+          );
+        },
+      });
     },
   },
   {
@@ -34,7 +45,7 @@ const providers: Provider[] = [
     inject: [CONFIG, MODEL, LOGGER],
     useFactory: (config: AiConfig, model: LanguageModel | null, logger: StructuredLogger): aiV1.AiServiceServer =>
       aiGrpcService(
-        { audit: new AuditArtwork(model), design: new DesignGallery(model) },
+        { audit: new AuditArtwork(model, logger), design: new DesignGallery(model) },
         new CallerResolver(TokenVerifier.fromFile(config.JWT_PUBLIC_KEY_PATH)),
         logger,
       ),

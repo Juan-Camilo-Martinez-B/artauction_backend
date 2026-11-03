@@ -2,7 +2,7 @@ import { DomainError } from '@artauction/platform';
 import { localAssessment, sanitizeAssessment, type ArtworkDossier } from '../src/internal/domain/assessment';
 import type { JsonGenerationRequest, LanguageModel } from '../src/internal/application/ports';
 import { auditPayload, AuditArtwork, DesignGallery } from '../src/internal/application/use-cases';
-import { GeminiModel, readText, thinkingConfigFor } from '../src/internal/infrastructure/gemini-model';
+import { GeminiModel, readText, readUsage, thinkingConfigFor, type TokenUsage } from '../src/internal/infrastructure/gemini-model';
 
 const DOSSIER: ArtworkDossier = {
   lotId: 'b0000000-0000-4000-8000-000000000001',
@@ -105,11 +105,15 @@ describe('casos de uso', () => {
     expect(request?.system).not.toContain(DOSSIER.description);
   });
 
-  it('un fallo del modelo sale como UNAVAILABLE para que audit-service reintente', async () => {
-    const model = new FakeModel(() => Promise.reject(new Error('timeout')));
-    const error: unknown = await new AuditArtwork(model).execute(DOSSIER).catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(DomainError);
-    expect((error as DomainError).kind).toBe('UNAVAILABLE');
+  it('si el modelo falla responde con la evaluacion local y lo avisa', async () => {
+    const warnings: string[] = [];
+    const listener = { warn: (message: string) => warnings.push(message) };
+    const failing = new FakeModel(() => Promise.reject(DomainError.unavailable('Gemini respondio 429')));
+    expect(await new AuditArtwork(failing, listener).execute(DOSSIER)).toEqual(localAssessment(DOSSIER));
+    const invalid = new FakeModel(() => Promise.resolve('no es un objeto'));
+    expect((await new AuditArtwork(invalid, listener).execute(DOSSIER)).model).toBe('local-rules');
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain('429');
   });
 });
 
@@ -155,6 +159,38 @@ describe('adaptador de Gemini', () => {
     const model = new GeminiModel({ apiKey: 'k', model: 'gemini-3.5-flash', timeoutMs: 2_000, fetchImpl });
     await expect(model.generateJson(request)).rejects.toMatchObject({ kind: 'UNAVAILABLE' });
     expect(calls).toBe(1);
+  });
+
+  it('no reintenta un 429: la cuota agotada no se arregla repitiendo', async () => {
+    let calls = 0;
+    const fetchImpl = (() => {
+      calls += 1;
+      return respond(429, {});
+    }) as unknown as typeof fetch;
+    const model = new GeminiModel({ apiKey: 'k', model: 'gemini-3.5-flash', timeoutMs: 2_000, fetchImpl });
+    await expect(model.generateJson(request)).rejects.toMatchObject({ kind: 'UNAVAILABLE' });
+    expect(calls).toBe(1);
+  });
+
+  it('reintenta un 503 una sola vez', async () => {
+    let calls = 0;
+    const fetchImpl = (() => {
+      calls += 1;
+      return respond(503, {});
+    }) as unknown as typeof fetch;
+    const model = new GeminiModel({ apiKey: 'k', model: 'gemini-3.5-flash', timeoutMs: 2_000, fetchImpl });
+    await expect(model.generateJson(request)).rejects.toMatchObject({ kind: 'UNAVAILABLE' });
+    expect(calls).toBe(2);
+  });
+
+  it('informa los tokens de cada respuesta', async () => {
+    const usages: TokenUsage[] = [];
+    const body = { ...okBody, usageMetadata: { promptTokenCount: 420, candidatesTokenCount: 80, totalTokenCount: 500 } };
+    const fetchImpl = (() => respond(200, body)) as unknown as typeof fetch;
+    const model = new GeminiModel({ apiKey: 'k', model: 'gemini-3.5-flash', timeoutMs: 2_000, fetchImpl, onUsage: (usage) => usages.push(usage) });
+    await model.generateJson(request);
+    expect(usages).toEqual([{ model: 'gemini-3.5-flash', promptTokens: 420, outputTokens: 80, totalTokens: 500 }]);
+    expect(readUsage(okBody, 'x')).toBeNull();
   });
 
   it('rechaza una respuesta sin texto', () => {

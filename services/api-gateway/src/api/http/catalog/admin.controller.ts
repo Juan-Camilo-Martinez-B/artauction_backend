@@ -14,6 +14,12 @@ const SEVERITY: ReadonlyMap<auditV1.ReviewSeverity, string> = new Map([
   [auditV1.ReviewSeverity.REVIEW_SEVERITY_CRITICAL, 'CRITICAL'],
 ]);
 
+const DECISION_FROM_JSON: Readonly<Record<ResolveLotDto['verdict'], catalogV1.ReviewDecision>> = {
+  APROBADO: catalogV1.ReviewDecision.REVIEW_DECISION_APPROVE,
+  BORRADOR: catalogV1.ReviewDecision.REVIEW_DECISION_RETURN_TO_DRAFT,
+  REAUDITAR: catalogV1.ReviewDecision.REVIEW_DECISION_REAUDIT,
+};
+
 function reviewJson(report: auditV1.ReviewReport) {
   return {
     summaryId: report.summaryId,
@@ -77,10 +83,10 @@ export class AdminController {
       this.catalog.resolveManualReview.bind(this.catalog),
       catalogV1.ResolveManualReviewRequest.fromPartial({
         lotId: id,
-        decision:
-          body.verdict === 'APROBADO'
-            ? catalogV1.ReviewDecision.REVIEW_DECISION_APPROVE
-            : catalogV1.ReviewDecision.REVIEW_DECISION_RETURN_TO_DRAFT,
+        decision: DECISION_FROM_JSON[body.verdict],
+        reason: body.reason,
+        priceMin: body.priceMin,
+        priceMax: body.priceMax,
       }),
       { deadlineMs: this.config.GRPC_DEADLINE_MS, authorization },
     );

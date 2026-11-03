@@ -8,6 +8,7 @@ export const CATALOG_EVENTS = {
   lotCreated: 'catalog.LotCreated',
   lotSubmitted: 'catalog.LotSubmitted',
   lotPublished: 'catalog.LotPublished',
+  lotReturnedToDraft: 'catalog.LotReturnedToDraft',
 } as const;
 
 export function lotCreated(lot: Pick<Lot, 'id' | 'sellerId' | 'title' | 'artistName'>): DomainEvent {
@@ -35,5 +36,14 @@ export function lotPublished(lot: Pick<Lot, 'id' | 'sellerId' | 'title' | 'authe
       priceMin: Math.round(Number(lot.suggestedPriceMin ?? 50)),
       priceMax: Math.round(Number(lot.suggestedPriceMax ?? 50)),
     },
+  };
+}
+
+/** El administrador devolvio la obra: el vendedor recibe el motivo para corregirla. */
+export function lotReturnedToDraft(lot: Pick<Lot, 'id' | 'sellerId' | 'title'>, reason: string): DomainEvent {
+  return {
+    type: CATALOG_EVENTS.lotReturnedToDraft,
+    aggregateId: lot.id,
+    payload: { lotId: lot.id, sellerId: lot.sellerId, title: lot.title, reason },
   };
 }

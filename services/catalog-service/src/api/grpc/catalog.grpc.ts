@@ -8,11 +8,13 @@ import type {
   ResolveManualReview,
   SignImageUpload,
   SubmitLot,
+  UpdateLot,
 } from '../../internal/application/commands';
 import type {
   BatchGetLotSnapshots,
   FindSimilarImages,
   ListAuctionCandidates,
+  ListMyLots,
   ListReviewQueue,
   BatchGetPublicLots,
   GetLotForViewer,
@@ -37,6 +39,8 @@ export interface CatalogUseCases {
   registerImage: RegisterLotImage;
   hashImage: HashLotImage;
   submit: SubmitLot;
+  update: UpdateLot;
+  myLots: ListMyLots;
   resolve: ResolveManualReview;
 }
 
@@ -152,6 +156,27 @@ export function catalogGrpcService(
       return catalogV1.RegisterImageResponse.fromPartial({ image: imageToProto(image, mediaBaseUrl) });
     }),
 
+    updateLot: unary(logger, 'UpdateLot', async (request, context) => {
+      const updated = await useCases.update.execute(callers.user(context), request.lotId, {
+        title: request.title,
+        description: request.description,
+        artistName: request.artistName,
+        creationYear: request.creationYear,
+        materials: request.materials,
+        categorySlug: request.categorySlug,
+        representationKind: representationFromProto(request.representationKind),
+        widthCm: request.widthCm,
+        heightCm: request.heightCm,
+        depthCm: request.depthCm,
+        provenance: request.provenance,
+      });
+      return catalogV1.UpdateLotResponse.fromPartial({ lot: lot(updated) });
+    }),
+
+    listMyLots: unary(logger, 'ListMyLots', async (_request, context) =>
+      catalogV1.ListMyLotsResponse.fromPartial({ lots: (await useCases.myLots.execute(callers.user(context))).map(lot) }),
+    ),
+
     submitLot: unary(logger, 'SubmitLot', async (request, context) => {
       await useCases.submit.execute(callers.user(context), request.lotId);
       return catalogV1.SubmitLotResponse.fromPartial({ status: catalogV1.LotStatus.LOT_STATUS_PENDIENTE_AUDITORIA });
@@ -164,11 +189,12 @@ export function catalogGrpcService(
     ),
 
     resolveManualReview: unary(logger, 'ResolveManualReview', async (request, context) => {
-      const resolved = await useCases.resolve.execute(
-        callers.user(context),
-        request.lotId,
-        decisionFromProto(request.decision),
-      );
+      const resolved = await useCases.resolve.execute(callers.user(context), request.lotId, {
+        decision: decisionFromProto(request.decision),
+        reason: request.reason ?? null,
+        priceMin: request.priceMin ?? null,
+        priceMax: request.priceMax ?? null,
+      });
       return catalogV1.ResolveManualReviewResponse.fromPartial({ lot: lot(resolved) });
     }),
   };

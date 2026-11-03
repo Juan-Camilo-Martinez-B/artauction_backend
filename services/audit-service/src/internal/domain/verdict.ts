@@ -2,8 +2,15 @@ import type { DomainEvent } from '@artauction/platform';
 import type { Finding } from './dossier';
 
 export type Verdict = 'APROBADO' | 'REVISION_MANUAL';
-/** Quien tomo la decision: reglas deterministas, la IA o el respaldo tras agotar reintentos. */
-export type DecidedBy = 'RULES' | 'AI' | 'FALLBACK';
+/**
+ * Quien tomo la decision: reglas deterministas, la IA, la evaluacion local de
+ * ai-service cuando el modelo no respondio, o el respaldo cuando ni siquiera
+ * ai-service respondio tras agotar los reintentos.
+ */
+export type DecidedBy = 'RULES' | 'AI' | 'LOCAL' | 'FALLBACK';
+
+/** Nombre con el que ai-service marca su evaluacion local (sin modelo). */
+export const LOCAL_MODEL = 'local-rules';
 
 export interface Assessment {
   model: string;
@@ -26,6 +33,21 @@ export const AUDIT_EVENTS = {
 
 export function decideVerdict(score: number, critical: boolean): Verdict {
   return critical || score < MIN_APPROVED_SCORE ? 'REVISION_MANUAL' : 'APROBADO';
+}
+
+/**
+ * Veredicto segun quien decidio. La evaluacion local solo resta puntos por
+ * hallazgo: no sabe pesar una advertencia como lo haria el modelo, asi que
+ * solo aprueba una obra sin advertencias y lo demas lo mira un administrador.
+ */
+export function verdictFor(assessment: Pick<Assessment, 'score' | 'critical' | 'findings'>, decidedBy: DecidedBy): Verdict {
+  if (decidedBy === 'FALLBACK') {
+    return 'REVISION_MANUAL';
+  }
+  if (decidedBy === 'LOCAL' && assessment.findings.some((finding) => finding.severity !== 'INFO')) {
+    return 'REVISION_MANUAL';
+  }
+  return decideVerdict(assessment.score, assessment.critical);
 }
 
 /** Backoff exponencial del worker: 10 s, 20 s, 40 s... hasta 5 minutos. */

@@ -3,11 +3,12 @@ import { DomainError, type StructuredLogger } from '@artauction/platform';
 import { buildDossier, MAX_IMAGES, type Dossier, type LotSheet } from '../domain/dossier';
 import {
   auditCompleted,
-  decideVerdict,
   fallbackAssessment,
+  LOCAL_MODEL,
   MAX_ATTEMPTS,
   nextAttemptAt,
   rulesAssessment,
+  verdictFor,
   type Assessment,
   type DecidedBy,
 } from '../domain/verdict';
@@ -15,7 +16,6 @@ import type { AiPort, AuditRepository, AuditRequest, AuditSummary, CatalogPort, 
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PENDING_AUDIT = 'PENDIENTE_AUDITORIA';
-const LOCAL_MODEL = 'local-rules';
 const LEASE_MS = 120_000;
 
 /** LotSubmitted: encola la auditoria una sola vez por evento. */
@@ -43,8 +43,10 @@ export interface AuditDependencies {
  * Procesa las solicitudes vencidas. Por cada obra arma el expediente, decide
  * sin IA si una regla critica ya basta (cortocircuito), reutiliza una
  * evaluacion previa del mismo expediente (cache) o consulta a ai-service.
- * Un fallo se reintenta con backoff; al agotar los intentos la obra va a
- * revision manual con un veredicto de respaldo.
+ * Si Gemini falla, ai-service responde con su evaluacion local y la decision
+ * queda como LOCAL. Solo si ai-service no responde se reintenta con backoff;
+ * al agotar los intentos la obra va a revision manual con un veredicto de
+ * respaldo (FALLBACK).
  */
 export class RunAuditWorker {
   constructor(private readonly deps: AuditDependencies) {}
@@ -102,17 +104,18 @@ export class RunAuditWorker {
       return { assessment: cached, decidedBy: 'AI' };
     }
     const assessment = await this.deps.ai.audit(dossier);
-    // La evaluacion local no se cachea: con una clave de Gemini posterior, la
-    // misma obra debe recibir la opinion del modelo.
-    if (assessment.model !== LOCAL_MODEL) {
-      await this.deps.audits.saveAssessment(dossier.hash, assessment);
+    // La evaluacion local no se cachea: cuando Gemini vuelva (o al re-auditar),
+    // la misma obra debe recibir la opinion del modelo.
+    if (assessment.model === LOCAL_MODEL) {
+      return { assessment, decidedBy: 'LOCAL' };
     }
+    await this.deps.audits.saveAssessment(dossier.hash, assessment);
     return { assessment, decidedBy: 'AI' };
   }
 
   private async finish(request: AuditRequest, lot: LotSheet, assessment: Assessment, decidedBy: DecidedBy, dossier: Dossier | null): Promise<void> {
     const summaryId = randomUUID();
-    const verdict = decidedBy === 'FALLBACK' ? 'REVISION_MANUAL' : decideVerdict(assessment.score, assessment.critical);
+    const verdict = verdictFor(assessment, decidedBy);
     // Resumen, informe completo y evento entran en una sola transaccion: si
     // falla, el reintento empieza de cero y no queda un informe sin resumen.
     await this.deps.audits.complete(request.id, {

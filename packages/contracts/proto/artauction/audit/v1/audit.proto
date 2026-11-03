@@ -58,7 +58,7 @@ message ReviewReport {
   string lot_id = 1;
   string summary_id = 2;
   int32 score = 3;
-  // RULES, AI o FALLBACK; vacio en informes anteriores a F7.
+  // RULES, AI, LOCAL o FALLBACK; vacio en informes anteriores a F7.
   string decided_by = 4;
   string model_name = 5;
   google.protobuf.Timestamp created_at = 6;

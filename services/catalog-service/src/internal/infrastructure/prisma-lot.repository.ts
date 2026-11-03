@@ -2,13 +2,16 @@ import { appendToOutbox, recordInbox, sqlExecutorFrom, type DomainEvent, type Sq
 import type { Prisma, PrismaClient } from '../../generated/prisma';
 import type { Category, Lot, LotImage, NewLot, RepresentationKind } from '../domain/lot';
 import { isLotStatus, PUBLIC_STATUSES, type LotStatus } from '../domain/lot-status';
-import type { LotPatch, LotRepository, LotTransitions, PublicLotQuery, SimilarImage } from '../application/ports';
+import type { LotPatch, LotRepository, LotTransitions, NewLotReview, PublicLotQuery, SimilarImage } from '../application/ports';
+import type { LotReview, ReviewDecision } from '../domain/review';
 
 export const CATALOG_SCHEMA = 'catalog';
 
 const lotInclude = {
   images: { orderBy: { position: 'asc' } },
   categories: { include: { category: true } },
+  // Solo la ultima decision: el vendedor ve el motivo de la devolucion.
+  reviews: { orderBy: { createdAt: 'desc' }, take: 1 },
 } satisfies Prisma.LotInclude;
 
 type LotRow = Prisma.LotGetPayload<{ include: typeof lotInclude }>;
@@ -182,6 +185,44 @@ export class PrismaLotRepository implements LotRepository {
     });
   }
 
+  update(lotId: string, lot: NewLot, categoryId: string): Promise<Lot | null> {
+    if (!UUID.test(lotId)) {
+      return Promise.resolve(null);
+    }
+    return this.prisma.$transaction(async (tx) => {
+      // Control optimista: solo si la obra sigue en borrador.
+      const changed = await tx.lot.updateMany({
+        where: { id: lotId, status: 'BORRADOR' },
+        data: {
+          title: lot.title,
+          description: lot.description,
+          artistName: lot.artistName,
+          creationYear: lot.creationYear,
+          materials: lot.materials,
+          representationKind: lot.representationKind,
+          widthCm: lot.widthCm,
+          heightCm: lot.heightCm,
+          depthCm: lot.depthCm,
+          provenance: lot.provenance,
+        },
+      });
+      if (changed.count !== 1) {
+        return null;
+      }
+      await tx.lotCategory.deleteMany({ where: { lotId } });
+      await tx.lotCategory.create({ data: { lotId, categoryId, isPrimary: true } });
+      return toLot(await tx.lot.findUniqueOrThrow({ where: { id: lotId }, include: lotInclude }));
+    });
+  }
+
+  async listBySeller(sellerId: string, limit: number): Promise<Lot[]> {
+    if (!UUID.test(sellerId)) {
+      return [];
+    }
+    const rows = await this.prisma.lot.findMany({ where: { sellerId }, orderBy: { updatedAt: 'desc' }, take: limit, include: lotInclude });
+    return rows.map(toLot);
+  }
+
   async upsertImage(lotId: string, image: { objectKey: string; position: number; perceptualHash: string | null }): Promise<LotImage> {
     const row = await this.prisma.lotImage.upsert({
       where: { lotId_position: { lotId, position: image.position } },
@@ -191,11 +232,30 @@ export class PrismaLotRepository implements LotRepository {
     return toImage(row);
   }
 
-  transition(lotId: string, from: LotStatus, to: LotStatus, patch: LotPatch, events: (lot: Lot) => DomainEvent[]): Promise<Lot | null> {
+  transition(
+    lotId: string,
+    from: LotStatus,
+    to: LotStatus,
+    patch: LotPatch,
+    events: (lot: Lot) => DomainEvent[],
+    review?: NewLotReview,
+  ): Promise<Lot | null> {
     return this.prisma.$transaction(async (tx) => {
       const changed = await tx.lot.updateMany({ where: { id: lotId, status: from }, data: { ...patch, status: to } });
       if (changed.count !== 1) {
         return null;
+      }
+      if (review) {
+        await tx.lotReview.create({
+          data: {
+            lotId,
+            adminId: review.adminId,
+            decision: review.decision,
+            reason: review.reason,
+            priceMin: review.priceMin,
+            priceMax: review.priceMax,
+          },
+        });
       }
       const row = await tx.lot.findUniqueOrThrow({ where: { id: lotId }, include: lotInclude });
       const updated = toLot(row);
@@ -282,5 +342,15 @@ function toLot(row: LotRow): Lot {
     createdAt: row.createdAt,
     images: row.images.map(toImage),
     categories: row.categories.map((link) => ({ isPrimary: link.isPrimary, category: toCategory(link.category) })),
+    lastReview: toReview(row.reviews[0]),
   };
+}
+
+const REVIEW_DECISIONS: ReadonlySet<string> = new Set(['APPROVE', 'RETURN_TO_DRAFT', 'REAUDIT']);
+
+function toReview(row: { decision: string; reason: string | null; createdAt: Date } | undefined): LotReview | null {
+  if (!row || !REVIEW_DECISIONS.has(row.decision)) {
+    return null;
+  }
+  return { decision: row.decision as ReviewDecision, reason: row.reason, createdAt: row.createdAt };
 }

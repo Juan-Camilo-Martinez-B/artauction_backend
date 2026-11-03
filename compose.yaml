@@ -143,6 +143,7 @@ services:
       GALLERY_EVENTS_GRPC_URL: gallery-service:50057
       AUDIT_EVENTS_GRPC_URL: audit-service:50056
       AUCTION_EVENTS_GRPC_URL: auction-service:50054
+      NOTIFICATION_EVENTS_GRPC_URL: notification-service:50058
       # catalog solo firma subidas que hace el navegador: el host firmado es el que ve el navegador.
       S3_ENDPOINT: http://localhost:${S3_PORT:-3900}
       S3_REGION: garage

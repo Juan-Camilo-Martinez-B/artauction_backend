@@ -52,6 +52,8 @@ export function decisionFromProto(value: catalogV1.ReviewDecision): ReviewDecisi
       return 'APPROVE';
     case catalogV1.ReviewDecision.REVIEW_DECISION_RETURN_TO_DRAFT:
       return 'RETURN_TO_DRAFT';
+    case catalogV1.ReviewDecision.REVIEW_DECISION_REAUDIT:
+      return 'REAUDIT';
     default:
       throw DomainError.invalid('La decision de revision no es valida.');
   }
@@ -96,5 +98,18 @@ export function lotToProto(lot: Lot, mediaBaseUrl: string): catalogV1.Lot {
     images: lot.images.map((image) => imageToProto(image, mediaBaseUrl)),
     categories: lot.categories.map((link) => ({ isPrimary: link.isPrimary, category: categoryToProto(link.category) })),
     createdAt: lot.createdAt,
+    lastReview: lot.lastReview
+      ? {
+          decision: DECISION_TO_PROTO[lot.lastReview.decision],
+          reason: lot.lastReview.reason ?? undefined,
+          createdAt: lot.lastReview.createdAt,
+        }
+      : undefined,
   });
 }
+
+const DECISION_TO_PROTO: Record<ReviewDecision, catalogV1.ReviewDecision> = {
+  APPROVE: catalogV1.ReviewDecision.REVIEW_DECISION_APPROVE,
+  RETURN_TO_DRAFT: catalogV1.ReviewDecision.REVIEW_DECISION_RETURN_TO_DRAFT,
+  REAUDIT: catalogV1.ReviewDecision.REVIEW_DECISION_REAUDIT,
+};

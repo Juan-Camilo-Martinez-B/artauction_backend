@@ -58,11 +58,22 @@ Cada hallazgo cita las evidencias que lo sostienen.
 
 Va a revisión manual si hay algo crítico (de las reglas o del modelo) o si el score queda por debajo de 40; si no, la obra se aprueba. En ningún caso la IA puede anular una regla crítica.
 
+`decided_by` dice quién decidió:
+
+| Valor | Cuándo | Veredicto |
+|---|---|---|
+| `RULES` | Una regla crítica ya decide; no se llama a la IA | Revisión manual |
+| `AI` | Gemini evaluó el expediente (o se reutilizó su evaluación en caché) | Score y críticos |
+| `LOCAL` | Gemini falló y ai-service respondió con su evaluación local (`local-rules`) | Aprueba solo sin advertencias; si no, revisión manual |
+| `FALLBACK` | ai-service no respondió en cinco intentos | Revisión manual |
+
+La evaluación local solo resta puntos por hallazgo y no sabe pesar una advertencia, por eso no aprueba obras con advertencias. Como no se cachea, re-auditar la obra cuando Gemini vuelva sí consulta al modelo.
+
 ## Cola y reintentos
 
 - `HandleLotSubmitted` registra el evento en el inbox y crea la solicitud en la **misma transacción**, así una auditoría nunca se pierde ni se duplica. El índice único parcial impide dos auditorías pendientes de la misma obra.
 - El worker toma solicitudes con `FOR UPDATE SKIP LOCKED` y un lease de 2 minutos. Un fallo, por ejemplo con ai-service caído, se reintenta con backoff: 10 s, 20 s, 40 s, 80 s.
-- Al quinto fallo emite `AuditCompleted` con revisión manual (`decided_by = FALLBACK`): la obra nunca queda atascada.
+- Al quinto fallo emite `AuditCompleted` con revisión manual (`decided_by = FALLBACK`): la obra nunca queda atascada. Un fallo de Gemini no llega aquí: ai-service ya responde con su evaluación local (`LOCAL`).
 - Si la obra ya no está `PENDIENTE_AUDITORIA`, la solicitud se cierra sin emitir nada.
 - El resumen, su informe completo (`audit.reports`, con el expediente y la evaluación en JSONB), el evento del outbox y el cierre de la solicitud van en una sola transacción. El informe usa la llave del resumen, así nunca queda uno sin el otro.
 

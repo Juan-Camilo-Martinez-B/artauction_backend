@@ -1,7 +1,8 @@
 import { DomainError } from '@artauction/platform';
-import { lotCreated, lotPublished, lotSubmitted } from '../domain/events';
+import { lotCreated, lotPublished, lotReturnedToDraft, lotSubmitted } from '../domain/events';
 import {
   assertCanSell,
+  assertEditable,
   assertOwnedAndOpen,
   parseNewLot,
   publicImageUrl,
@@ -11,6 +12,7 @@ import {
   type RepresentationKind,
 } from '../domain/lot';
 import { assertTransition } from '../domain/lot-status';
+import { planReview, type ReviewDecision } from '../domain/review';
 import type { ImageHasher, LotRepository, SignedUpload, TokenSource, UploadSigner } from './ports';
 
 const ALLOWED_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
@@ -46,6 +48,28 @@ export class CreateLot {
   }
 }
 
+type LotInput = Parameters<typeof parseNewLot>[0];
+
+/** El vendedor corrige la ficha de su obra en borrador (por ejemplo, tras una devolucion). */
+export class UpdateLot {
+  constructor(private readonly lots: LotRepository) {}
+
+  async execute(actor: Actor, lotId: string, input: LotInput): Promise<Lot> {
+    assertCanSell(actor);
+    assertEditable(await this.lots.findById(lotId), actor);
+    const lot = parseNewLot(input);
+    const category = await this.lots.findActiveCategory(lot.categorySlug);
+    if (!category) {
+      throw DomainError.invalid('La categoria no existe.');
+    }
+    const updated = await this.lots.update(lotId, lot, category.id);
+    if (!updated) {
+      throw DomainError.conflict('La obra cambio mientras se editaba. Intenta de nuevo.');
+    }
+    return updated;
+  }
+}
+
 export class SignImageUpload {
   constructor(
     private readonly lots: LotRepository,
@@ -55,7 +79,7 @@ export class SignImageUpload {
 
   async execute(actor: Actor, input: { lotId: string; contentType: string; position: number }): Promise<SignedUpload> {
     assertCanSell(actor);
-    assertOwnedAndOpen(await this.lots.findById(input.lotId), actor);
+    assertEditable(await this.lots.findById(input.lotId), actor);
     if (!ALLOWED_CONTENT_TYPES.has(input.contentType)) {
       throw DomainError.invalid('Formato de imagen no admitido.');
     }
@@ -79,7 +103,7 @@ export class RegisterLotImage {
     input: { lotId: string; objectKey: string; position: number; perceptualHash?: string | null },
   ): Promise<LotImage> {
     assertCanSell(actor);
-    assertOwnedAndOpen(await this.lots.findById(input.lotId), actor);
+    assertEditable(await this.lots.findById(input.lotId), actor);
     assertPosition(input.position);
     const objectKey = input.objectKey.trim();
     // Solo una clave subida para esta obra o una URL https publica: una obra no
@@ -131,13 +155,22 @@ export class SubmitLot {
   }
 }
 
-export type ReviewDecision = 'APPROVE' | 'RETURN_TO_DRAFT';
+export type { ReviewDecision };
 
-/** Revision manual de un administrador: publica la obra o la devuelve a borrador. */
+/**
+ * Revision manual de un administrador: publica la obra (con el rango de precio
+ * que fije si la auditoria no lo estimo), la devuelve a borrador con un motivo
+ * que recibe el vendedor, o pide otra auditoria. La decision queda en el
+ * historial, en la misma transaccion que el cambio de estado.
+ */
 export class ResolveManualReview {
   constructor(private readonly lots: LotRepository) {}
 
-  async execute(actor: Actor, lotId: string, decision: ReviewDecision): Promise<Lot> {
+  async execute(
+    actor: Actor,
+    lotId: string,
+    input: { decision: ReviewDecision; reason?: string | null; priceMin?: number | null; priceMax?: number | null },
+  ): Promise<Lot> {
     if (actor.role !== 'ADMIN') {
       throw DomainError.forbidden('Solo un administrador resuelve revisiones');
     }
@@ -145,14 +178,32 @@ export class ResolveManualReview {
     if (!lot) {
       throw DomainError.notFound('Obra no encontrada');
     }
-    const to = decision === 'APPROVE' ? 'PUBLICADA' : 'BORRADOR';
-    assertTransition(lot.status, to);
+    const plan = planReview(lot, input);
+    assertTransition(lot.status, plan.to);
+    const patch =
+      plan.to === 'PUBLICADA'
+        ? {
+            visibility: 'PUBLIC' as const,
+            ...(plan.priceMin !== null && plan.priceMax !== null
+              ? { suggestedPriceMin: plan.priceMin.toFixed(2), suggestedPriceMax: plan.priceMax.toFixed(2) }
+              : {}),
+          }
+        : { visibility: 'PRIVATE' as const };
     const updated = await this.lots.transition(
       lotId,
       lot.status,
-      to,
-      { visibility: to === 'PUBLICADA' ? 'PUBLIC' : 'PRIVATE' },
-      (next) => (to === 'PUBLICADA' ? [lotPublished(next)] : []),
+      plan.to,
+      patch,
+      (next) => {
+        if (plan.decision === 'APPROVE') {
+          return [lotPublished(next)];
+        }
+        if (plan.decision === 'RETURN_TO_DRAFT') {
+          return [lotReturnedToDraft(next, plan.reason ?? '')];
+        }
+        return [lotSubmitted(lotId)];
+      },
+      { adminId: actor.userId, decision: plan.decision, reason: plan.reason, priceMin: plan.priceMin, priceMax: plan.priceMax },
     );
     if (!updated) {
       throw DomainError.conflict('La obra cambio mientras se resolvia. Intenta de nuevo.');

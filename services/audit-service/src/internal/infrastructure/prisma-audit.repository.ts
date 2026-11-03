@@ -1,13 +1,14 @@
 import { appendToOutbox, recordInbox, sqlExecutorFrom } from '@artauction/platform';
 import { Prisma, type PrismaClient } from '../../generated/prisma';
 import type { Finding } from '../domain/dossier';
-import type { Assessment, Verdict } from '../domain/verdict';
+import type { Assessment, DecidedBy, Verdict } from '../domain/verdict';
 import type { AuditRepository, AuditRequest, AuditSummary, CompletedAudit, ReviewSummary } from '../application/ports';
 import { isAssessment, toJsonObject } from './json-documents';
 
 const AUDIT_SCHEMA = 'audit';
 /** Una evaluacion cacheada vale 30 dias; despues se vuelve a consultar al modelo. */
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const DECIDED_BY: ReadonlySet<string> = new Set<DecidedBy>(['RULES', 'AI', 'LOCAL', 'FALLBACK']);
 
 export class PrismaAuditRepository implements AuditRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -144,7 +145,7 @@ export class PrismaAuditRepository implements AuditRepository {
       summaryId: row.id,
       lotId: row.lotId,
       score: row.score,
-      decidedBy: row.decidedBy === 'RULES' || row.decidedBy === 'AI' || row.decidedBy === 'FALLBACK' ? (row.decidedBy) : null,
+      decidedBy: DECIDED_BY.has(row.decidedBy ?? '') ? (row.decidedBy as DecidedBy) : null,
       modelName: row.modelName,
       createdAt: row.createdAt,
     }));
