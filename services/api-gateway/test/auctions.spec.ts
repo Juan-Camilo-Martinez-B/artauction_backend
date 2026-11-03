@@ -134,6 +134,11 @@ describe('rutas /auctions sobre auction-service', () => {
               }),
             );
       }),
+      buyNow: unary(logger, 'BuyNow', (request) =>
+        Promise.resolve(
+          auctionV1.BuyNowResponse.fromPartial({ auctionId: request.auctionId, bidId: 'b9', amount: '2400.00', idempotent: false }),
+        ),
+      ),
       withdrawBid: unary(logger, 'WithdrawBid', () =>
         Promise.resolve(auctionV1.WithdrawBidResponse.fromPartial({ auctionId: AUCTION_ID, releasedCoins: 850, currentPrice: '800' })),
       ),
@@ -191,7 +196,7 @@ describe('rutas /auctions sobre auction-service', () => {
       endsAt: '2026-10-28T10:05:00.000Z',
     });
     expect(body.auction['bids']).toEqual([
-      { id: 'b1', auctionId: AUCTION_ID, bidderId: 'u2', amount: '850', active: true, createdAt: '2026-10-28T10:01:00.000Z' },
+      { id: 'b1', auctionId: AUCTION_ID, bidderId: 'u2', amount: '850', active: true, createdAt: '2026-10-28T10:01:00.000Z', buyNow: false },
     ]);
   });
 
@@ -234,6 +239,13 @@ describe('rutas /auctions sobre auction-service', () => {
     const rejected = await post(`/auctions/${AUCTION_ID}/bids`, { amount: '10', idempotencyKey: 'clave-puja-0003' });
     expect(rejected.status).toBe(400);
     expect(await rejected.json()).toMatchObject({ message: 'La puja debe superar el precio actual' });
+  });
+
+  it('compra ahora con clave de idempotencia y la exige', async () => {
+    const response = await post(`/auctions/${AUCTION_ID}/buy-now`, { idempotencyKey: 'compra-0001' });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ auctionId: AUCTION_ID, bidId: 'b9', amount: '2400.00', idempotent: false });
+    expect((await post(`/auctions/${AUCTION_ID}/buy-now`, {})).status).toBe(400);
   });
 
   it('devuelve el retiro con las artacoins liberadas', async () => {
