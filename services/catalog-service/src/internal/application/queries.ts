@@ -1,5 +1,5 @@
 import { DomainError } from '@artauction/platform';
-import { assertCanSell, canViewLot, isListedPublicly, type Actor, type Category, type Lot, type RepresentationKind } from '../domain/lot';
+import { canViewLot, isListedPublicly, type Actor, type Category, type Lot, type RepresentationKind } from '../domain/lot';
 import type { LotRepository, LotSort, SimilarImage } from './ports';
 
 const MAX_PAGE_SIZE = 60;
@@ -84,12 +84,11 @@ export class BatchGetLotSnapshots {
 
 const MAX_SELLER_LOTS = 100;
 
-/** Obras del vendedor que llama, en todos sus estados, con su ultima revision. */
+/** Obras de quien llama, en todos sus estados, con su ultima revision; tambien sus proyectos propios. */
 export class ListMyLots {
   constructor(private readonly lots: LotRepository) {}
 
-  async execute(actor: Actor): Promise<Lot[]> {
-    assertCanSell(actor);
+  execute(actor: Actor): Promise<Lot[]> {
     return this.lots.listBySeller(actor.userId, MAX_SELLER_LOTS);
   }
 }

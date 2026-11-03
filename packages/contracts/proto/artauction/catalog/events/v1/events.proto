@@ -6,16 +6,20 @@ import "artauction/common/v1/common.proto";
 
 // Eventos que publica catalog-service por su outbox.
 
-// Una obra nueva entra en la galeria propia del vendedor.
+// Una obra nueva entra en la galeria de su autor.
 message LotCreated {
   artauction.common.v1.EventMetadata metadata = 1;
   string lot_id = 2;
   string seller_id = 3;
   string title = 4;
   optional string artist_name = 5;
+  // Proyecto propio: no va al catalogo y la galeria lo cuelga en la sala.
+  bool personal = 6;
+  artauction.common.v1.Visibility visibility = 7;
 }
 
-// El vendedor envio la obra a auditoria.
+// El vendedor envio la obra a auditoria. Si era un proyecto propio, desde
+// ahora es una obra del catalogo.
 message LotSubmitted {
   artauction.common.v1.EventMetadata metadata = 1;
   string lot_id = 2;
@@ -40,4 +44,12 @@ message LotReturnedToDraft {
   string seller_id = 3;
   string title = 4;
   string reason = 5;
+}
+
+// El autor mostro u oculto un proyecto propio en su galeria publica.
+message LotVisibilityChanged {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string lot_id = 2;
+  string owner_id = 3;
+  artauction.common.v1.Visibility visibility = 4;
 }

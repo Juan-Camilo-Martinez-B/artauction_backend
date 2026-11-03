@@ -5,10 +5,13 @@ package artauction.gallery.v1;
 import "artauction/auction/events/v1/events.proto";
 import "artauction/catalog/events/v1/events.proto";
 
-// Eventos que gallery-service consume: obras propias y ganadas.
+// Eventos que gallery-service consume: lo que es de cada persona (proyectos
+// propios, obras en el catalogo y obras ganadas) y quien puede verlo.
 service GalleryEventHandlerService {
   rpc HandleLotCreated(HandleLotCreatedRequest) returns (HandleLotCreatedResponse);
   rpc HandleAuctionClosed(HandleAuctionClosedRequest) returns (HandleAuctionClosedResponse);
+  rpc HandleLotSubmitted(HandleLotSubmittedRequest) returns (HandleLotSubmittedResponse);
+  rpc HandleLotVisibilityChanged(HandleLotVisibilityChangedRequest) returns (HandleLotVisibilityChangedResponse);
 }
 
 message HandleLotCreatedRequest {
@@ -22,3 +25,15 @@ message HandleAuctionClosedRequest {
 }
 
 message HandleAuctionClosedResponse {}
+
+message HandleLotSubmittedRequest {
+  artauction.catalog.events.v1.LotSubmitted event = 1;
+}
+
+message HandleLotSubmittedResponse {}
+
+message HandleLotVisibilityChangedRequest {
+  artauction.catalog.events.v1.LotVisibilityChanged event = 1;
+}
+
+message HandleLotVisibilityChangedResponse {}

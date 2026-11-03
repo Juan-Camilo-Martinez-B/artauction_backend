@@ -42,7 +42,10 @@ enum ItemSource {
   ITEM_SOURCE_UNSPECIFIED = 0;
   ITEM_SOURCE_PROPIA = 1;
   ITEM_SOURCE_GANADA = 2;
-  ITEM_SOURCE_GRATUITA = 3;
+  // Obsoleto desde F13: colgaba obras ajenas como prueba. Ya no se emite.
+  ITEM_SOURCE_GRATUITA = 3 [deprecated = true];
+  // Proyecto propio del autor, sin auditar.
+  ITEM_SOURCE_PROYECTO = 4;
 }
 
 message GalleryArtwork {

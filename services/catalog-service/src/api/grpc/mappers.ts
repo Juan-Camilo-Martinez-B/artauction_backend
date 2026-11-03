@@ -1,12 +1,13 @@
 import { catalogV1, commonV1 } from '@artauction/contracts';
 import { DomainError } from '@artauction/platform';
-import { imageUrl, type Category, type Lot, type LotImage, type RepresentationKind } from '../../internal/domain/lot';
+import { imageUrl, type Category, type Lot, type LotDestination, type LotImage, type RepresentationKind, type Visibility } from '../../internal/domain/lot';
 import type { LotStatus } from '../../internal/domain/lot-status';
 import type { LotSort } from '../../internal/application/ports';
 import type { ReviewDecision } from '../../internal/application/commands';
 
 const STATUS_TO_PROTO: Readonly<Record<LotStatus, catalogV1.LotStatus>> = {
   BORRADOR: catalogV1.LotStatus.LOT_STATUS_BORRADOR,
+  PERSONAL: catalogV1.LotStatus.LOT_STATUS_PERSONAL,
   PENDIENTE_AUDITORIA: catalogV1.LotStatus.LOT_STATUS_PENDIENTE_AUDITORIA,
   APROBADO: catalogV1.LotStatus.LOT_STATUS_APROBADO,
   PUBLICADA: catalogV1.LotStatus.LOT_STATUS_PUBLICADA,
@@ -30,6 +31,22 @@ export function representationFromProto(value: catalogV1.RepresentationKind): Re
       return 'THREE_D';
     case catalogV1.RepresentationKind.REPRESENTATION_KIND_OTHER:
       return 'OTHER';
+    default:
+      return null;
+  }
+}
+
+/** Sin destino, como un cliente anterior a los proyectos propios, se publica al catalogo. */
+export function destinationFromProto(value: catalogV1.LotDestination): LotDestination {
+  return value === catalogV1.LotDestination.LOT_DESTINATION_PERSONAL ? 'PERSONAL' : 'CATALOG';
+}
+
+export function visibilityFromProto(value: commonV1.Visibility | undefined): Visibility | null {
+  switch (value) {
+    case commonV1.Visibility.VISIBILITY_PUBLIC:
+      return 'PUBLIC';
+    case commonV1.Visibility.VISIBILITY_PRIVATE:
+      return 'PRIVATE';
     default:
       return null;
   }

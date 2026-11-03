@@ -9,13 +9,31 @@ export const CATALOG_EVENTS = {
   lotSubmitted: 'catalog.LotSubmitted',
   lotPublished: 'catalog.LotPublished',
   lotReturnedToDraft: 'catalog.LotReturnedToDraft',
+  lotVisibilityChanged: 'catalog.LotVisibilityChanged',
 } as const;
 
-export function lotCreated(lot: Pick<Lot, 'id' | 'sellerId' | 'title' | 'artistName'>): DomainEvent {
+/** La obra entra en la galeria de su autor; un proyecto propio llega con su visibilidad. */
+export function lotCreated(lot: Pick<Lot, 'id' | 'sellerId' | 'title' | 'artistName' | 'status' | 'visibility'>): DomainEvent {
   return {
     type: CATALOG_EVENTS.lotCreated,
     aggregateId: lot.id,
-    payload: { lotId: lot.id, sellerId: lot.sellerId, title: lot.title, artistName: lot.artistName },
+    payload: {
+      lotId: lot.id,
+      sellerId: lot.sellerId,
+      title: lot.title,
+      artistName: lot.artistName,
+      personal: lot.status === 'PERSONAL',
+      visibility: lot.visibility,
+    },
+  };
+}
+
+/** El autor mostro u oculto un proyecto propio en su galeria publica. */
+export function lotVisibilityChanged(lot: Pick<Lot, 'id' | 'sellerId' | 'visibility'>): DomainEvent {
+  return {
+    type: CATALOG_EVENTS.lotVisibilityChanged,
+    aggregateId: lot.id,
+    payload: { lotId: lot.id, ownerId: lot.sellerId, visibility: lot.visibility },
   };
 }
 

@@ -51,9 +51,15 @@ export interface LotRepository {
   /** Imagenes de otras obras a distancia de Hamming <= maxDistance de algun hash. */
   findSimilarImages(lotId: string, hashes: readonly string[], maxDistance: number): Promise<SimilarImage[]>;
   listActiveCategories(): Promise<Category[]>;
-  /** Crea la obra en BORRADOR y guarda los eventos en la misma transaccion. */
-  create(sellerId: string, lot: NewLot, categoryId: string, events: (lot: Lot) => DomainEvent[]): Promise<Lot>;
-  /** Reemplaza la ficha de una obra que sigue en BORRADOR; null si cambio de estado. */
+  /** Crea la obra en el estado inicial de su destino y guarda los eventos en la misma transaccion. */
+  create(
+    sellerId: string,
+    lot: NewLot,
+    categoryId: string,
+    initial: { status: LotStatus; visibility: Visibility },
+    events: (lot: Lot) => DomainEvent[],
+  ): Promise<Lot>;
+  /** Reemplaza la ficha de una obra que sigue editable (borrador o proyecto propio); null si cambio de estado. */
   update(lotId: string, lot: NewLot, categoryId: string): Promise<Lot | null>;
   /** Obras de un vendedor, la mas reciente primero. */
   listBySeller(sellerId: string, limit: number): Promise<Lot[]>;

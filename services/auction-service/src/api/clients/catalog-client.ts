@@ -4,6 +4,7 @@ import type { AuctionCandidate, CatalogPort, LotSnapshot } from '../../internal/
 
 const STATUS_NAMES: ReadonlyMap<catalogV1.LotStatus, string> = new Map([
   [catalogV1.LotStatus.LOT_STATUS_BORRADOR, 'BORRADOR'],
+  [catalogV1.LotStatus.LOT_STATUS_PERSONAL, 'PERSONAL'],
   [catalogV1.LotStatus.LOT_STATUS_PENDIENTE_AUDITORIA, 'PENDIENTE_AUDITORIA'],
   [catalogV1.LotStatus.LOT_STATUS_APROBADO, 'APROBADO'],
   [catalogV1.LotStatus.LOT_STATUS_PUBLICADA, 'PUBLICADA'],

@@ -1,12 +1,17 @@
 import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
-import { auctionV1, auditV1, catalogV1 } from '@artauction/contracts';
+import { auctionV1, auditV1, catalogV1, commonV1 } from '@artauction/contracts';
 import type { StructuredLogger } from '@artauction/platform';
 import { invoke } from '@artauction/service-kit';
 import { AUCTION_CLIENT, AUDIT_CLIENT, CATALOG_CLIENT } from '../../../clients/grpc-clients';
 import type { GatewayConfig } from '../../../config';
 import { GATEWAY_CONFIG, GATEWAY_LOGGER } from '../tokens';
-import { CreateLotDto, HashImageDto, ListLotsQuery, RegisterImageDto, SignUploadDto } from './catalog.dto';
+import { CreateLotDto, HashImageDto, ListLotsQuery, LotFieldsDto, LotVisibilityDto, RegisterImageDto, SignUploadDto } from './catalog.dto';
 import { auditJson, categoryJson, imageJson, lotJson, REPRESENTATION_FROM_JSON, SORT_FROM_JSON } from './lot.presenter';
+
+const VISIBILITY_FROM_JSON: Readonly<Record<'PUBLIC' | 'PRIVATE', commonV1.Visibility>> = {
+  PUBLIC: commonV1.Visibility.VISIBILITY_PUBLIC,
+  PRIVATE: commonV1.Visibility.VISIBILITY_PRIVATE,
+};
 
 /**
  * Rutas /lots. El catalogo es la fuente de las obras; el gateway compone el
@@ -94,6 +99,8 @@ export class CatalogController {
         heightCm: String(body.heightCm),
         depthCm: body.depthCm === undefined ? undefined : String(body.depthCm),
         provenance: body.provenance,
+        destination: body.destination === 'PERSONAL' ? catalogV1.LotDestination.LOT_DESTINATION_PERSONAL : catalogV1.LotDestination.LOT_DESTINATION_CATALOG,
+        visibility: body.visibility === undefined ? undefined : VISIBILITY_FROM_JSON[body.visibility],
       }),
       this.options(authorization),
     );
@@ -103,9 +110,23 @@ export class CatalogController {
     return lotJson(response.lot);
   }
 
-  /** El vendedor corrige su obra en borrador (por ejemplo, tras una devolucion). */
+  /** El autor muestra u oculta un proyecto propio en su galeria publica. */
+  @Patch(':id/visibility')
+  async visibility(@Headers('authorization') authorization: string | undefined, @Param('id') id: string, @Body() body: LotVisibilityDto) {
+    const response = await invoke(
+      this.catalog.setLotVisibility.bind(this.catalog),
+      catalogV1.SetLotVisibilityRequest.fromPartial({ lotId: id, visibility: VISIBILITY_FROM_JSON[body.visibility] }),
+      this.options(authorization),
+    );
+    if (!response.lot) {
+      throw new Error('catalog-service respondio sin obra');
+    }
+    return lotJson(response.lot);
+  }
+
+  /** El autor corrige su obra en borrador (por ejemplo, tras una devolucion) o su proyecto propio. */
   @Patch(':id')
-  async update(@Headers('authorization') authorization: string | undefined, @Param('id') id: string, @Body() body: CreateLotDto) {
+  async update(@Headers('authorization') authorization: string | undefined, @Param('id') id: string, @Body() body: LotFieldsDto) {
     const response = await invoke(
       this.catalog.updateLot.bind(this.catalog),
       catalogV1.UpdateLotRequest.fromPartial({

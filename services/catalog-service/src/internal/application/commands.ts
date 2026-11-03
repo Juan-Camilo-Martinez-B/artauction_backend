@@ -1,15 +1,20 @@
 import { DomainError } from '@artauction/platform';
-import { lotCreated, lotPublished, lotReturnedToDraft, lotSubmitted } from '../domain/events';
+import { lotCreated, lotPublished, lotReturnedToDraft, lotSubmitted, lotVisibilityChanged } from '../domain/events';
 import {
+  assertCanCreate,
   assertCanSell,
   assertEditable,
   assertOwnedAndOpen,
+  assertPersonal,
+  initialState,
   parseNewLot,
   publicImageUrl,
   type Actor,
   type Lot,
+  type LotDestination,
   type LotImage,
   type RepresentationKind,
+  type Visibility,
 } from '../domain/lot';
 import { assertTransition } from '../domain/lot-status';
 import { planReview, type ReviewDecision } from '../domain/review';
@@ -36,26 +41,33 @@ export class CreateLot {
       heightCm: string;
       depthCm?: string | null;
       provenance?: string | null;
+      /** Sin destino se publica al catalogo, como antes de los proyectos propios. */
+      destination?: LotDestination;
+      visibility?: Visibility | null;
     },
   ): Promise<Lot> {
-    assertCanSell(actor);
+    const destination = input.destination ?? 'CATALOG';
+    assertCanCreate(actor, destination);
     const lot = parseNewLot(input);
     const category = await this.lots.findActiveCategory(lot.categorySlug);
     if (!category) {
       throw DomainError.invalid('La categoria no existe.');
     }
-    return this.lots.create(actor.userId, lot, category.id, (created) => [lotCreated(created)]);
+    return this.lots.create(actor.userId, lot, category.id, initialState(destination, input.visibility ?? null), (created) => [lotCreated(created)]);
   }
 }
 
 type LotInput = Parameters<typeof parseNewLot>[0];
 
-/** El vendedor corrige la ficha de su obra en borrador (por ejemplo, tras una devolucion). */
+/**
+ * El autor corrige la ficha de su obra en borrador (por ejemplo, tras una
+ * devolucion) o de un proyecto propio. Basta con ser el autor: un proyecto
+ * propio puede ser de una cuenta que no vende.
+ */
 export class UpdateLot {
   constructor(private readonly lots: LotRepository) {}
 
   async execute(actor: Actor, lotId: string, input: LotInput): Promise<Lot> {
-    assertCanSell(actor);
     assertEditable(await this.lots.findById(lotId), actor);
     const lot = parseNewLot(input);
     const category = await this.lots.findActiveCategory(lot.categorySlug);
@@ -78,7 +90,6 @@ export class SignImageUpload {
   ) {}
 
   async execute(actor: Actor, input: { lotId: string; contentType: string; position: number }): Promise<SignedUpload> {
-    assertCanSell(actor);
     assertEditable(await this.lots.findById(input.lotId), actor);
     if (!ALLOWED_CONTENT_TYPES.has(input.contentType)) {
       throw DomainError.invalid('Formato de imagen no admitido.');
@@ -102,7 +113,6 @@ export class RegisterLotImage {
     actor: Actor,
     input: { lotId: string; objectKey: string; position: number; perceptualHash?: string | null },
   ): Promise<LotImage> {
-    assertCanSell(actor);
     assertEditable(await this.lots.findById(input.lotId), actor);
     assertPosition(input.position);
     const objectKey = input.objectKey.trim();
@@ -127,7 +137,6 @@ export class HashLotImage {
   ) {}
 
   async execute(actor: Actor, input: { lotId: string; image: Uint8Array }): Promise<string> {
-    assertCanSell(actor);
     assertOwnedAndOpen(await this.lots.findById(input.lotId), actor);
     if (input.image.byteLength < 8 || input.image.byteLength > MAX_IMAGE_BYTES) {
       throw DomainError.invalid('La imagen esta vacia o supera 8 MB.');
@@ -144,14 +153,34 @@ export class SubmitLot {
   constructor(private readonly lots: LotRepository) {}
 
   async execute(actor: Actor, lotId: string): Promise<'PENDIENTE_AUDITORIA'> {
+    // Pasar al catalogo, tambien un proyecto propio, es cosa de quien vende.
     assertCanSell(actor);
     const lot = assertOwnedAndOpen(await this.lots.findById(lotId), actor);
     assertTransition(lot.status, 'PENDIENTE_AUDITORIA');
-    const updated = await this.lots.transition(lotId, lot.status, 'PENDIENTE_AUDITORIA', {}, () => [lotSubmitted(lotId)]);
+    // Un proyecto propio publico se oculta mientras se audita: lo publica la auditoria.
+    const updated = await this.lots.transition(lotId, lot.status, 'PENDIENTE_AUDITORIA', { visibility: 'PRIVATE' }, () => [lotSubmitted(lotId)]);
     if (!updated) {
       throw DomainError.conflict('La obra cambio mientras se enviaba. Intenta de nuevo.');
     }
     return 'PENDIENTE_AUDITORIA';
+  }
+}
+
+/** El autor muestra u oculta un proyecto propio en su galeria publica. */
+export class SetLotVisibility {
+  constructor(private readonly lots: LotRepository) {}
+
+  async execute(actor: Actor, lotId: string, visibility: Visibility): Promise<Lot> {
+    const lot = assertPersonal(await this.lots.findById(lotId), actor);
+    if (lot.visibility === visibility) {
+      return lot;
+    }
+    // Mismo estado de origen y destino: el control optimista evita pisar un envio al catalogo.
+    const updated = await this.lots.transition(lotId, 'PERSONAL', 'PERSONAL', { visibility }, (changed) => [lotVisibilityChanged(changed)]);
+    if (!updated) {
+      throw DomainError.conflict('La obra cambio mientras se actualizaba. Intenta de nuevo.');
+    }
+    return updated;
   }
 }
 
