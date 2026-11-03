@@ -32,26 +32,31 @@ function toPublicLot(lot: catalogV1.Lot): PublicLot {
   };
 }
 
-/** Implementa CatalogPort: obras publicas para colgar y ficha interna para la galeria del ganador. */
+/**
+ * Implementa CatalogPort con la ficha interna de catalog (ignora la
+ * visibilidad): la galeria ya comprobo que la obra es de quien la cuelga.
+ */
 export class GrpcCatalogClient implements CatalogPort {
   constructor(
     private readonly catalog: catalogV1.CatalogServiceClient,
     private readonly tokens: ServiceTokenProvider,
   ) {}
 
-  async publicLot(lotId: string): Promise<PublicLot | null> {
-    const response = await invoke(this.catalog.batchGetPublicLots.bind(this.catalog), { lotIds: [lotId] }, { deadlineMs: DEADLINE_MS });
-    const lot = response.lots[0];
+  async snapshot(lotId: string): Promise<PublicLot | null> {
+    const [lot] = await this.sheets([lotId]);
     return lot ? toPublicLot(lot) : null;
   }
 
-  async snapshot(lotId: string): Promise<PublicLot | null> {
-    const response = await invoke(this.catalog.batchGetLotSnapshots.bind(this.catalog), { lotIds: [lotId] }, {
+  /** Fichas completas de las obras colgadas en una sala, para que el gateway la muestre. */
+  async sheets(lotIds: readonly string[]): Promise<catalogV1.Lot[]> {
+    if (lotIds.length === 0) {
+      return [];
+    }
+    const response = await invoke(this.catalog.batchGetLotSnapshots.bind(this.catalog), { lotIds: [...lotIds] }, {
       deadlineMs: DEADLINE_MS,
       authorization: await this.tokens.authorization(),
     });
-    const lot = response.lots[0];
-    return lot ? toPublicLot(lot) : null;
+    return response.lots;
   }
 }
 

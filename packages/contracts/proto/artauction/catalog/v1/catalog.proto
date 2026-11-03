@@ -32,8 +32,10 @@ service CatalogService {
   // Solo el vendedor duenio y solo en BORRADOR: corrige la ficha de una obra
   // devuelta (o aun no enviada) antes de mandarla a auditoria.
   rpc UpdateLot(UpdateLotRequest) returns (UpdateLotResponse);
-  // Obras del vendedor que llama, en todos sus estados, con su ultima revision.
+  // Obras de quien llama, en todos sus estados, con su ultima revision.
   rpc ListMyLots(ListMyLotsRequest) returns (ListMyLotsResponse);
+  // El autor muestra u oculta un proyecto propio en su galeria publica.
+  rpc SetLotVisibility(SetLotVisibilityRequest) returns (SetLotVisibilityResponse);
   // Solo ROLE_ADMIN: obras en revision manual, la mas antigua primero.
   rpc ListReviewQueue(ListReviewQueueRequest) returns (ListReviewQueueResponse);
   // Solo ROLE_ADMIN.
@@ -50,6 +52,17 @@ enum LotStatus {
   LOT_STATUS_EN_SUBASTA = 6;
   LOT_STATUS_CERRADO = 7;
   LOT_STATUS_VENDIDA = 8;
+  // Proyecto propio: solo para la galeria de su autor, sin auditoria ni subasta.
+  LOT_STATUS_PERSONAL = 9;
+}
+
+// A donde va una obra nueva. Sin valor se toma CATALOG, como antes.
+enum LotDestination {
+  LOT_DESTINATION_UNSPECIFIED = 0;
+  // Al catalogo: auditoria y subasta. Solo vendedor o administrador.
+  LOT_DESTINATION_CATALOG = 1;
+  // Solo a la galeria del autor, como proyecto propio. Cualquier cuenta.
+  LOT_DESTINATION_PERSONAL = 2;
 }
 
 enum RepresentationKind {
@@ -235,6 +248,9 @@ message CreateLotRequest {
   string height_cm = 9;
   optional string depth_cm = 10;
   optional string provenance = 11;
+  LotDestination destination = 12;
+  // Solo para un proyecto propio; una obra del catalogo empieza privada.
+  optional artauction.common.v1.Visibility visibility = 13;
 }
 
 message CreateLotResponse {
@@ -298,6 +314,15 @@ message ListMyLotsResponse {
 
 message SubmitLotRequest {
   string lot_id = 1;
+}
+
+message SetLotVisibilityRequest {
+  string lot_id = 1;
+  artauction.common.v1.Visibility visibility = 2;
+}
+
+message SetLotVisibilityResponse {
+  Lot lot = 1;
 }
 
 message SubmitLotResponse {

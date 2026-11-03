@@ -16,16 +16,24 @@ export class PrismaSocialStore implements SocialStore {
 
   async itemsOf(ownerId: string): Promise<GalleryItem[]> {
     const rows = await this.prisma.galleryItem.findMany({ where: { ownerId }, orderBy: { acquiredAt: 'desc' } });
-    return rows.map((row) => ({
-      ownerId: row.ownerId,
-      lotId: row.lotId,
-      source: row.source as GalleryItem['source'],
-      visibility: row.visibility as GalleryItem['visibility'],
-      title: row.title,
-      artistName: row.artistName,
-      imageKeys: row.imageKeys,
-      acquiredAt: row.acquiredAt,
-    }));
+    return rows.map(toItem);
+  }
+
+  async itemOf(ownerId: string, lotId: string): Promise<GalleryItem | null> {
+    const row = await this.prisma.galleryItem.findUnique({ where: { ownerId_lotId: { ownerId, lotId } } });
+    return row ? toItem(row) : null;
+  }
+
+  async itemsOfLot(lotId: string): Promise<GalleryItem[]> {
+    return (await this.prisma.galleryItem.findMany({ where: { lotId } })).map(toItem);
+  }
+
+  async updateItem(ownerId: string, lotId: string, patch: Partial<Pick<GalleryItem, 'source' | 'visibility'>>): Promise<void> {
+    await this.prisma.galleryItem.updateMany({ where: { ownerId, lotId }, data: patch });
+  }
+
+  async removeItem(ownerId: string, lotId: string): Promise<void> {
+    await this.prisma.galleryItem.deleteMany({ where: { ownerId, lotId } });
   }
 
   async upsertActivity(id: string, activity: Activity): Promise<void> {
@@ -48,4 +56,26 @@ export class PrismaSocialStore implements SocialStore {
       createdAt: row.createdAt,
     }));
   }
+}
+
+function toItem(row: {
+  ownerId: string;
+  lotId: string;
+  source: string;
+  visibility: string;
+  title: string;
+  artistName: string | null;
+  imageKeys: string[];
+  acquiredAt: Date;
+}): GalleryItem {
+  return {
+    ownerId: row.ownerId,
+    lotId: row.lotId,
+    source: row.source as GalleryItem['source'],
+    visibility: row.visibility as GalleryItem['visibility'],
+    title: row.title,
+    artistName: row.artistName,
+    imageKeys: row.imageKeys,
+    acquiredAt: row.acquiredAt,
+  };
 }

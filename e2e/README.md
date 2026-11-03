@@ -10,7 +10,8 @@ Usa `node:test`, `fetch` y `socket.io-client`. Los archivos son TypeScript que N
 |---|---|
 | `01-identity.test.ts` | health, OpenAPI publicado, registro, login, sesión, refresh, 401, 404, 400 y JSON mal formado |
 | `02-publishing-and-review.test.ts` | publicar una obra completa (hash, subida firmada a Garage, envío); auditoría con IA o con la evaluación local; un anacronismo que va a revisión manual sin IA; la cola del administrador con sus evidencias; aprobar con rango de precio (obligatorio sin precio sugerido); devolver con motivo, el aviso, `/lots/mine`, la edición solo del vendedor y solo en borrador, y el reenvío con la ficha corregida; la galería propia del vendedor |
-| `03-auction-wallet-gallery.test.ts` | recarga idempotente; apertura de una sala; pujas por REST y por Socket.IO con reserva TCC; repetición idempotente; cierre con ganador; liquidación (canje, devolución, abono al vendedor menos la comisión); obra ganada en la galería, el feed y los avisos; sala 3D; follows |
+| `03-auction-wallet-gallery.test.ts` | recarga idempotente; apertura de una sala; pujas por REST y por Socket.IO con reserva TCC; repetición idempotente; cierre con ganador; liquidación (canje, devolución, abono al vendedor menos la comisión); la obra ganada pasa del autor al ganador (galería y sala 3D, colgada sola y con su ficha aunque ya no sea pública), el feed y los avisos; solo se cuelga lo propio; follows |
+| `04-personal-works.test.ts` | un `USER` sube un proyecto propio: sin auditoría, sin score ni precio, colgado solo en su sala; no publica al catálogo ni lo pasa a auditoría; lo hace público y aparece en su galería pública pero nunca en el catálogo; lo edita; una vendedora pasa su proyecto al catálogo, que se oculta mientras se audita |
 
 Los archivos corren en orden (`--test-concurrency=1`), porque el tercero espera el cierre real de una sala.
 

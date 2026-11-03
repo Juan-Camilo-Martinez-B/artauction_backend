@@ -3,9 +3,9 @@ import { CATALOG_EVENTS } from '../src/internal/domain/events';
 import { canViewLot, imageUrl, parseNewLot, type Actor, type Category, type Lot, type LotImage, type NewLot } from '../src/internal/domain/lot';
 import { canTransition, type LotStatus } from '../src/internal/domain/lot-status';
 import type { LotPatch, LotRepository, LotTransitions, NewLotReview, PublicLotQuery, SimilarImage } from '../src/internal/application/ports';
-import { CreateLot, RegisterLotImage, ResolveManualReview, SignImageUpload, SubmitLot, UpdateLot } from '../src/internal/application/commands';
+import { CreateLot, RegisterLotImage, ResolveManualReview, SetLotVisibility, SignImageUpload, SubmitLot, UpdateLot } from '../src/internal/application/commands';
 import { MarkLotSold } from '../src/internal/application/event-handlers';
-import { FindSimilarImages, GetLotForViewer, ListAuctionCandidates, ListMyLots, ListPublicLots, ListReviewQueue } from '../src/internal/application/queries';
+import { BatchGetPublicLots, FindSimilarImages, GetLotForViewer, ListAuctionCandidates, ListMyLots, ListPublicLots, ListReviewQueue } from '../src/internal/application/queries';
 import { hasSuggestedPrice, planReview } from '../src/internal/domain/review';
 
 const SELLER: Actor = { userId: 'a0000000-0000-4000-8000-000000000002', role: 'SELLER' };
@@ -75,7 +75,7 @@ class MemoryLots implements LotRepository {
     return Promise.resolve(matches);
   }
 
-  create(sellerId: string, lot: NewLot, _categoryId: string, events: (lot: Lot) => DomainEvent[]) {
+  create(sellerId: string, lot: NewLot, _categoryId: string, initial: { status: LotStatus; visibility: Lot['visibility'] }, events: (lot: Lot) => DomainEvent[]) {
     this.seq += 1;
     const created: Lot = {
       id: `b0000000-0000-4000-8000-00000000000${String(this.seq)}`,
@@ -90,8 +90,8 @@ class MemoryLots implements LotRepository {
       depthCm: lot.depthCm,
       provenance: lot.provenance,
       representationKind: lot.representationKind,
-      status: 'BORRADOR',
-      visibility: 'PRIVATE',
+      status: initial.status,
+      visibility: initial.visibility,
       authenticityScore: null,
       suggestedPriceMin: null,
       suggestedPriceMax: null,
@@ -114,7 +114,7 @@ class MemoryLots implements LotRepository {
 
   update(lotId: string, lot: NewLot) {
     const current = this.lots.get(lotId);
-    if (!current || current.status !== 'BORRADOR') {
+    if (!current || !['BORRADOR', 'PERSONAL'].includes(current.status)) {
       return Promise.resolve(null);
     }
     const next: Lot = { ...current, ...lot };
@@ -420,12 +420,12 @@ describe('ciclo de revision', () => {
     expect(repo.outbox.at(-1)).toMatchObject({ type: CATALOG_EVENTS.lotSubmitted, payload: { lotId } });
   });
 
-  it('cada vendedor ve solo sus obras; un comprador no tiene lista', async () => {
+  it('cada persona ve solo sus obras; un comprador sin proyectos no tiene ninguna', async () => {
     const repo = new MemoryLots();
     await new CreateLot(repo).execute(SELLER, NEW_LOT);
     await new CreateLot(repo).execute(OTHER, NEW_LOT);
     expect(await new ListMyLots(repo).execute(SELLER)).toHaveLength(1);
-    await expectKind(new ListMyLots(repo).execute(BUYER), 'PERMISSION_DENIED');
+    expect(await new ListMyLots(repo).execute(BUYER)).toEqual([]);
   });
 
   it('reglas puras de la revision', () => {
@@ -435,5 +435,64 @@ describe('ciclo de revision', () => {
     expect(planReview(priced, { decision: 'APPROVE' })).toMatchObject({ to: 'PUBLICADA', priceMin: null });
     expect(() => planReview(priced, { decision: 'APPROVE', priceMin: 100 })).toThrow('minimo y el maximo');
     expect(() => planReview(priced, { decision: 'APPROVE', priceMin: 1.5, priceMax: 3 })).toThrow('enteras');
+  });
+});
+
+describe('proyectos propios', () => {
+  it('cualquier cuenta crea un proyecto propio; al catalogo solo publica quien vende', async () => {
+    const repo = new MemoryLots();
+    await expectKind(new CreateLot(repo).execute(BUYER, NEW_LOT), 'PERMISSION_DENIED');
+    await expectKind(new CreateLot(repo).execute(BUYER, { ...NEW_LOT, destination: 'CATALOG' }), 'PERMISSION_DENIED');
+    const own = await new CreateLot(repo).execute(BUYER, { ...NEW_LOT, destination: 'PERSONAL' });
+    expect(own).toMatchObject({ status: 'PERSONAL', visibility: 'PRIVATE', authenticityScore: null });
+    expect(repo.outbox.at(-1)).toMatchObject({ type: CATALOG_EVENTS.lotCreated, payload: { personal: true, visibility: 'PRIVATE' } });
+    const shown = await new CreateLot(repo).execute(SELLER, { ...NEW_LOT, destination: 'PERSONAL', visibility: 'PUBLIC' });
+    expect(shown.visibility).toBe('PUBLIC');
+    // Una obra del catalogo siempre nace privada: la publica la auditoria.
+    const catalog = await new CreateLot(repo).execute(SELLER, { ...NEW_LOT, visibility: 'PUBLIC' });
+    expect(catalog).toMatchObject({ status: 'BORRADOR', visibility: 'PRIVATE' });
+    expect(repo.outbox.at(-1)).toMatchObject({ payload: { personal: false } });
+  });
+
+  it('nunca aparece en el catalogo, aunque sea publico', async () => {
+    const repo = new MemoryLots();
+    const own = await new CreateLot(repo).execute(BUYER, { ...NEW_LOT, destination: 'PERSONAL', visibility: 'PUBLIC' });
+    expect(await new BatchGetPublicLots(repo).execute([own.id])).toEqual([]);
+    // La ficha si se puede abrir desde la galeria publica del autor.
+    expect(await new GetLotForViewer(repo).execute(own.id, null)).toMatchObject({ id: own.id });
+  });
+
+  it('el autor lo edita, cambia su imagen y su visibilidad; nadie mas', async () => {
+    const repo = new MemoryLots();
+    const own = await new CreateLot(repo).execute(BUYER, { ...NEW_LOT, destination: 'PERSONAL' });
+    expect(await new UpdateLot(repo).execute(BUYER, own.id, { ...NEW_LOT, title: 'Boceto corregido' })).toMatchObject({ title: 'Boceto corregido', status: 'PERSONAL' });
+    await expectKind(new UpdateLot(repo).execute(SELLER, own.id, NEW_LOT), 'NOT_FOUND');
+    expect(await new RegisterLotImage(repo).execute(BUYER, { lotId: own.id, objectKey: `lots/${own.id}/0-x`, position: 0 })).toMatchObject({ position: 0 });
+
+    const visibility = new SetLotVisibility(repo);
+    await expectKind(visibility.execute(SELLER, own.id, 'PUBLIC'), 'NOT_FOUND');
+    expect((await visibility.execute(BUYER, own.id, 'PUBLIC')).visibility).toBe('PUBLIC');
+    expect(repo.outbox.at(-1)).toMatchObject({ type: CATALOG_EVENTS.lotVisibilityChanged, payload: { lotId: own.id, ownerId: BUYER.userId, visibility: 'PUBLIC' } });
+    const events = repo.outbox.length;
+    await visibility.execute(BUYER, own.id, 'PUBLIC');
+    expect(repo.outbox).toHaveLength(events);
+  });
+
+  it('la visibilidad de una obra del catalogo no se cambia a mano', async () => {
+    const repo = new MemoryLots();
+    const lot = await new CreateLot(repo).execute(SELLER, NEW_LOT);
+    await expectKind(new SetLotVisibility(repo).execute(SELLER, lot.id, 'PUBLIC'), 'FAILED_PRECONDITION');
+  });
+
+  it('pasar al catalogo lo audita y lo oculta mientras tanto; solo si vende', async () => {
+    const repo = new MemoryLots();
+    const mine = await new CreateLot(repo).execute(BUYER, { ...NEW_LOT, destination: 'PERSONAL', visibility: 'PUBLIC' });
+    await expectKind(new SubmitLot(repo).execute(BUYER, mine.id), 'PERMISSION_DENIED');
+    const own = await new CreateLot(repo).execute(SELLER, { ...NEW_LOT, destination: 'PERSONAL', visibility: 'PUBLIC' });
+    await new SubmitLot(repo).execute(SELLER, own.id);
+    expect(repo.lots.get(own.id)).toMatchObject({ status: 'PENDIENTE_AUDITORIA', visibility: 'PRIVATE' });
+    expect(repo.outbox.at(-1)).toMatchObject({ type: CATALOG_EVENTS.lotSubmitted, payload: { lotId: own.id } });
+    // Ya en auditoria, deja de ser editable como cualquier obra del catalogo.
+    await expectKind(new UpdateLot(repo).execute(SELLER, own.id, NEW_LOT), 'FAILED_PRECONDITION');
   });
 });

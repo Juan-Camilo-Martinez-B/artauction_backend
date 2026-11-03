@@ -31,14 +31,21 @@ export interface GalleryRepository {
 export interface SocialStore {
   upsertItem(id: string, item: GalleryItem): Promise<void>;
   itemsOf(ownerId: string): Promise<GalleryItem[]>;
+  /** Lo que una persona tiene de una obra; null si no es suya. */
+  itemOf(ownerId: string, lotId: string): Promise<GalleryItem | null>;
+  /** Quienes tienen una obra (a lo sumo su autor o quien la gano). */
+  itemsOfLot(lotId: string): Promise<GalleryItem[]>;
+  updateItem(ownerId: string, lotId: string, patch: Partial<Pick<GalleryItem, 'source' | 'visibility'>>): Promise<void>;
+  removeItem(ownerId: string, lotId: string): Promise<void>;
   upsertActivity(id: string, activity: Activity): Promise<void>;
   feed(viewerId: string, limit: number): Promise<Activity[]>;
 }
 
 export interface CatalogPort {
-  /** Obra publica que se puede colgar; null si no existe o no es publica. */
-  publicLot(lotId: string): Promise<PublicLot | null>;
-  /** Ficha interna (ignora la visibilidad): la usa la galeria del ganador. */
+  /**
+   * Ficha interna (ignora la visibilidad). La propiedad la decide la galeria,
+   * asi que se puede colgar una obra privada o vendida que sea de quien llama.
+   */
   snapshot(lotId: string): Promise<PublicLot | null>;
 }
 

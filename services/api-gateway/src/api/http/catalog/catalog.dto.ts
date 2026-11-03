@@ -37,7 +37,8 @@ export class ListLotsQuery {
   pageSize?: number;
 }
 
-export class CreateLotDto {
+/** Ficha de una obra: la misma al crearla y al editarla. */
+export class LotFieldsDto {
   @IsString()
   @MinLength(3)
   title!: string;
@@ -91,6 +92,24 @@ export class CreateLotDto {
   @IsString()
   @MinLength(3)
   provenance?: string;
+}
+
+/** Al crear se elige el destino; el de una obra existente no cambia por esta via. */
+export class CreateLotDto extends LotFieldsDto {
+  // Sin destino se publica al catalogo, como antes de los proyectos propios.
+  @IsOptional()
+  @IsIn(['CATALOG', 'PERSONAL'])
+  destination?: 'CATALOG' | 'PERSONAL';
+
+  // Solo cuenta para un proyecto propio; una obra del catalogo nace privada.
+  @IsOptional()
+  @IsIn(['PUBLIC', 'PRIVATE'])
+  visibility?: 'PUBLIC' | 'PRIVATE';
+}
+
+export class LotVisibilityDto {
+  @IsIn(['PUBLIC', 'PRIVATE'])
+  visibility!: 'PUBLIC' | 'PRIVATE';
 }
 
 export class SignUploadDto {

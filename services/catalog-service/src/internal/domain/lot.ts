@@ -1,10 +1,12 @@
 import { DomainError } from '@artauction/platform';
-import { CLOSED_STATUSES, PUBLIC_STATUSES, type LotStatus } from './lot-status';
+import { CLOSED_STATUSES, EDITABLE_STATUSES, PUBLIC_STATUSES, type LotStatus } from './lot-status';
 import type { LotReview } from './review';
 
 export type Visibility = 'PUBLIC' | 'PRIVATE';
 export type RepresentationKind = 'TWO_D' | 'THREE_D' | 'OTHER';
 export type ActorRole = 'USER' | 'SELLER' | 'ADMIN';
+/** A donde va una obra nueva: al catalogo (auditoria y subasta) o solo a la galeria de su autor. */
+export type LotDestination = 'CATALOG' | 'PERSONAL';
 
 export interface Actor {
   userId: string;
@@ -71,6 +73,19 @@ export function assertCanSell(actor: Actor): void {
   }
 }
 
+/** Cualquier cuenta crea proyectos propios; al catalogo solo publica quien vende. */
+export function assertCanCreate(actor: Actor, destination: LotDestination): void {
+  if (destination === 'CATALOG') {
+    assertCanSell(actor);
+  }
+}
+
+/** Estado y visibilidad con que nace una obra segun su destino. */
+export function initialState(destination: LotDestination, visibility: Visibility | null): { status: LotStatus; visibility: Visibility } {
+  // Una obra del catalogo es privada hasta que la auditoria la publica.
+  return destination === 'PERSONAL' ? { status: 'PERSONAL', visibility: visibility ?? 'PRIVATE' } : { status: 'BORRADOR', visibility: 'PRIVATE' };
+}
+
 /** El vendedor solo modifica sus obras y solo mientras no esten cerradas. */
 export function assertOwnedAndOpen(lot: Lot | null, actor: Actor): Lot {
   if (!lot || lot.sellerId !== actor.userId) {
@@ -83,13 +98,25 @@ export function assertOwnedAndOpen(lot: Lot | null, actor: Actor): Lot {
 }
 
 /**
- * La ficha y la imagen solo se cambian en borrador: una obra auditada no puede
- * cambiar de foto ni de datos sin volver a pasar la auditoria.
+ * La ficha y la imagen solo se cambian en borrador o en un proyecto propio: una
+ * obra auditada no puede cambiar de foto ni de datos sin volver a la auditoria.
  */
 export function assertEditable(lot: Lot | null, actor: Actor): Lot {
   const owned = assertOwnedAndOpen(lot, actor);
-  if (owned.status !== 'BORRADOR') {
-    throw DomainError.precondition('Solo se puede cambiar una obra en borrador. Si un administrador te la devuelve, podras editarla.');
+  if (!EDITABLE_STATUSES.includes(owned.status)) {
+    throw DomainError.precondition('Solo se puede cambiar una obra en borrador o un proyecto propio. Si un administrador te la devuelve, podras editarla.');
+  }
+  return owned;
+}
+
+/**
+ * Solo un proyecto propio cambia de visibilidad a mano: la de una obra del
+ * catalogo la decide la auditoria.
+ */
+export function assertPersonal(lot: Lot | null, actor: Actor): Lot {
+  const owned = assertOwnedAndOpen(lot, actor);
+  if (owned.status !== 'PERSONAL') {
+    throw DomainError.precondition('Solo un proyecto propio se muestra u oculta a mano. La visibilidad de una obra del catalogo la decide la auditoria.');
   }
   return owned;
 }

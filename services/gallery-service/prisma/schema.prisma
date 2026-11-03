@@ -62,7 +62,7 @@ model Follow {
 model GalleryItem {
   id         String   @id
   ownerId    String   @map("owner_id") @db.Uuid
-  lotId      String?  @map("lot_id") @db.Uuid
+  lotId      String   @map("lot_id") @db.Uuid
   source     String
   visibility String
   title      String
@@ -70,6 +70,8 @@ model GalleryItem {
   imageKeys  String[] @default([]) @map("image_keys")
   acquiredAt DateTime @map("acquired_at") @db.Timestamptz(6)
 
+  // Una entrada por obra y duena: asi se comprueba la propiedad al colgar (0029).
+  @@unique([ownerId, lotId], map: "items_owner_lot_uidx")
   @@index([ownerId, acquiredAt(sort: Desc)])
   @@map("items")
 }

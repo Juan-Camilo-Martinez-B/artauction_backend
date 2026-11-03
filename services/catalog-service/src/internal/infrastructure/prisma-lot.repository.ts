@@ -1,7 +1,7 @@
 import { appendToOutbox, recordInbox, sqlExecutorFrom, type DomainEvent, type SqlExecutor } from '@artauction/platform';
 import type { Prisma, PrismaClient } from '../../generated/prisma';
-import type { Category, Lot, LotImage, NewLot, RepresentationKind } from '../domain/lot';
-import { isLotStatus, PUBLIC_STATUSES, type LotStatus } from '../domain/lot-status';
+import type { Category, Lot, LotImage, NewLot, RepresentationKind, Visibility } from '../domain/lot';
+import { EDITABLE_STATUSES, isLotStatus, PUBLIC_STATUSES, type LotStatus } from '../domain/lot-status';
 import type { LotPatch, LotRepository, LotTransitions, NewLotReview, PublicLotQuery, SimilarImage } from '../application/ports';
 import type { LotReview, ReviewDecision } from '../domain/review';
 
@@ -158,7 +158,13 @@ export class PrismaLotRepository implements LotRepository {
     return rows.map(toCategory);
   }
 
-  create(sellerId: string, lot: NewLot, categoryId: string, events: (lot: Lot) => DomainEvent[]): Promise<Lot> {
+  create(
+    sellerId: string,
+    lot: NewLot,
+    categoryId: string,
+    initial: { status: LotStatus; visibility: Visibility },
+    events: (lot: Lot) => DomainEvent[],
+  ): Promise<Lot> {
     return this.prisma.$transaction(async (tx) => {
       const row = await tx.lot.create({
         data: {
@@ -173,8 +179,8 @@ export class PrismaLotRepository implements LotRepository {
           heightCm: lot.heightCm,
           depthCm: lot.depthCm,
           provenance: lot.provenance,
-          status: 'BORRADOR',
-          visibility: 'PRIVATE',
+          status: initial.status,
+          visibility: initial.visibility,
           categories: { create: { categoryId, isPrimary: true } },
         },
         include: lotInclude,
@@ -190,9 +196,9 @@ export class PrismaLotRepository implements LotRepository {
       return Promise.resolve(null);
     }
     return this.prisma.$transaction(async (tx) => {
-      // Control optimista: solo si la obra sigue en borrador.
+      // Control optimista: solo si la obra sigue editable.
       const changed = await tx.lot.updateMany({
-        where: { id: lotId, status: 'BORRADOR' },
+        where: { id: lotId, status: { in: [...EDITABLE_STATUSES] } },
         data: {
           title: lot.title,
           description: lot.description,

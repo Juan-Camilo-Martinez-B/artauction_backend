@@ -12,6 +12,17 @@ BORRADOR -> PENDIENTE_AUDITORIA -> PUBLICADA | REVISION_MANUAL -> EN_SUBASTA -> 
 
 Desde `REVISION_MANUAL`, un administrador también puede volver a `PENDIENTE_AUDITORIA` para pedir otra auditoría.
 
+### Proyectos propios
+
+Al crear una obra se elige el destino (`destination`):
+
+- `CATALOG` (por defecto): nace en `BORRADOR`, privada, y sigue el ciclo de arriba. Solo `SELLER` o `ADMIN`.
+- `PERSONAL`: nace en `PERSONAL`, para la galería de su autor. Cualquier cuenta, también `USER`. No se audita, no tiene score ni precio y nunca se subasta. El catálogo público no la lista aunque sea `PUBLIC`, porque filtra por estado; su ficha sí se abre desde la galería pública del autor.
+
+`PERSONAL -> PENDIENTE_AUDITORIA` es **pasar al catálogo** (solo quien vende). La obra se oculta mientras se audita y desde ahí es una obra más del catálogo.
+
+El autor edita la ficha y la imagen en `BORRADOR` y en `PERSONAL`. La visibilidad solo se cambia a mano en un proyecto propio (`SetLotVisibility`); la de una obra del catálogo la decide la auditoría.
+
 La máquina de estados es una lista de adyacencia en `internal/domain/lot-status.ts`. Cada cambio de estado es **optimista**: solo se aplica si el lote sigue en el estado leído, así dos peticiones simultáneas no pueden pisarse.
 
 ## Qué resuelve
@@ -20,14 +31,15 @@ La máquina de estados es una lista de adyacencia en `internal/domain/lot-status
 |---|---|---|
 | `ListPublicLots`, `GetRelatedLots`, `BatchGetPublicLots` | consultas | Solo obras `PUBLIC` en `APROBADO`, `PUBLICADA` o `EN_SUBASTA`. Paginación acotada a 60. Orden estable (desempate por id). |
 | `GetLot` | `GetLotForViewer` | Una obra privada responde 404 a un tercero, igual que una inexistente. |
-| `CreateLot` | `CreateLot` | Solo `SELLER` o `ADMIN`. Valida medidas (0,1 a 2000 cm, dos decimales) y exige profundidad a un objeto 3D. Emite `LotCreated`. |
+| `CreateLot` | `CreateLot` | Al catálogo, solo `SELLER` o `ADMIN`; un proyecto propio (`destination = PERSONAL`), cualquier cuenta. Valida medidas (0,1 a 2000 cm, dos decimales) y exige profundidad a un objeto 3D. Emite `LotCreated` con `personal` y `visibility`. |
 | `SignUpload` | `SignImageUpload` | URL prefirmada S3 (SigV4) con el Content-Type firmado; clave nueva en cada subida (`lots/<id>/<pos>-<aleatorio>`). |
 | `RegisterImage` | `RegisterLotImage` | La clave tiene que ser de esa obra o una URL https: una obra no puede apropiarse de la imagen de otra. |
 | `HashImage` | `HashLotImage` | dHash de 64 bits en un pool de `worker_threads` (vCPU − 1); el event loop no se bloquea. |
-| `SubmitLot` | `SubmitLot` | `BORRADOR -> PENDIENTE_AUDITORIA` y emite `LotSubmitted`. |
+| `SubmitLot` | `SubmitLot` | `BORRADOR` o `PERSONAL` `-> PENDIENTE_AUDITORIA`, privada mientras se audita. Solo quien vende. Emite `LotSubmitted`. |
+| `SetLotVisibility` | `SetLotVisibility` | Solo el autor y solo en `PERSONAL`: muestra u oculta el proyecto en su galería pública. Emite `LotVisibilityChanged`. |
 | `ResolveManualReview` | `ResolveManualReview` | Solo `ADMIN`. Publica (emite `LotPublished`), devuelve a borrador con un motivo (emite `LotReturnedToDraft`) o pide otra auditoría (emite `LotSubmitted`). Ver «Revisión manual». |
-| `UpdateLot` | `UpdateLot` | Solo el vendedor dueño y solo en `BORRADOR`: corrige la ficha de una obra devuelta. |
-| `ListMyLots` | `ListMyLots` | Las obras del vendedor que llama, en todos sus estados, con su última revisión. |
+| `UpdateLot` | `UpdateLot` | Solo el autor y solo en `BORRADOR` o `PERSONAL`: corrige una obra devuelta o un proyecto propio. |
+| `ListMyLots` | `ListMyLots` | Las obras de quien llama, en todos sus estados y con su última revisión, también sus proyectos propios. |
 | `BatchGetLotSnapshots` | consulta interna | Solo con token de servicio; ignora la visibilidad. |
 | `ListReviewQueue` | `GET /admin/reviews` | Solo `ADMIN`: obras en revisión manual, la más antigua primero (hasta 50). |
 | `FindSimilarImages` | consulta interna | Solo audit-service: imágenes de otras obras a distancia de Hamming ≤ `max_distance` del dHash. Los hashes no salen de catalog. |
@@ -40,8 +52,9 @@ El cambio de estado y su evento se guardan en la **misma transacción** (`catalo
 
 | Evento | Consumidor | URL |
 |---|---|---|
-| `LotCreated` | gallery (galería propia del vendedor) | `GALLERY_EVENTS_GRPC_URL` |
-| `LotSubmitted` | audit (encola la auditoría) | `AUDIT_EVENTS_GRPC_URL` |
+| `LotCreated` | gallery (la obra es de su autor; un proyecto propio se cuelga en su sala) | `GALLERY_EVENTS_GRPC_URL` |
+| `LotSubmitted` | audit (encola la auditoría) y gallery (un proyecto que pasa al catálogo deja de ser `PROYECTO`) | `AUDIT_EVENTS_GRPC_URL`, `GALLERY_EVENTS_GRPC_URL` |
+| `LotVisibilityChanged` | gallery (muestra u oculta el proyecto en la galería pública) | `GALLERY_EVENTS_GRPC_URL` |
 | `LotPublished` | auction (programa la subasta) | `AUCTION_EVENTS_GRPC_URL` |
 | `LotReturnedToDraft` | notification (aviso al vendedor con el motivo) | `NOTIFICATION_EVENTS_GRPC_URL` |
 

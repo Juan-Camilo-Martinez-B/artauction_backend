@@ -1,11 +1,13 @@
 import { catalogV1, commonV1 } from '@artauction/contracts';
 import type { StructuredLogger } from '@artauction/platform';
+import { DomainError } from '@artauction/platform';
 import { unary, type CallerResolver } from '@artauction/service-kit';
 import type {
   CreateLot,
   HashLotImage,
   RegisterLotImage,
   ResolveManualReview,
+  SetLotVisibility,
   SignImageUpload,
   SubmitLot,
   UpdateLot,
@@ -22,7 +24,16 @@ import type {
   ListCategories,
   ListPublicLots,
 } from '../../internal/application/queries';
-import { categoryToProto, decisionFromProto, imageToProto, lotToProto, representationFromProto, sortFromProto } from './mappers';
+import {
+  categoryToProto,
+  decisionFromProto,
+  destinationFromProto,
+  imageToProto,
+  lotToProto,
+  representationFromProto,
+  sortFromProto,
+  visibilityFromProto,
+} from './mappers';
 
 export interface CatalogUseCases {
   listPublic: ListPublicLots;
@@ -41,6 +52,7 @@ export interface CatalogUseCases {
   submit: SubmitLot;
   update: UpdateLot;
   myLots: ListMyLots;
+  setVisibility: SetLotVisibility;
   resolve: ResolveManualReview;
 }
 
@@ -125,6 +137,8 @@ export function catalogGrpcService(
         heightCm: request.heightCm,
         depthCm: request.depthCm,
         provenance: request.provenance,
+        destination: destinationFromProto(request.destination),
+        visibility: visibilityFromProto(request.visibility),
       });
       return catalogV1.CreateLotResponse.fromPartial({ lot: lot(created) });
     }),
@@ -176,6 +190,15 @@ export function catalogGrpcService(
     listMyLots: unary(logger, 'ListMyLots', async (_request, context) =>
       catalogV1.ListMyLotsResponse.fromPartial({ lots: (await useCases.myLots.execute(callers.user(context))).map(lot) }),
     ),
+
+    setLotVisibility: unary(logger, 'SetLotVisibility', async (request, context) => {
+      const visibility = visibilityFromProto(request.visibility);
+      if (visibility === null) {
+        throw DomainError.invalid('Indica si la obra es publica o privada.');
+      }
+      const updated = await useCases.setVisibility.execute(callers.user(context), request.lotId, visibility);
+      return catalogV1.SetLotVisibilityResponse.fromPartial({ lot: lot(updated) });
+    }),
 
     submitLot: unary(logger, 'SubmitLot', async (request, context) => {
       await useCases.submit.execute(callers.user(context), request.lotId);

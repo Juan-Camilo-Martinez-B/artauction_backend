@@ -26,9 +26,9 @@ export const SUPPORT_FROM_JSON: Readonly<Record<string, galleryV1.ArtworkSupport
 };
 
 const SOURCE: ReadonlyMap<galleryV1.ItemSource, string> = new Map([
+  [galleryV1.ItemSource.ITEM_SOURCE_PROYECTO, 'PROYECTO'],
   [galleryV1.ItemSource.ITEM_SOURCE_PROPIA, 'PROPIA'],
   [galleryV1.ItemSource.ITEM_SOURCE_GANADA, 'GANADA'],
-  [galleryV1.ItemSource.ITEM_SOURCE_GRATUITA, 'GRATUITA'],
 ]);
 
 function visibility(value: commonV1.Visibility): 'PUBLIC' | 'PRIVATE' {
@@ -36,9 +36,9 @@ function visibility(value: commonV1.Visibility): 'PUBLIC' | 'PRIVATE' {
 }
 
 /**
- * Sala con la ficha de cada obra. Una obra que dejo de ser publica (por
- * ejemplo, vendida) no se muestra: la posicion queda guardada pero su ficha ya
- * no es de acceso publico.
+ * Sala con la ficha de cada obra. La ficha la manda gallery-service, porque
+ * todo lo colgado es de la duena aunque sea privado o vendido. Una obra sin
+ * ficha (catalog no respondio) no se muestra; su posicion queda guardada.
  */
 export function galleryJson(gallery: galleryV1.PersonalGallery, lots: ReadonlyMap<string, catalogV1.Lot>) {
   return {

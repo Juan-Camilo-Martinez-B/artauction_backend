@@ -157,12 +157,18 @@ export class PersonalGalleryController {
     if (!gallery) {
       throw new Error('gallery-service respondio sin galeria');
     }
-    const lotIds = [...new Set(gallery.artworks.map((artwork) => artwork.lotId))];
-    let lots = new Map<string, catalogV1.Lot>();
-    if (lotIds.length > 0) {
+    // gallery-service manda la ficha de cada obra colgada: todo lo colgado es de
+    // la duena, aunque sea privado o ya vendido. Solo si falta se pide la publica.
+    const lots = new Map<string, catalogV1.Lot>(
+      gallery.artworks.flatMap((artwork) => (artwork.lot ? [[artwork.lotId, artwork.lot] as const] : [])),
+    );
+    const missing = [...new Set(gallery.artworks.map((artwork) => artwork.lotId))].filter((lotId) => !lots.has(lotId));
+    if (missing.length > 0) {
       try {
-        const response = await invoke(this.catalog.batchGetPublicLots.bind(this.catalog), { lotIds }, this.options());
-        lots = new Map(response.lots.map((lot) => [lot.id, lot]));
+        const response = await invoke(this.catalog.batchGetPublicLots.bind(this.catalog), { lotIds: missing }, this.options());
+        for (const lot of response.lots) {
+          lots.set(lot.id, lot);
+        }
       } catch (error) {
         this.logger.warn(`sala sin fichas de catalog: ${error instanceof Error ? error.message : String(error)}`, 'gallery');
       }

@@ -23,6 +23,10 @@ function text(payload: Record<string, unknown>, key: string): string {
   return typeof value === 'string' ? value : '';
 }
 
+function visibility(payload: Record<string, unknown>): commonV1.Visibility {
+  return payload['visibility'] === 'PUBLIC' ? commonV1.Visibility.VISIBILITY_PUBLIC : commonV1.Visibility.VISIBILITY_PRIVATE;
+}
+
 function integer(payload: Record<string, unknown>, key: string): number {
   const value = payload[key];
   return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : 0;
@@ -49,8 +53,32 @@ export function catalogOutboxRoutes(
       sellerId: text(message.payload, 'sellerId'),
       title: text(message.payload, 'title'),
       artistName: text(message.payload, 'artistName') || undefined,
+      personal: message.payload['personal'] === true,
+      visibility: visibility(message.payload),
     });
     await invoke(gallery.handleLotCreated.bind(gallery), { event }, {
+      deadlineMs: DEADLINE_MS,
+      authorization: await tokens.authorization(),
+    });
+  };
+
+  // Un proyecto propio que pasa al catalogo deja de ser PROYECTO en la galeria.
+  const submittedToGallery: OutboxDelivery = async (message) => {
+    const event = catalogEventsV1.LotSubmitted.fromPartial({ metadata: metadata(message), lotId: text(message.payload, 'lotId') });
+    await invoke(gallery.handleLotSubmitted.bind(gallery), { event }, {
+      deadlineMs: DEADLINE_MS,
+      authorization: await tokens.authorization(),
+    });
+  };
+
+  const visibilityToGallery: OutboxDelivery = async (message) => {
+    const event = catalogEventsV1.LotVisibilityChanged.fromPartial({
+      metadata: metadata(message),
+      lotId: text(message.payload, 'lotId'),
+      ownerId: text(message.payload, 'ownerId'),
+      visibility: visibility(message.payload),
+    });
+    await invoke(gallery.handleLotVisibilityChanged.bind(gallery), { event }, {
       deadlineMs: DEADLINE_MS,
       authorization: await tokens.authorization(),
     });
@@ -100,9 +128,10 @@ export function catalogOutboxRoutes(
   return {
     routes: new Map([
       [CATALOG_EVENTS.lotCreated, [toGallery]],
-      [CATALOG_EVENTS.lotSubmitted, [toAudit]],
+      [CATALOG_EVENTS.lotSubmitted, [toAudit, submittedToGallery]],
       [CATALOG_EVENTS.lotPublished, [toAuction]],
       [CATALOG_EVENTS.lotReturnedToDraft, [toNotification]],
+      [CATALOG_EVENTS.lotVisibilityChanged, [visibilityToGallery]],
     ]),
     close: () => {
       gallery.close();
