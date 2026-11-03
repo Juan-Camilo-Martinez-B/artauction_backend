@@ -44,6 +44,20 @@ Las salidas de la semilla quedan entre 238 y 675 artacoins. Así se puede pujar 
 | Retiro | Solo si faltan 4 minutos o más. Libera la retención y devuelve el precio a la siguiente oferta |
 | Idempotencia | La `idempotency_key` de la puja es única. Repetirla devuelve la misma puja con `idempotent: true` |
 
+## Compra inmediata
+
+Cada sala tiene un precio de compra inmediata: la salida por `BUY_NOW_FACTOR` (3 por defecto), redondeada hacia arriba a múltiplos de 50, y siempre mayor que la salida. Una salida de 600 da 1 800. Se fija al crear la sala o al abrirla a mano, y no cambia.
+
+| Regla | Detalle |
+|---|---|
+| Cuándo | Solo con la sala `ACTIVA` y mientras el precio actual no llegue al 80 % del precio de compra (`BUY_NOW_AVAILABLE_RATIO`). Las respuestas lo dicen con `buy_now_available` |
+| Quién | Cualquiera menos el vendedor |
+| Cómo | `BuyNow` sigue los pasos de una puja: el mismo Try en wallet por el precio de compra (menos lo que el comprador ya tenía retenido) y la misma clave de idempotencia. Dentro del bloqueo guarda una puja `BUY_NOW` que gana la sala, la cierra con `closed_by = BUY_NOW`, registra la venta y escribe `BidAccepted` y `AuctionClosed`, en ese orden |
+| Idempotencia | Repetir la clave devuelve la misma compra con `idempotent: true`; nunca se cobra dos veces |
+| Carreras | Comparte la cola de la sala con las pujas. Si dos personas compran a la vez, gana la primera que bloquea la sala; la otra recibe 409 y su reserva la devuelve el barrido de wallet |
+
+Desde ahí el cierre es el de siempre: wallet cobra al comprador, devuelve lo retenido a los demás y paga al vendedor menos la comisión; catalog marca la obra `VENDIDA` y gallery se la traspasa al comprador. `AuctionClosed` lleva `buy_now` y `losing_bidder_ids` (también en un cierre por tiempo) para que notification avise a todos, y la sala en vivo recibe el cierre con su motivo.
+
 ## Pujas con TCC sin bloqueo abierto
 
 La puja necesita dos recursos de dueños distintos: la sala (`auction`) y el saldo (`wallet`). Se coordinan con Try-Confirm-Cancel, y la llamada remota nunca ocurre con una fila bloqueada:
@@ -66,7 +80,7 @@ Escritos en `auction.outbox` en la misma transacción que el cambio y entregados
 | `AuctionStarted` | catalog (obra `EN_SUBASTA`) |
 | `BidAccepted` | wallet (confirma la reserva) |
 | `BidWithdrawn` | wallet (devuelve la retención) |
-| `AuctionClosed` | wallet (canje, liberaciones, pago al vendedor), catalog (`VENDIDA`), gallery y notification |
+| `AuctionClosed` | wallet (canje, liberaciones, pago al vendedor), catalog (`VENDIDA`), gallery (traspaso y actividad `WIN` o `BUY_NOW`) y notification (ganador, vendedor y postores que no ganaron). Lleva `buy_now` y `losing_bidder_ids` |
 | `AuctionRescheduled` | wallet (libera todo), catalog (vuelve a `PUBLICADA`) |
 
 Cada consumidor tiene su URL (`WALLET_GRPC_URL`, `CATALOG_GRPC_URL`, `GALLERY_EVENTS_GRPC_URL`, `NOTIFICATION_EVENTS_GRPC_URL`).
