@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min, MinLength } from 'class-validator';
 import type { TlsSettings } from '@artauction/platform';
 
 export class AuctionConfig {
@@ -58,6 +58,35 @@ export class AuctionConfig {
 
   @IsBoolean()
   OUTBOX_RELAY_ENABLED = true;
+
+  // Subastas rotativas del catalogo: cartelera de salas cortas sobre obras publicadas.
+  @IsBoolean()
+  AUTO_AUCTION_ENABLED = true;
+
+  @IsInt()
+  @Min(0)
+  @Max(20)
+  AUTO_AUCTION_SLOTS = 3;
+
+  @IsInt()
+  @Min(1)
+  @Max(180)
+  AUTO_AUCTION_MIN_MINUTES = 15;
+
+  @IsInt()
+  @Min(1)
+  @Max(180)
+  AUTO_AUCTION_MAX_MINUTES = 30;
+
+  @IsInt()
+  @Min(60)
+  @Max(3600)
+  AUTO_AUCTION_MAX_LEAD_SECONDS = 300;
+
+  @IsNumber()
+  @Min(0.01)
+  @Max(1)
+  AUTO_AUCTION_PRICE_FACTOR = 0.1;
 
   @IsBoolean()
   GRPC_TLS = false;

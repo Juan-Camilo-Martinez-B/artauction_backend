@@ -4,6 +4,20 @@ Bolsillo de **artacoins** de ArtAuction AI: saldo, recargas, retenciones de las 
 
 Una artacoin cuesta 1 USD. La pasarela de pago es **simulada**: no mueve dinero real ni guarda el número de tarjeta ni el CVV, solo la marca y los últimos cuatro dígitos.
 
+## Pasarela simulada
+
+Aprueba cualquier tarjeta inventada que tenga la forma de su marca y no esté vencida. No verifica el número contra un emisor, ni siquiera con el algoritmo de Luhn. Las reglas viven en `internal/domain/card.ts`, y el frontend las replica en `src/lib/payments/card.ts`.
+
+| Marca (prefijo) | Dígitos | CVV |
+|---|---|---|
+| Visa (`4`) | 16 | 3 |
+| Mastercard (`51`–`55`, `2221`–`2720`) | 16 | 3 |
+| American Express (`34`, `37`) | 15 | 4 |
+| Diners Club (`300`–`305`, `36`, `38`) | 14 | 3 |
+| Otras: marcas locales o tarjetas de almacén | 16 | 3 |
+
+La tarjeta vale hasta el último día de su mes de vencimiento. Se rechaza si está vencida o si el número o el CVV no tienen el largo de su marca.
+
 ## Recarga idempotente
 
 `TopUp` exige una clave de idempotencia por intento de pago (cabecera `Idempotency-Key` en el gateway).
@@ -67,4 +81,4 @@ npm start -w @artauction/wallet-service
 
 ## Pruebas
 
-`npm test -w @artauction/wallet-service`: pasarela simulada, recarga idempotente (repetición, conflicto, rechazo), retención incremental e insuficiencia de saldo, comisión del vendedor y decisiones del barrido.
+`npm test -w @artauction/wallet-service`: pasarela simulada (marcas, longitudes y vencimiento), recarga idempotente (repetición, conflicto, rechazo), retención incremental e insuficiencia de saldo, comisión del vendedor y decisiones del barrido.

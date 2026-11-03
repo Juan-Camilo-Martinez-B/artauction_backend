@@ -10,7 +10,7 @@ Cada usuario tiene una sala, que se crea en su primer acceso.
 |---|---|
 | Preferencias y diseño | Las preferencias del cuestionario se validan con `parsePreferences`. El diseño lo pide a ai-service; si no hay modelo, no responde o propone algo inválido, usa el diseño local (`designFromPreferences`). El usuario siempre obtiene una sala válida |
 | Cambios manuales | Editar la sala la deja `EDITADA`. Generar una nueva sobre cambios manuales pide confirmación (`409`) |
-| Colgar una obra | Solo obras públicas de catalog (`BatchGetPublicLots`). Una pintura va a la pared del fondo en filas de tres; una escultura, sobre pedestal. Repetirla no la duplica |
+| Colgar una obra | Solo obras públicas de catalog (`BatchGetPublicLots`). Una pintura va al primer hueco libre de 2 m, recorriendo el fondo, la izquierda, la derecha y la entrada; una escultura, al primer punto libre de una retícula de pedestales en el centro. Un hueco ocupado por una obra movida a mano se respeta. Repetirla no la duplica. El botón **Organizar** de la sala reparte todo según las medidas reales |
 | Mover una obra | Soporte entre `WALL`, `PEDESTAL`, `FLOOR`, `PLATFORM` y `NICHE`; escala mayor que 0 y hasta 3 |
 
 La sala guarda solo posiciones y el `lotId`. La ficha de cada obra la compone el api-gateway con catalog (ADR 0006). Si una obra dejó de ser pública, por ejemplo porque se vendió, no se muestra, aunque su posición queda guardada.
@@ -61,7 +61,7 @@ npm start -w @artauction/gallery-service
 
 `npm test -w @artauction/gallery-service`:
 
-- colocación inicial de pinturas y esculturas, y validación de soporte y escala;
+- colocación inicial en el primer hueco libre (pared del fondo llena, hueco liberado, retícula de pedestales) y validación de soporte y escala;
 - sala nueva, obras públicas sin duplicar, conflicto ante cambios manuales y configuración inválida;
 - seguir una sola vez, seguirse a sí mismo y usuario inexistente;
 - eventos repetidos sin duplicados, visibilidad de lo privado y feed de victorias;

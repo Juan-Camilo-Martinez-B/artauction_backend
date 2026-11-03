@@ -1,4 +1,5 @@
-import { IsISO8601, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, IsISO8601, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 // Importe con hasta dos decimales, como lo envia el frontend ("850" o "850.00").
 // La regla de artacoins enteras la aplica auction-service.
@@ -32,4 +33,21 @@ export class PlaceBidDto {
   @MinLength(8)
   @MaxLength(100)
   idempotencyKey!: string;
+}
+
+export class LiveAuctionsQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(24)
+  limit?: number;
+
+  /** Cuanto hacia adelante se muestran las salas programadas. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(2880)
+  horizonMinutes?: number;
 }

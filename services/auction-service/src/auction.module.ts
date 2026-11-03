@@ -19,8 +19,9 @@ import { auctionEventsGrpcService } from './api/grpc/auction-events.grpc';
 import { auctionGrpcService } from './api/grpc/auction.grpc';
 import { LiveBus } from './api/live/live-bus';
 import { PlaceBid, WithdrawBid } from './internal/application/bidding';
-import { BatchGetAuctionSummaries, GetAuction, GetBidByReservation } from './internal/application/queries';
-import { OpenAuction, RunScheduler, ScheduleApprovedLot } from './internal/application/scheduling';
+import { BatchGetAuctionSummaries, GetAuction, GetBidByReservation, ListLiveAuctions } from './internal/application/queries';
+import { OpenAuction, RotateCatalogAuctions, RunScheduler, ScheduleApprovedLot } from './internal/application/scheduling';
+import { assertRotationPolicy } from './internal/domain/auction-rules';
 import { AUCTION_SCHEMA, PrismaAuctionRepository } from './internal/infrastructure/prisma-auction.repository';
 import type { AuctionConfig } from './config';
 
@@ -36,6 +37,7 @@ const CALLERS = Symbol('CALLERS');
 const CLIENTS = Symbol('CLIENTS');
 const LIVE = Symbol('LIVE');
 const SCHEDULER = Symbol('SCHEDULER');
+const ROTATION = Symbol('ROTATION');
 const RELAY = Symbol('RELAY');
 
 const clock = { now: () => new Date() };
@@ -94,6 +96,7 @@ const providers: Provider[] = [
           placeBid: new PlaceBid(auctions, new GrpcWalletClient(clients.wallet, clients.tokens), live, clock, lane),
           withdrawBid: new WithdrawBid(auctions, clock, lane),
           summaries: new BatchGetAuctionSummaries(auctions),
+          live: new ListLiveAuctions(auctions, clock),
           bidByReservation: new GetBidByReservation(auctions),
         },
         callers,
@@ -116,6 +119,23 @@ const providers: Provider[] = [
     provide: SCHEDULER,
     inject: [REPOSITORY, LIVE],
     useFactory: (auctions: PrismaAuctionRepository, live: LiveBus) => new RunScheduler(auctions, live, clock),
+  },
+  {
+    provide: ROTATION,
+    inject: [CONFIG, REPOSITORY, CLIENTS],
+    useFactory: (config: AuctionConfig, auctions: PrismaAuctionRepository, clients: Clients) =>
+      new RotateCatalogAuctions(
+        auctions,
+        new GrpcCatalogClient(clients.catalog, clients.tokens),
+        clock,
+        assertRotationPolicy({
+          slots: config.AUTO_AUCTION_SLOTS,
+          minMinutes: config.AUTO_AUCTION_MIN_MINUTES,
+          maxMinutes: config.AUTO_AUCTION_MAX_MINUTES,
+          maxLeadMs: config.AUTO_AUCTION_MAX_LEAD_SECONDS * 1000,
+          priceFactor: config.AUTO_AUCTION_PRICE_FACTOR,
+        }),
+      ),
   },
   {
     provide: RELAY,
@@ -147,6 +167,7 @@ export class AuctionModule implements OnApplicationBootstrap, OnApplicationShutd
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(CLIENTS) private readonly clients: Clients,
     @Inject(SCHEDULER) private readonly scheduler: RunScheduler,
+    @Inject(ROTATION) private readonly rotation: RotateCatalogAuctions,
     @Inject(RELAY) private readonly relay: { relay: OutboxRelay; close: () => void },
     @Inject(LOGGER) private readonly logger: StructuredLogger,
   ) {}
@@ -189,6 +210,18 @@ export class AuctionModule implements OnApplicationBootstrap, OnApplicationShutd
     }
     this.running = true;
     try {
+      await this.runScheduler();
+      // Despues del cierre: una sala que acaba de cerrar libera su lugar en la misma pasada.
+      if (this.config.AUTO_AUCTION_ENABLED) {
+        await this.runRotation();
+      }
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async runScheduler(): Promise<void> {
+    try {
       const result = await this.scheduler.execute();
       if (result.opened + result.closed + result.rescheduled > 0) {
         this.logger.log(
@@ -198,8 +231,18 @@ export class AuctionModule implements OnApplicationBootstrap, OnApplicationShutd
       }
     } catch (error) {
       this.logger.error(error instanceof Error ? error.message : String(error), undefined, 'scheduler');
-    } finally {
-      this.running = false;
+    }
+  }
+
+  /** Si catalog no responde, se registra y la siguiente pasada reintenta sin frenar el planificador. */
+  private async runRotation(): Promise<void> {
+    try {
+      const { created, recycled } = await this.rotation.execute();
+      if (created + recycled > 0) {
+        this.logger.log(`salas rotativas: nuevas ${String(created)}, recicladas ${String(recycled)}`, 'rotation');
+      }
+    } catch (error) {
+      this.logger.error(error instanceof Error ? error.message : String(error), undefined, 'rotation');
     }
   }
 }

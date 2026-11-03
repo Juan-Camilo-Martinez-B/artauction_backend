@@ -37,6 +37,8 @@ export interface LotRepository {
   findActiveCategory(slug: string): Promise<Category | null>;
   /** Obras en un estado, la mas antigua primero. */
   listByStatus(status: LotStatus, limit: number): Promise<Lot[]>;
+  /** Muestra al azar de obras publicadas y publicas con precio sugerido. */
+  sampleAuctionable(limit: number): Promise<Lot[]>;
   /** Imagenes de otras obras a distancia de Hamming <= maxDistance de algun hash. */
   findSimilarImages(lotId: string, hashes: readonly string[], maxDistance: number): Promise<SimilarImage[]>;
   listActiveCategories(): Promise<Category[]>;

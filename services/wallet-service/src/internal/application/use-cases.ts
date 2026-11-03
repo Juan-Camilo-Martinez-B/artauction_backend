@@ -13,7 +13,7 @@ import {
 } from '../domain/wallet';
 import type { BidLookup, CardDetails, Clock, PaymentGateway, TopUpRecord, WalletRepository } from './ports';
 
-const REJECTED = 'La pasarela rechazo la tarjeta.';
+const REJECTED = 'La pasarela rechazo la tarjeta: revisa que no este vencida y que el numero y el codigo esten completos.';
 const KEY_REUSED = 'La clave de idempotencia ya se uso con otros datos.';
 
 export class GetWallet {

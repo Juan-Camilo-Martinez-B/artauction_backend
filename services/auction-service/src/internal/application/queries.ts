@@ -1,6 +1,6 @@
 import { DomainError } from '@artauction/platform';
 import type { Auction, Bid } from '../domain/auction';
-import type { AuctionRepository } from './ports';
+import type { AuctionRepository, Clock } from './ports';
 
 const MAX_BATCH = 100;
 
@@ -26,6 +26,25 @@ export class BatchGetAuctionSummaries {
       throw DomainError.invalid(`Se piden como maximo ${String(MAX_BATCH)} obras por llamada.`);
     }
     return this.auctions.findByLotIds(unique);
+  }
+}
+
+const MAX_LIVE = 24;
+const DEFAULT_LIVE = 12;
+const DEFAULT_HORIZON_MINUTES = 6 * 60;
+const MAX_HORIZON_MINUTES = 48 * 60;
+
+/** Cartelera publica de salas activas y proximas. */
+export class ListLiveAuctions {
+  constructor(
+    private readonly auctions: AuctionRepository,
+    private readonly clock: Clock,
+  ) {}
+
+  execute(limit: number, horizonMinutes: number): Promise<Auction[]> {
+    const size = limit > 0 ? Math.min(Math.trunc(limit), MAX_LIVE) : DEFAULT_LIVE;
+    const horizon = horizonMinutes > 0 ? Math.min(Math.trunc(horizonMinutes), MAX_HORIZON_MINUTES) : DEFAULT_HORIZON_MINUTES;
+    return this.auctions.listLive(this.clock.now(), horizon * 60_000, size);
   }
 }
 

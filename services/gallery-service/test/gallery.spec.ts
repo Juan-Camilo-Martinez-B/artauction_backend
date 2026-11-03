@@ -124,9 +124,30 @@ describe('reglas de la sala', () => {
     preferences: {}, suggestedConfig: null, appliedConfig: { architecture: { roomDepth: 12 } }, artworks: [],
   };
 
-  it('cuelga la pintura en la pared del fondo y la escultura sobre pedestal', () => {
-    expect(initialPlacement(empty, LOTS[LOT] as PublicLot)).toEqual({ posX: -3.2, posY: 1.55, posZ: -5.92, rotY: 0, scale: 1, support: 'WALL' });
-    expect(initialPlacement(empty, LOTS[SCULPTURE] as PublicLot)).toMatchObject({ posX: -2, posY: 0, support: 'PEDESTAL' });
+  const wall = (posX: number, posZ: number, rotY = 0): Artwork => ({ id: `w${String(posX)}${String(posZ)}`, lotId: LOT, posX, posY: 1.55, posZ, rotY, scale: 1, support: 'WALL' });
+  const plinth = (posX: number, posZ: number): Artwork => ({ id: `p${String(posX)}${String(posZ)}`, lotId: SCULPTURE, posX, posY: 0, posZ, rotY: 0, scale: 1, support: 'PEDESTAL' });
+
+  it('cuelga la primera pintura en el primer hueco del fondo y la escultura al centro', () => {
+    // Sala de 12 x 12: el fondo tiene 5 huecos de 2 m, centrados.
+    expect(initialPlacement(empty, LOTS[LOT] as PublicLot)).toEqual({ posX: -4, posY: 1.55, posZ: -5.96, rotY: 0, scale: 1, support: 'WALL' });
+    expect(initialPlacement(empty, LOTS[SCULPTURE] as PublicLot)).toEqual({ posX: 0, posY: 0, posZ: 0, rotY: 0, scale: 1, support: 'PEDESTAL' });
+  });
+
+  it('no cuelga una obra encima de otra: con el fondo lleno pasa a la pared izquierda', () => {
+    const full = { ...empty, artworks: [-4, -2, 0, 2, 4].map((x) => wall(x, -5.96)) };
+    const next = initialPlacement(full, LOTS[LOT] as PublicLot);
+    expect(next).toMatchObject({ posX: -5.96, posZ: 4, support: 'WALL' });
+    expect(next.rotY).toBeCloseTo(Math.PI / 2);
+  });
+
+  it('reutiliza el hueco que dejo una obra retirada', () => {
+    const gap = { ...empty, artworks: [-4, 0, 2].map((x) => wall(x, -5.96)) };
+    expect(initialPlacement(gap, LOTS[LOT] as PublicLot)).toMatchObject({ posX: -2, posZ: -5.96 });
+  });
+
+  it('pone el segundo pedestal en el siguiente punto libre de la reticula', () => {
+    const one = { ...empty, artworks: [plinth(0, 0)] };
+    expect(initialPlacement(one, LOTS[SCULPTURE] as PublicLot)).toMatchObject({ posX: 0, posZ: -2.4, support: 'PEDESTAL' });
   });
 
   it('valida soporte y escala al mover una obra', () => {

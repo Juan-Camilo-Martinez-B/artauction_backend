@@ -12,6 +12,7 @@ import type {
 import type {
   BatchGetLotSnapshots,
   FindSimilarImages,
+  ListAuctionCandidates,
   ListReviewQueue,
   BatchGetPublicLots,
   GetLotForViewer,
@@ -29,6 +30,7 @@ export interface CatalogUseCases {
   batchPublic: BatchGetPublicLots;
   batchSnapshots: BatchGetLotSnapshots;
   similarImages: FindSimilarImages;
+  auctionCandidates: ListAuctionCandidates;
   reviewQueue: ListReviewQueue;
   create: CreateLot;
   signUpload: SignImageUpload;
@@ -96,6 +98,13 @@ export function catalogGrpcService(
       callers.service(context, ['audit-service']);
       return catalogV1.FindSimilarImagesResponse.fromPartial({
         matches: await useCases.similarImages.execute(request.lotId, request.perceptualHashes, request.maxDistance),
+      });
+    }),
+
+    listAuctionCandidates: unary(logger, 'ListAuctionCandidates', async (request, context) => {
+      callers.service(context, ['auction-service']);
+      return catalogV1.ListAuctionCandidatesResponse.fromPartial({
+        lots: (await useCases.auctionCandidates.execute(request.limit)).map(lot),
       });
     }),
 

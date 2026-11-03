@@ -92,6 +92,7 @@ describe('rutas /auctions sobre auction-service', () => {
   let gateway: NestExpressApplication;
   let base: string;
   const placed: Array<{ request: auctionV1.PlaceBidRequest; authorization: string | undefined }> = [];
+  const liveRequests: auctionV1.ListLiveAuctionsRequest[] = [];
 
   beforeAll(async () => {
     const auction = auctionV1.Auction.fromPartial({
@@ -139,6 +140,10 @@ describe('rutas /auctions sobre auction-service', () => {
       batchGetAuctionSummaries: unary(logger, 'BatchGetAuctionSummaries', () =>
         Promise.resolve(auctionV1.BatchGetAuctionSummariesResponse.fromPartial({})),
       ),
+      listLiveAuctions: unary(logger, 'ListLiveAuctions', (request) => {
+        liveRequests.push(request);
+        return Promise.resolve(auctionV1.ListLiveAuctionsResponse.fromPartial({}));
+      }),
       getBidByReservation: unary(logger, 'GetBidByReservation', () =>
         Promise.resolve(auctionV1.GetBidByReservationResponse.fromPartial({})),
       ),
@@ -188,6 +193,14 @@ describe('rutas /auctions sobre auction-service', () => {
     expect(body.auction['bids']).toEqual([
       { id: 'b1', auctionId: AUCTION_ID, bidderId: 'u2', amount: '850', active: true, createdAt: '2026-10-28T10:01:00.000Z' },
     ]);
+  });
+
+  it('sirve la cartelera en /auctions/live sin confundirla con un id', async () => {
+    const response = await fetch(`${base}/auctions/live?limit=6&horizonMinutes=90`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ items: [], serverTime: expect.any(String) as unknown });
+    expect(liveRequests.at(-1)).toEqual({ limit: 6, horizonMinutes: 90 });
+    expect((await fetch(`${base}/auctions/live?limit=99`)).status).toBe(400);
   });
 
   it('traduce la subasta inexistente a 404 y rechaza ids que no son uuid', async () => {

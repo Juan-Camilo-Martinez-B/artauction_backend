@@ -12,7 +12,8 @@ import type {
   WalletRepository,
 } from '../src/internal/application/ports';
 import { SettleClosedAuction, SweepExpiredReservations, TopUp, TryHold } from '../src/internal/application/use-cases';
-import { DECLINED_CARD, luhnOk, SimulatedPaymentGateway } from '../src/internal/infrastructure/simulated-payment-gateway';
+import { brandOf, cardShapeOk, cardStillValid } from '../src/internal/domain/card';
+import { SimulatedPaymentGateway } from '../src/internal/infrastructure/simulated-payment-gateway';
 
 const USER = 'a0000000-0000-4000-8000-000000000003';
 const CARD = { number: '4242424242424242', name: 'Leo Postor', expMonth: 12, expYear: 2030, cvv: '123' };
@@ -149,12 +150,39 @@ describe('pasarela simulada', () => {
   const charge = (card: Partial<typeof CARD>) =>
     gateway.charge({ card: { ...CARD, ...card }, amountCents: 10_000, idempotencyKey: 'key-0000001' });
 
-  it('aprueba una tarjeta valida y rechaza la de prueba, la caducada y el CVV corto', async () => {
-    expect(luhnOk('4242424242424242')).toBe(true);
+  it('aprueba cualquier numero con la forma de su marca, aunque no pase Luhn', async () => {
     await expect(charge({})).resolves.toEqual({ approved: true, brand: 'visa', last4: '4242' });
-    expect((await charge({ number: DECLINED_CARD })).approved).toBe(false);
+    await expect(charge({ number: '4000 0000 0000 0002' })).resolves.toMatchObject({ approved: true });
+    await expect(charge({ number: '1234567890123456' })).resolves.toMatchObject({ approved: true, brand: 'otra' });
+    await expect(charge({ number: '378282246310005', cvv: '1234' })).resolves.toMatchObject({ approved: true, brand: 'amex' });
+  });
+
+  it('rechaza la tarjeta vencida y la que no tiene la forma de su marca', async () => {
+    expect((await charge({ expMonth: 9, expYear: 2026 })).approved).toBe(false);
     expect((await charge({ expYear: 2020 })).approved).toBe(false);
     expect((await charge({ cvv: '12' })).approved).toBe(false);
+    expect((await charge({ number: '42424242' })).approved).toBe(false);
+    expect((await charge({ number: '378282246310005', cvv: '123' })).approved).toBe(false);
+  });
+
+  it('acepta la tarjeta durante todo su mes de vencimiento', () => {
+    const now = new Date('2026-10-31T23:00:00Z');
+    expect(cardStillValid(10, 2026, now)).toBe(true);
+    expect(cardStillValid(10, 26, now)).toBe(true);
+    expect(cardStillValid(9, 2026, now)).toBe(false);
+    expect(cardStillValid(13, 2027, now)).toBe(false);
+  });
+
+  it('reconoce las marcas que circulan en Colombia y su longitud', () => {
+    expect(brandOf('4111111111111111')).toBe('visa');
+    expect(brandOf('5555555555554444')).toBe('mastercard');
+    expect(brandOf('2223003122003222')).toBe('mastercard');
+    expect(brandOf('371449635398431')).toBe('amex');
+    expect(brandOf('36227206271667')).toBe('diners');
+    expect(cardShapeOk('36227206271667', '123')).toBe(true);
+    expect(cardShapeOk('3622720627166', '123')).toBe(false);
+    expect(cardShapeOk('4111 1111 1111 1111', '123')).toBe(true);
+    expect(cardShapeOk('4111-1111-1111-1111', '123')).toBe(false);
   });
 });
 
@@ -179,7 +207,7 @@ describe('recarga idempotente', () => {
   it('una tarjeta rechazada sigue rechazada al repetir la clave, sin abonar', async () => {
     const wallets = new MemoryWallets();
     const topUp = new TopUp(wallets, new SimulatedPaymentGateway());
-    const declined = { ...CARD, number: DECLINED_CARD };
+    const declined = { ...CARD, expMonth: 1, expYear: 2020 };
     await expectKind(topUp.execute(USER, { idempotencyKey: 'topup-key-003', coins: 500, card: declined }), 'INVALID_ARGUMENT');
     await expectKind(topUp.execute(USER, { idempotencyKey: 'topup-key-003', coins: 500, card: declined }), 'INVALID_ARGUMENT');
     expect(wallets.orders).toHaveLength(1);

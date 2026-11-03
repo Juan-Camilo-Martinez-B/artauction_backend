@@ -20,6 +20,7 @@ No contiene reglas de negocio. Hace cinco cosas:
 | `GET /admin/reviews` | cola de revisión manual: `ListReviewQueue` de catalog compuesto con `BatchGetReviewReports` de audit (hallazgos con el valor de sus evidencias). Si audit no responde, cada obra sale con `audit: null`. Solo ADMIN |
 | `POST /admin/lots/:id/resolve` | catalog-service (el rol ADMIN lo comprueba el servicio) |
 | `GET /wallet`, `POST /wallet/top-ups` | wallet-service. La recarga exige la cabecera `Idempotency-Key` (400 sin ella); 20 por minuto |
+| `GET /auctions/live` | cartelera: `ListLiveAuctions` de auction compuesto con `BatchGetPublicLots` de catalog, en el formato de `GET /lots`, con `serverTime`. `limit` (1 a 24) y `horizonMinutes` (1 a 2880) |
 | `GET /auctions/:id`, `POST /auctions`, `POST /auctions/:id/bids`, `POST /auctions/:id/withdraw` | auction-service. Las pujas no exponen su clave de idempotencia; 30 pujas por minuto |
 | `/me/gallery/*` | gallery-service. El gateway completa cada obra colgada con su ficha pública de catalog; una obra que dejó de ser pública no se muestra |
 | `GET /galleries/:ownerId`, `POST /users/:id/follow`, `GET /feed` | gallery-service |

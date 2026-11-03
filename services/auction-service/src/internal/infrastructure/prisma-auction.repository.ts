@@ -1,8 +1,8 @@
 import { appendToOutbox, recordInbox, sqlExecutorFrom, type DomainEvent } from '@artauction/platform';
 import { Prisma, type PrismaClient } from '../../generated/prisma';
-import type { Auction, Bid } from '../domain/auction';
+import type { Auction, AuctionOrigin, Bid } from '../domain/auction';
 import type { AuctionStatus } from '../domain/auction-rules';
-import type { AuctionPatch, AuctionRepository, AuctionUnitOfWork, NewAuction } from '../application/ports';
+import type { AuctionPatch, AuctionRepository, AuctionUnitOfWork, NewAuction, RotationTurn } from '../application/ports';
 
 export const AUCTION_SCHEMA = 'auction';
 
@@ -12,6 +12,9 @@ type BidRow = Prisma.BidGetPayload<object>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES: ReadonlySet<string> = new Set(['PROGRAMADA', 'ACTIVA', 'CERRADA']);
+const ORIGINS: ReadonlySet<string> = new Set(['SCHEDULED', 'MANUAL', 'ROTATION']);
+// Llave del advisory lock que serializa la rotacion entre instancias.
+const ROTATION_LOCK = 'auction.rotation';
 
 function toAuction(row: AuctionRow): Auction {
   if (!STATUSES.has(row.status)) {
@@ -20,6 +23,9 @@ function toAuction(row: AuctionRow): Auction {
   if (row.sellerId === null) {
     // La migracion 0018 rellena el vendedor; una fila sin el no puede validar pujas.
     throw new Error(`La subasta ${row.id} no tiene vendedor`);
+  }
+  if (!ORIGINS.has(row.origin)) {
+    throw new Error(`Origen desconocido en auction.auctions: ${row.origin}`);
   }
   return {
     id: row.id,
@@ -38,6 +44,7 @@ function toAuction(row: AuctionRow): Auction {
     extensionCount: row.extensionCount,
     durationMinutes: row.durationMinutes,
     saleDescription: row.saleDescription,
+    origin: row.origin as AuctionOrigin,
   };
 }
 
@@ -55,7 +62,11 @@ function toBid(row: BidRow): Bid {
 function patchData(patch: AuctionPatch): Prisma.AuctionUpdateInput {
   const data: Prisma.AuctionUpdateInput = {};
   if (patch.status !== undefined) data.status = patch.status;
+  if (patch.startPrice !== undefined) data.startPrice = patch.startPrice;
+  if (patch.minIncrement !== undefined) data.minIncrement = patch.minIncrement;
   if (patch.currentPrice !== undefined) data.currentPrice = patch.currentPrice;
+  if (patch.durationMinutes !== undefined) data.durationMinutes = patch.durationMinutes;
+  if (patch.origin !== undefined) data.origin = patch.origin;
   if (patch.startsAt !== undefined) data.startsAt = patch.startsAt;
   if (patch.endsAt !== undefined) data.endsAt = patch.endsAt;
   if (patch.initialEndsAt !== undefined) data.initialEndsAt = patch.initialEndsAt;
@@ -64,6 +75,19 @@ function patchData(patch: AuctionPatch): Prisma.AuctionUpdateInput {
   if (patch.winnerId !== undefined) data.winnerId = patch.winnerId;
   if (patch.winningBidId !== undefined) data.winningBidId = patch.winningBidId;
   return data;
+}
+
+async function createIfAbsent(tx: Tx, auction: NewAuction): Promise<Auction | null> {
+  if (await tx.auction.findUnique({ where: { lotId: auction.lotId }, select: { id: true } })) {
+    return null;
+  }
+  return toAuction(await tx.auction.create({ data: newAuctionData(auction) }));
+}
+
+function liveWhere(now: Date, horizonMs: number): Prisma.AuctionWhereInput {
+  return {
+    OR: [{ status: 'ACTIVA' }, { status: 'PROGRAMADA', startsAt: { lte: new Date(now.getTime() + horizonMs) } }],
+  };
 }
 
 function unitOfWork(tx: Tx): AuctionUnitOfWork {
@@ -81,6 +105,15 @@ function unitOfWork(tx: Tx): AuctionUnitOfWork {
         return null;
       }
       return toAuction(await tx.auction.findUniqueOrThrow({ where: { id: auctionId } }));
+    },
+    async lockByLot(lotId) {
+      if (!UUID.test(lotId)) {
+        return null;
+      }
+      const rows = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id::text AS id FROM auction.auctions WHERE lot_id = CAST(${lotId} AS uuid) FOR UPDATE`;
+      const id = rows[0]?.id;
+      return id ? toAuction(await tx.auction.findUniqueOrThrow({ where: { id } })) : null;
     },
     async bidByKey(idempotencyKey) {
       const row = await tx.bid.findUnique({ where: { idempotencyKey } });
@@ -121,12 +154,7 @@ function unitOfWork(tx: Tx): AuctionUnitOfWork {
     async recordSale(sale) {
       await tx.sale.create({ data: { ...sale, status: 'COMPLETADA' } });
     },
-    async createIfAbsent(auction) {
-      if (await tx.auction.findUnique({ where: { lotId: auction.lotId }, select: { id: true } })) {
-        return null;
-      }
-      return toAuction(await tx.auction.create({ data: newAuctionData(auction) }));
-    },
+    createIfAbsent: (auction) => createIfAbsent(tx, auction),
     async emit(events: DomainEvent[]) {
       await appendToOutbox(sqlExecutorFrom(tx), AUCTION_SCHEMA, events);
     },
@@ -209,6 +237,55 @@ export class PrismaAuctionRepository implements AuctionRepository {
     return rows.map((row) => row.id);
   }
 
+  async listLive(now: Date, horizonMs: number, limit: number): Promise<Auction[]> {
+    const active = await this.prisma.auction.findMany({ where: { status: 'ACTIVA' }, orderBy: { endsAt: 'asc' }, take: limit });
+    const upcoming =
+      active.length < limit
+        ? await this.prisma.auction.findMany({
+            where: { status: 'PROGRAMADA', startsAt: { lte: new Date(now.getTime() + horizonMs) } },
+            orderBy: { startsAt: 'asc' },
+            take: limit - active.length,
+          })
+        : [];
+    return [...active, ...upcoming].map(toAuction);
+  }
+
+  countLive(now: Date, horizonMs: number): Promise<number> {
+    return this.prisma.auction.count({ where: liveWhere(now, horizonMs) });
+  }
+
+  withRotationLock<T>(work: (turn: RotationTurn) => Promise<T>): Promise<T | null> {
+    return this.prisma.$transaction(async (tx) => {
+      // try: si otra instancia tiene el turno, esta lo salta en vez de esperar.
+      const [row] = await tx.$queryRaw<Array<{ locked: boolean }>>`
+        SELECT pg_try_advisory_xact_lock(hashtext(${ROTATION_LOCK})) AS locked`;
+      if (!row?.locked) {
+        return null;
+      }
+      return work({
+        countLive: (now, horizonMs) => tx.auction.count({ where: liveWhere(now, horizonMs) }),
+        createIfAbsent: (auction) => createIfAbsent(tx, auction),
+        async recyclable(now, horizonMs, limit) {
+          const rows = await tx.$queryRaw<Array<{ id: string }>>`
+            SELECT id::text AS id FROM auction.auctions
+             WHERE status = 'PROGRAMADA' AND origin = 'ROTATION'
+               AND starts_at > ${new Date(now.getTime() + horizonMs)}
+             ORDER BY random()
+             LIMIT ${limit}
+             FOR UPDATE SKIP LOCKED`;
+          if (rows.length === 0) {
+            return [];
+          }
+          const found = await tx.auction.findMany({ where: { id: { in: rows.map((row) => row.id) } } });
+          return found.map(toAuction);
+        },
+        async update(auctionId, patch) {
+          await tx.auction.update({ where: { id: auctionId }, data: patchData(patch) });
+        },
+      });
+    });
+  }
+
   async dueToClose(now: Date, limit: number): Promise<string[]> {
     const rows = await this.prisma.auction.findMany({
       where: { status: 'ACTIVA', endsAt: { lte: now } },
@@ -235,5 +312,6 @@ function newAuctionData(auction: NewAuction): Prisma.AuctionCreateInput {
     status: 'PROGRAMADA',
     durationMinutes: auction.durationMinutes,
     saleDescription: auction.saleDescription,
+    origin: auction.origin,
   };
 }

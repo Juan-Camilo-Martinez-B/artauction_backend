@@ -93,6 +93,20 @@ export class PrismaLotRepository implements LotRepository {
     return rows.map(toLot);
   }
 
+  async sampleAuctionable(limit: number): Promise<Lot[]> {
+    // Prisma no ordena al azar: se eligen los ids en SQL y luego se cargan con sus relaciones.
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id::text AS id
+        FROM catalog.lots
+       WHERE status = 'PUBLICADA'
+         AND visibility = 'PUBLIC'
+         AND suggested_price_min IS NOT NULL
+         AND suggested_price_max IS NOT NULL
+       ORDER BY random()
+       LIMIT ${limit}`;
+    return this.findByIds(rows.map((row) => row.id));
+  }
+
   async findByIds(lotIds: readonly string[]): Promise<Lot[]> {
     const ids = lotIds.filter((id) => UUID.test(id));
     if (ids.length === 0) {
