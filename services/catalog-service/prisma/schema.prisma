@@ -37,10 +37,28 @@ model Lot {
 
   images     LotImage[]
   categories LotCategory[]
+  reviews    LotReview[]
 
   @@index([sellerId], map: "lots_seller_id_idx")
   @@index([status], map: "lots_status_idx")
   @@map("lots")
+}
+
+// Decisiones de un administrador en la revision manual (desde 0026).
+model LotReview {
+  id        String   @id @default(uuid()) @db.Uuid
+  lotId     String   @map("lot_id") @db.Uuid
+  adminId   String   @map("admin_id") @db.Uuid
+  decision  String
+  reason    String?
+  priceMin  Decimal? @map("price_min") @db.Decimal(12, 2)
+  priceMax  Decimal? @map("price_max") @db.Decimal(12, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  lot Lot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@index([lotId, createdAt(sort: Desc)], map: "lot_reviews_lot_created_idx")
+  @@map("lot_reviews")
 }
 
 model LotImage {

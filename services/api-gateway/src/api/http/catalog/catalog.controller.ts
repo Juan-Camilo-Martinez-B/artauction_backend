@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import { auctionV1, auditV1, catalogV1 } from '@artauction/contracts';
 import type { StructuredLogger } from '@artauction/platform';
 import { invoke } from '@artauction/service-kit';
@@ -46,6 +46,14 @@ export class CatalogController {
     };
   }
 
+  /** Obras del vendedor que llama, en todos sus estados. Va antes de ':id'. */
+  @Get('mine')
+  async mine(@Headers('authorization') authorization: string | undefined) {
+    const response = await invoke(this.catalog.listMyLots.bind(this.catalog), {}, this.options(authorization));
+    const auctions = await this.auctionsFor(response.lots.map((lot) => lot.id));
+    return response.lots.map((lot) => lotJson(lot, auctions.get(lot.id)));
+  }
+
   @Get('categories')
   async categories() {
     const response = await invoke(this.catalog.listCategories.bind(this.catalog), {}, this.options());
@@ -75,6 +83,33 @@ export class CatalogController {
     const response = await invoke(
       this.catalog.createLot.bind(this.catalog),
       catalogV1.CreateLotRequest.fromPartial({
+        title: body.title,
+        description: body.description,
+        artistName: body.artistName,
+        creationYear: body.creationYear,
+        materials: body.materials,
+        categorySlug: body.categorySlug,
+        representationKind: REPRESENTATION_FROM_JSON[body.representationKind],
+        widthCm: String(body.widthCm),
+        heightCm: String(body.heightCm),
+        depthCm: body.depthCm === undefined ? undefined : String(body.depthCm),
+        provenance: body.provenance,
+      }),
+      this.options(authorization),
+    );
+    if (!response.lot) {
+      throw new Error('catalog-service respondio sin obra');
+    }
+    return lotJson(response.lot);
+  }
+
+  /** El vendedor corrige su obra en borrador (por ejemplo, tras una devolucion). */
+  @Patch(':id')
+  async update(@Headers('authorization') authorization: string | undefined, @Param('id') id: string, @Body() body: CreateLotDto) {
+    const response = await invoke(
+      this.catalog.updateLot.bind(this.catalog),
+      catalogV1.UpdateLotRequest.fromPartial({
+        lotId: id,
         title: body.title,
         description: body.description,
         artistName: body.artistName,

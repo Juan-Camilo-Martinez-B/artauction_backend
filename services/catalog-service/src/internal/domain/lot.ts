@@ -1,5 +1,6 @@
 import { DomainError } from '@artauction/platform';
 import { CLOSED_STATUSES, PUBLIC_STATUSES, type LotStatus } from './lot-status';
+import type { LotReview } from './review';
 
 export type Visibility = 'PUBLIC' | 'PRIVATE';
 export type RepresentationKind = 'TWO_D' | 'THREE_D' | 'OTHER';
@@ -52,6 +53,8 @@ export interface Lot {
   createdAt: Date;
   images: LotImage[];
   categories: Array<{ isPrimary: boolean; category: Category }>;
+  /** Ultima decision de un administrador; null si nunca paso por revision manual. */
+  lastReview: LotReview | null;
 }
 
 export function canViewLot(lot: Pick<Lot, 'visibility' | 'sellerId'>, viewerId: string | null): boolean {
@@ -77,6 +80,18 @@ export function assertOwnedAndOpen(lot: Lot | null, actor: Actor): Lot {
     throw DomainError.invalid('El lote esta cerrado');
   }
   return lot;
+}
+
+/**
+ * La ficha y la imagen solo se cambian en borrador: una obra auditada no puede
+ * cambiar de foto ni de datos sin volver a pasar la auditoria.
+ */
+export function assertEditable(lot: Lot | null, actor: Actor): Lot {
+  const owned = assertOwnedAndOpen(lot, actor);
+  if (owned.status !== 'BORRADOR') {
+    throw DomainError.precondition('Solo se puede cambiar una obra en borrador. Si un administrador te la devuelve, podras editarla.');
+  }
+  return owned;
 }
 
 export interface NewLot {

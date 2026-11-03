@@ -17,8 +17,9 @@ No contiene reglas de negocio. Hace cinco cosas:
 | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `GET/PATCH /auth/me` | identity-service |
 | `GET /lots`, `GET /lots/categories`, `GET /lots/:id`, `GET /lots/:id/related` | catalog-service, compuesto con el resumen de subasta y el último informe de auditoría |
 | `POST /lots`, `/lots/:id/hash`, `/lots/:id/uploads`, `/lots/:id/images`, `/lots/:id/submit` | catalog-service |
+| `GET /lots/mine`, `PATCH /lots/:id` | catalog-service: las obras del vendedor (con su última revisión) y la edición de una obra en borrador |
 | `GET /admin/reviews` | cola de revisión manual: `ListReviewQueue` de catalog compuesto con `BatchGetReviewReports` de audit (hallazgos con el valor de sus evidencias). Si audit no responde, cada obra sale con `audit: null`. Solo ADMIN |
-| `POST /admin/lots/:id/resolve` | catalog-service (el rol ADMIN lo comprueba el servicio) |
+| `POST /admin/lots/:id/resolve` | catalog-service (el rol ADMIN lo comprueba el servicio). `verdict` es `APROBADO` (con `priceMin` y `priceMax` opcionales u obligatorios si la obra no tiene precio), `BORRADOR` (con `reason`) o `REAUDITAR` |
 | `GET /wallet`, `POST /wallet/top-ups` | wallet-service. La recarga exige la cabecera `Idempotency-Key` (400 sin ella); 20 por minuto |
 | `GET /auctions/live` | cartelera: `ListLiveAuctions` de auction compuesto con `BatchGetPublicLots` de catalog, en el formato de `GET /lots`, con `serverTime`. `limit` (1 a 24) y `horizonMinutes` (1 a 2880) |
 | `GET /auctions/:id`, `POST /auctions`, `POST /auctions/:id/bids`, `POST /auctions/:id/withdraw` | auction-service. Las pujas no exponen su clave de idempotencia; 30 pujas por minuto |

@@ -22,6 +22,15 @@ export interface SimilarImage {
   distance: number;
 }
 
+/** Decision de un administrador que se guarda junto con la transicion. */
+export interface NewLotReview {
+  adminId: string;
+  decision: 'APPROVE' | 'RETURN_TO_DRAFT' | 'REAUDIT';
+  reason: string | null;
+  priceMin: number | null;
+  priceMax: number | null;
+}
+
 export interface LotPatch {
   visibility?: Visibility;
   authenticityScore?: number;
@@ -44,12 +53,23 @@ export interface LotRepository {
   listActiveCategories(): Promise<Category[]>;
   /** Crea la obra en BORRADOR y guarda los eventos en la misma transaccion. */
   create(sellerId: string, lot: NewLot, categoryId: string, events: (lot: Lot) => DomainEvent[]): Promise<Lot>;
+  /** Reemplaza la ficha de una obra que sigue en BORRADOR; null si cambio de estado. */
+  update(lotId: string, lot: NewLot, categoryId: string): Promise<Lot | null>;
+  /** Obras de un vendedor, la mas reciente primero. */
+  listBySeller(sellerId: string, limit: number): Promise<Lot[]>;
   upsertImage(lotId: string, image: { objectKey: string; position: number; perceptualHash: string | null }): Promise<LotImage>;
   /**
    * Cambia el estado solo si el lote sigue en `from` (control optimista) y guarda
    * los eventos en la misma transaccion. Devuelve el lote actualizado o null.
    */
-  transition(lotId: string, from: LotStatus, to: LotStatus, patch: LotPatch, events: (lot: Lot) => DomainEvent[]): Promise<Lot | null>;
+  transition(
+    lotId: string,
+    from: LotStatus,
+    to: LotStatus,
+    patch: LotPatch,
+    events: (lot: Lot) => DomainEvent[],
+    review?: NewLotReview,
+  ): Promise<Lot | null>;
   /**
    * Aplica un evento entrante una sola vez: registra `eventId` en el inbox y, si
    * es nuevo, ejecuta `apply` en la misma transaccion.

@@ -31,3 +31,13 @@ message LotPublished {
   int32 price_min = 6;
   int32 price_max = 7;
 }
+
+// Un administrador devolvio la obra a borrador: el vendedor recibe el motivo
+// para corregirla y reenviarla a auditoria.
+message LotReturnedToDraft {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string lot_id = 2;
+  string seller_id = 3;
+  string title = 4;
+  string reason = 5;
+}

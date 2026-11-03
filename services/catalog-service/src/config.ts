@@ -47,6 +47,11 @@ export class CatalogConfig {
   @MinLength(1)
   AUCTION_EVENTS_GRPC_URL!: string;
 
+  // Avisos al vendedor cuando un administrador le devuelve una obra.
+  @IsString()
+  @MinLength(1)
+  NOTIFICATION_EVENTS_GRPC_URL = '127.0.0.1:50058';
+
   // Almacenamiento S3 de las imagenes.
   @IsString()
   @MinLength(1)

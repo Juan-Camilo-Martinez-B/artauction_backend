@@ -128,6 +128,28 @@ export class HashImageDto {
 }
 
 export class ResolveLotDto {
-  @IsIn(['APROBADO', 'BORRADOR'])
-  verdict!: 'APROBADO' | 'BORRADOR';
+  // REAUDITAR vuelve a pedir la auditoria (por ejemplo, cuando Gemini vuelve a responder).
+  @IsIn(['APROBADO', 'BORRADOR', 'REAUDITAR'])
+  verdict!: 'APROBADO' | 'BORRADOR' | 'REAUDITAR';
+
+  // Obligatorio al devolver a borrador; catalog-service valida el largo.
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+
+  // Rango de precio al aprobar, en artacoins enteras.
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  priceMin?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  priceMax?: number;
 }

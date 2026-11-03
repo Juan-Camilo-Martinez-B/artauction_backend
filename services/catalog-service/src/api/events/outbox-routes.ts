@@ -1,5 +1,5 @@
 import type { ChannelCredentials } from '@grpc/grpc-js';
-import { auctionHandlersV1, auditHandlersV1, catalogEventsV1, commonV1, galleryHandlersV1 } from '@artauction/contracts';
+import { auctionHandlersV1, auditHandlersV1, catalogEventsV1, commonV1, galleryHandlersV1, notificationHandlersV1 } from '@artauction/contracts';
 import type { OutboxDelivery, OutboxMessage } from '@artauction/platform';
 import { invoke, type ServiceTokenProvider } from '@artauction/service-kit';
 import { CATALOG_EVENTS } from '../../internal/domain/events';
@@ -8,6 +8,7 @@ export interface ConsumerEndpoints {
   gallery: string;
   audit: string;
   auction: string;
+  notification: string;
 }
 
 const PRODUCER = 'catalog-service';
@@ -39,6 +40,7 @@ export function catalogOutboxRoutes(
   const gallery = new galleryHandlersV1.GalleryEventHandlerServiceClient(endpoints.gallery, channel);
   const audit = new auditHandlersV1.AuditEventHandlerServiceClient(endpoints.audit, channel);
   const auction = new auctionHandlersV1.AuctionEventHandlerServiceClient(endpoints.auction, channel);
+  const notification = new notificationHandlersV1.NotificationEventHandlerServiceClient(endpoints.notification, channel);
 
   const toGallery: OutboxDelivery = async (message) => {
     const event = catalogEventsV1.LotCreated.fromPartial({
@@ -81,16 +83,32 @@ export function catalogOutboxRoutes(
     });
   };
 
+  const toNotification: OutboxDelivery = async (message) => {
+    const event = catalogEventsV1.LotReturnedToDraft.fromPartial({
+      metadata: metadata(message),
+      lotId: text(message.payload, 'lotId'),
+      sellerId: text(message.payload, 'sellerId'),
+      title: text(message.payload, 'title'),
+      reason: text(message.payload, 'reason'),
+    });
+    await invoke(notification.handleLotReturnedToDraft.bind(notification), { event }, {
+      deadlineMs: DEADLINE_MS,
+      authorization: await tokens.authorization(),
+    });
+  };
+
   return {
     routes: new Map([
       [CATALOG_EVENTS.lotCreated, [toGallery]],
       [CATALOG_EVENTS.lotSubmitted, [toAudit]],
       [CATALOG_EVENTS.lotPublished, [toAuction]],
+      [CATALOG_EVENTS.lotReturnedToDraft, [toNotification]],
     ]),
     close: () => {
       gallery.close();
       audit.close();
       auction.close();
+      notification.close();
     },
   };
 }

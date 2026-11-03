@@ -23,7 +23,8 @@ export const CLOSED_STATUSES: readonly LotStatus[] = ['CERRADO', 'VENDIDA'];
 const EDGES: Readonly<Record<LotStatus, readonly LotStatus[]>> = {
   BORRADOR: ['PENDIENTE_AUDITORIA'],
   PENDIENTE_AUDITORIA: ['APROBADO', 'PUBLICADA', 'REVISION_MANUAL'],
-  REVISION_MANUAL: ['APROBADO', 'PUBLICADA', 'BORRADOR'],
+  // PENDIENTE_AUDITORIA: el administrador pide otra auditoria (por ejemplo, cuando Gemini vuelve).
+  REVISION_MANUAL: ['APROBADO', 'PUBLICADA', 'BORRADOR', 'PENDIENTE_AUDITORIA'],
   APROBADO: ['PUBLICADA', 'EN_SUBASTA'],
   PUBLICADA: ['EN_SUBASTA'],
   EN_SUBASTA: ['CERRADO', 'VENDIDA', 'PUBLICADA'],

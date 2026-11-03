@@ -2,10 +2,11 @@ import { DomainError, type DomainEvent } from '@artauction/platform';
 import { CATALOG_EVENTS } from '../src/internal/domain/events';
 import { canViewLot, imageUrl, parseNewLot, type Actor, type Category, type Lot, type LotImage, type NewLot } from '../src/internal/domain/lot';
 import { canTransition, type LotStatus } from '../src/internal/domain/lot-status';
-import type { LotPatch, LotRepository, LotTransitions, PublicLotQuery, SimilarImage } from '../src/internal/application/ports';
-import { CreateLot, RegisterLotImage, ResolveManualReview, SignImageUpload, SubmitLot } from '../src/internal/application/commands';
+import type { LotPatch, LotRepository, LotTransitions, NewLotReview, PublicLotQuery, SimilarImage } from '../src/internal/application/ports';
+import { CreateLot, RegisterLotImage, ResolveManualReview, SignImageUpload, SubmitLot, UpdateLot } from '../src/internal/application/commands';
 import { MarkLotSold } from '../src/internal/application/event-handlers';
-import { FindSimilarImages, GetLotForViewer, ListAuctionCandidates, ListPublicLots, ListReviewQueue } from '../src/internal/application/queries';
+import { FindSimilarImages, GetLotForViewer, ListAuctionCandidates, ListMyLots, ListPublicLots, ListReviewQueue } from '../src/internal/application/queries';
+import { hasSuggestedPrice, planReview } from '../src/internal/domain/review';
 
 const SELLER: Actor = { userId: 'a0000000-0000-4000-8000-000000000002', role: 'SELLER' };
 const OTHER: Actor = { userId: 'a0000000-0000-4000-8000-000000000003', role: 'SELLER' };
@@ -98,6 +99,7 @@ class MemoryLots implements LotRepository {
       createdAt: new Date(0),
       images: [],
       categories: [{ isPrimary: true, category: PAINTINGS }],
+      lastReview: null,
     };
     this.lots.set(created.id, created);
     this.outbox.push(...events(created));
@@ -108,12 +110,36 @@ class MemoryLots implements LotRepository {
     return Promise.resolve({ id: `${lotId}-img`, createdAt: new Date(0), ...image });
   }
 
-  transition(lotId: string, from: LotStatus, to: LotStatus, patch: LotPatch, events: (lot: Lot) => DomainEvent[]) {
+  readonly reviews: NewLotReview[] = [];
+
+  update(lotId: string, lot: NewLot) {
+    const current = this.lots.get(lotId);
+    if (!current || current.status !== 'BORRADOR') {
+      return Promise.resolve(null);
+    }
+    const next: Lot = { ...current, ...lot };
+    this.lots.set(lotId, next);
+    return Promise.resolve(next);
+  }
+
+  listBySeller(sellerId: string, limit: number) {
+    return Promise.resolve([...this.lots.values()].filter((lot) => lot.sellerId === sellerId).slice(0, limit));
+  }
+
+  transition(lotId: string, from: LotStatus, to: LotStatus, patch: LotPatch, events: (lot: Lot) => DomainEvent[], review?: NewLotReview) {
     const lot = this.lots.get(lotId);
     if (!lot || lot.status !== from) {
       return Promise.resolve(null);
     }
-    const next = { ...lot, ...patch, status: to };
+    if (review) {
+      this.reviews.push(review);
+    }
+    const next: Lot = {
+      ...lot,
+      ...patch,
+      status: to,
+      lastReview: review ? { decision: review.decision, reason: review.reason, createdAt: new Date(0) } : lot.lastReview,
+    };
     this.lots.set(lotId, next);
     this.outbox.push(...events(next));
     return Promise.resolve(next);
@@ -255,8 +281,8 @@ describe('casos de uso del catalogo', () => {
     const repo = new MemoryLots();
     const lot = await new CreateLot(repo).execute(SELLER, NEW_LOT);
     repo.lots.set(lot.id, { ...lot, status: 'REVISION_MANUAL', authenticityScore: 35, suggestedPriceMin: '120.00', suggestedPriceMax: '180.00' });
-    await expectKind(new ResolveManualReview(repo).execute(SELLER, lot.id, 'APPROVE'), 'PERMISSION_DENIED');
-    const resolved = await new ResolveManualReview(repo).execute(ADMIN, lot.id, 'APPROVE');
+    await expectKind(new ResolveManualReview(repo).execute(SELLER, lot.id, { decision: 'APPROVE' }), 'PERMISSION_DENIED');
+    const resolved = await new ResolveManualReview(repo).execute(ADMIN, lot.id, { decision: 'APPROVE' });
     expect(resolved).toMatchObject({ status: 'PUBLICADA', visibility: 'PUBLIC' });
     expect(repo.outbox.at(-1)).toMatchObject({
       type: CATALOG_EVENTS.lotPublished,
@@ -315,5 +341,99 @@ describe('casos de uso del catalogo', () => {
     await candidates.execute(500);
     await candidates.execute(7);
     expect(lots.sampleLimits).toEqual([20, 50, 7]);
+  });
+
+  it('la revision guarda la decision en el historial, en el mismo paso', async () => {
+    const repo = new MemoryLots();
+    const lot = await new CreateLot(repo).execute(SELLER, NEW_LOT);
+    repo.lots.set(lot.id, { ...lot, status: 'REVISION_MANUAL', suggestedPriceMin: '120.00', suggestedPriceMax: '180.00' });
+    await new ResolveManualReview(repo).execute(ADMIN, lot.id, { decision: 'APPROVE' });
+    expect(repo.reviews).toEqual([{ adminId: ADMIN.userId, decision: 'APPROVE', reason: null, priceMin: null, priceMax: null }]);
+  });
+});
+
+describe('ciclo de revision', () => {
+  async function inReview(repo: MemoryLots, prices: { min: string | null; max: string | null } = { min: null, max: null }) {
+    const lot = await new CreateLot(repo).execute(SELLER, NEW_LOT);
+    repo.lots.set(lot.id, { ...lot, status: 'REVISION_MANUAL', authenticityScore: 0, suggestedPriceMin: prices.min, suggestedPriceMax: prices.max });
+    return lot.id;
+  }
+
+  it('devolver a borrador exige un motivo y avisa al vendedor con el', async () => {
+    const repo = new MemoryLots();
+    const lotId = await inReview(repo);
+    const resolve = new ResolveManualReview(repo);
+    await expectKind(resolve.execute(ADMIN, lotId, { decision: 'RETURN_TO_DRAFT' }), 'INVALID_ARGUMENT');
+    await expectKind(resolve.execute(ADMIN, lotId, { decision: 'RETURN_TO_DRAFT', reason: 'corto' }), 'INVALID_ARGUMENT');
+    const returned = await resolve.execute(ADMIN, lotId, { decision: 'RETURN_TO_DRAFT', reason: '  Las medidas   no son creibles para una fotografia.  ' });
+    expect(returned).toMatchObject({ status: 'BORRADOR', visibility: 'PRIVATE' });
+    expect(returned.lastReview).toMatchObject({ decision: 'RETURN_TO_DRAFT', reason: 'Las medidas no son creibles para una fotografia.' });
+    expect(repo.outbox.at(-1)).toMatchObject({
+      type: CATALOG_EVENTS.lotReturnedToDraft,
+      payload: { lotId, sellerId: SELLER.userId, reason: 'Las medidas no son creibles para una fotografia.' },
+    });
+  });
+
+  it('el vendedor edita la obra devuelta y la reenvia; otra persona no puede', async () => {
+    const repo = new MemoryLots();
+    const lotId = await inReview(repo);
+    await new ResolveManualReview(repo).execute(ADMIN, lotId, { decision: 'RETURN_TO_DRAFT', reason: 'Corrige las medidas declaradas.' });
+    const update = new UpdateLot(repo);
+    await expectKind(update.execute(OTHER, lotId, { ...NEW_LOT, widthCm: '30' }), 'NOT_FOUND');
+    const edited = await update.execute(SELLER, lotId, { ...NEW_LOT, widthCm: '30', heightCm: '40' });
+    expect(edited).toMatchObject({ widthCm: '30', heightCm: '40', status: 'BORRADOR' });
+    await new SubmitLot(repo).execute(SELLER, lotId);
+    expect(repo.lots.get(lotId)?.status).toBe('PENDIENTE_AUDITORIA');
+    expect(repo.outbox.at(-1)?.type).toBe(CATALOG_EVENTS.lotSubmitted);
+  });
+
+  it('una obra fuera de borrador no cambia de ficha ni de imagen', async () => {
+    const repo = new MemoryLots();
+    const lotId = await inReview(repo);
+    repo.lots.set(lotId, { ...(repo.lots.get(lotId) as Lot), status: 'PUBLICADA' });
+    await expectKind(new UpdateLot(repo).execute(SELLER, lotId, NEW_LOT), 'FAILED_PRECONDITION');
+    const signer = { sign: (objectKey: string) => Promise.resolve({ uploadUrl: `https://s3/${objectKey}`, objectKey, expiresAt: new Date(0) }) };
+    await expectKind(
+      new SignImageUpload(repo, signer, { next: () => 'x' }).execute(SELLER, { lotId, contentType: 'image/jpeg', position: 0 }),
+      'FAILED_PRECONDITION',
+    );
+    await expectKind(new RegisterLotImage(repo).execute(SELLER, { lotId, objectKey: `lots/${lotId}/0-x`, position: 0 }), 'FAILED_PRECONDITION');
+  });
+
+  it('aprobar una obra sin precio exige el rango y lo publica con el', async () => {
+    const repo = new MemoryLots();
+    const lotId = await inReview(repo, { min: '0.00', max: '0.00' });
+    const resolve = new ResolveManualReview(repo);
+    await expectKind(resolve.execute(ADMIN, lotId, { decision: 'APPROVE' }), 'INVALID_ARGUMENT');
+    await expectKind(resolve.execute(ADMIN, lotId, { decision: 'APPROVE', priceMin: 500, priceMax: 300 }), 'INVALID_ARGUMENT');
+    const approved = await resolve.execute(ADMIN, lotId, { decision: 'APPROVE', priceMin: 300, priceMax: 500 });
+    expect(approved).toMatchObject({ status: 'PUBLICADA', suggestedPriceMin: '300.00', suggestedPriceMax: '500.00' });
+    expect(repo.outbox.at(-1)).toMatchObject({ type: CATALOG_EVENTS.lotPublished, payload: { priceMin: 300, priceMax: 500 } });
+    expect(repo.reviews.at(-1)).toMatchObject({ decision: 'APPROVE', priceMin: 300, priceMax: 500 });
+  });
+
+  it('re-auditar vuelve a pedir la auditoria', async () => {
+    const repo = new MemoryLots();
+    const lotId = await inReview(repo);
+    const reaudited = await new ResolveManualReview(repo).execute(ADMIN, lotId, { decision: 'REAUDIT' });
+    expect(reaudited.status).toBe('PENDIENTE_AUDITORIA');
+    expect(repo.outbox.at(-1)).toMatchObject({ type: CATALOG_EVENTS.lotSubmitted, payload: { lotId } });
+  });
+
+  it('cada vendedor ve solo sus obras; un comprador no tiene lista', async () => {
+    const repo = new MemoryLots();
+    await new CreateLot(repo).execute(SELLER, NEW_LOT);
+    await new CreateLot(repo).execute(OTHER, NEW_LOT);
+    expect(await new ListMyLots(repo).execute(SELLER)).toHaveLength(1);
+    await expectKind(new ListMyLots(repo).execute(BUYER), 'PERMISSION_DENIED');
+  });
+
+  it('reglas puras de la revision', () => {
+    expect(hasSuggestedPrice({ suggestedPriceMin: '0.00', suggestedPriceMax: '0.00' })).toBe(false);
+    expect(hasSuggestedPrice({ suggestedPriceMin: '120.00', suggestedPriceMax: '180.00' })).toBe(true);
+    const priced = { suggestedPriceMin: '120.00', suggestedPriceMax: '180.00' };
+    expect(planReview(priced, { decision: 'APPROVE' })).toMatchObject({ to: 'PUBLICADA', priceMin: null });
+    expect(() => planReview(priced, { decision: 'APPROVE', priceMin: 100 })).toThrow('minimo y el maximo');
+    expect(() => planReview(priced, { decision: 'APPROVE', priceMin: 1.5, priceMax: 3 })).toThrow('enteras');
   });
 });

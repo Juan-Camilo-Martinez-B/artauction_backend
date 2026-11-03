@@ -115,8 +115,21 @@ export function lotJson(lot: catalogV1.Lot, auction: auctionV1.AuctionSummary | 
         : [],
     ),
     auction: auction ? auctionJson(auction) : null,
+    lastReview: lot.lastReview
+      ? {
+          decision: REVIEW_DECISION.get(lot.lastReview.decision) ?? 'APPROVE',
+          reason: lot.lastReview.reason ?? null,
+          createdAt: lot.lastReview.createdAt?.toISOString() ?? null,
+        }
+      : null,
   };
 }
+
+const REVIEW_DECISION: ReadonlyMap<catalogV1.ReviewDecision, string> = new Map([
+  [catalogV1.ReviewDecision.REVIEW_DECISION_APPROVE, 'APPROVE'],
+  [catalogV1.ReviewDecision.REVIEW_DECISION_RETURN_TO_DRAFT, 'RETURN_TO_DRAFT'],
+  [catalogV1.ReviewDecision.REVIEW_DECISION_REAUDIT, 'REAUDIT'],
+]);
 
 export const REPRESENTATION_FROM_JSON: Readonly<Record<string, catalogV1.RepresentationKind>> = {
   TWO_D: catalogV1.RepresentationKind.REPRESENTATION_KIND_TWO_D,

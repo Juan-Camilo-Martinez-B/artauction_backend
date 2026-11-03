@@ -29,6 +29,11 @@ service CatalogService {
   rpc SignUpload(SignUploadRequest) returns (SignUploadResponse);
   rpc RegisterImage(RegisterImageRequest) returns (RegisterImageResponse);
   rpc SubmitLot(SubmitLotRequest) returns (SubmitLotResponse);
+  // Solo el vendedor duenio y solo en BORRADOR: corrige la ficha de una obra
+  // devuelta (o aun no enviada) antes de mandarla a auditoria.
+  rpc UpdateLot(UpdateLotRequest) returns (UpdateLotResponse);
+  // Obras del vendedor que llama, en todos sus estados, con su ultima revision.
+  rpc ListMyLots(ListMyLotsRequest) returns (ListMyLotsResponse);
   // Solo ROLE_ADMIN: obras en revision manual, la mas antigua primero.
   rpc ListReviewQueue(ListReviewQueueRequest) returns (ListReviewQueueResponse);
   // Solo ROLE_ADMIN.
@@ -65,6 +70,16 @@ enum ReviewDecision {
   REVIEW_DECISION_UNSPECIFIED = 0;
   REVIEW_DECISION_APPROVE = 1;
   REVIEW_DECISION_RETURN_TO_DRAFT = 2;
+  // Vuelve a pedir la auditoria, por ejemplo cuando Gemini vuelve a responder.
+  REVIEW_DECISION_REAUDIT = 3;
+}
+
+// Ultima decision de un administrador sobre la obra.
+message LotReview {
+  ReviewDecision decision = 1;
+  // Motivo de la devolucion: el vendedor lo ve para corregir la obra.
+  optional string reason = 2;
+  google.protobuf.Timestamp created_at = 3;
 }
 
 message Category {
@@ -111,6 +126,7 @@ message Lot {
   repeated LotImage images = 19;
   repeated LotCategory categories = 20;
   google.protobuf.Timestamp created_at = 21;
+  optional LotReview last_review = 22;
 }
 
 message SignedUpload {
@@ -255,6 +271,31 @@ message RegisterImageResponse {
   LotImage image = 1;
 }
 
+message UpdateLotRequest {
+  string lot_id = 1;
+  string title = 2;
+  string description = 3;
+  optional string artist_name = 4;
+  optional int32 creation_year = 5;
+  string materials = 6;
+  string category_slug = 7;
+  RepresentationKind representation_kind = 8;
+  string width_cm = 9;
+  string height_cm = 10;
+  optional string depth_cm = 11;
+  optional string provenance = 12;
+}
+
+message UpdateLotResponse {
+  Lot lot = 1;
+}
+
+message ListMyLotsRequest {}
+
+message ListMyLotsResponse {
+  repeated Lot lots = 1;
+}
+
 message SubmitLotRequest {
   string lot_id = 1;
 }
@@ -266,6 +307,12 @@ message SubmitLotResponse {
 message ResolveManualReviewRequest {
   string lot_id = 1;
   ReviewDecision decision = 2;
+  // Obligatorio al devolver a borrador (10 a 500 caracteres).
+  optional string reason = 3;
+  // Rango de precio al aprobar, en artacoins enteras. Obligatorio si la obra no
+  // tiene precio sugerido (auditoria local o fallida).
+  optional int32 price_min = 4;
+  optional int32 price_max = 5;
 }
 
 message ResolveManualReviewResponse {
