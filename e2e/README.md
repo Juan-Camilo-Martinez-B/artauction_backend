@@ -9,7 +9,7 @@ Usa `node:test`, `fetch` y `socket.io-client`. Los archivos son TypeScript que N
 | Archivo | Flujo |
 |---|---|
 | `01-identity.test.ts` | health, OpenAPI publicado, registro, login, sesión, refresh, 401, 404, 400 y JSON mal formado |
-| `02-publishing-and-review.test.ts` | publicar una obra completa (hash, subida firmada a Garage, envío); auditoría con IA; un anacronismo que va a revisión manual sin IA; la cola del administrador con sus evidencias; la resolución; la galería propia del vendedor |
+| `02-publishing-and-review.test.ts` | publicar una obra completa (hash, subida firmada a Garage, envío); auditoría con IA o con la evaluación local; un anacronismo que va a revisión manual sin IA; la cola del administrador con sus evidencias; aprobar con rango de precio (obligatorio sin precio sugerido); devolver con motivo, el aviso, `/lots/mine`, la edición solo del vendedor y solo en borrador, y el reenvío con la ficha corregida; la galería propia del vendedor |
 | `03-auction-wallet-gallery.test.ts` | recarga idempotente; apertura de una sala; pujas por REST y por Socket.IO con reserva TCC; repetición idempotente; cierre con ganador; liquidación (canje, devolución, abono al vendedor menos la comisión); obra ganada en la galería, el feed y los avisos; sala 3D; follows |
 
 Los archivos corren en orden (`--test-concurrency=1`), porque el tercero espera el cierre real de una sala.
@@ -46,7 +46,7 @@ docker compose -p artauction-verify --env-file secrets/service-clients.env --env
 
 - **Datos propios por corrida.** Cada corrida registra sus cuentas con un sufijo aleatorio (`RUN_ID`), así se puede repetir sobre la misma base. Solo el administrador y el vendedor de la semilla vienen de `artauction_bd`, porque esos roles no se crean por la API.
 - **Imágenes distintas en cada corrida.** `texturedPng` genera un PNG con bloques de luminancia aleatoria, sembrados por la obra y la corrida. El hash perceptual mira la estructura de baja frecuencia: con la misma imagen en dos corridas, la auditoría la marcaría como duplicada de otro vendedor (`DUPLICATE_IMAGE_OTHER_SELLER`), que es justo lo que debe hacer.
-- **El veredicto del modelo no se fija.** Sin `GEMINI_API_KEY`, como en CI, decide la evaluación local, que es determinista: la obra coherente debe publicarse. Con Gemini, la prueba exige que la decisión sea de la IA y no de una regla; si el modelo la publica, también comprueba la subasta. La subasta tras una aprobación se prueba siempre con la resolución del administrador.
+- **El veredicto del modelo no se fija.** Sin `GEMINI_API_KEY`, como en CI, decide la evaluación local, que es determinista: la obra coherente debe publicarse. Con Gemini, la prueba exige que la decisión sea de la IA o, si Gemini no responde, de la evaluación local (`LOCAL`), nunca de una regla; si se publica, también comprueba la subasta. Por eso la espera de una auditoría es de 120 s. La subasta tras una aprobación se prueba siempre con la resolución del administrador.
 - **Esperas con plazo, no pausas fijas.** `eventually` repite una consulta hasta que se cumple o vence el plazo, porque los efectos llegan por eventos.
 
 ## En CI
