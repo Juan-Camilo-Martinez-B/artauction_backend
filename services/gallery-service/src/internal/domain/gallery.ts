@@ -6,7 +6,12 @@ import type { GalleryConfig } from './gallery-design';
 
 export type CustomizationStatus = 'SIN_PERSONALIZAR' | 'PERSONALIZADA' | 'EDITADA';
 export type Support = 'WALL' | 'PEDESTAL' | 'FLOOR' | 'PLATFORM' | 'NICHE';
-export type ItemSource = 'PROPIA' | 'GANADA' | 'GRATUITA';
+/**
+ * Por que una obra es de alguien: PROYECTO (proyecto propio sin auditar),
+ * PROPIA (obra suya en el catalogo, aun sin vender) o GANADA (ganada en
+ * subasta). Al venderse, la obra deja de ser del autor y pasa al ganador.
+ */
+export type ItemSource = 'PROYECTO' | 'PROPIA' | 'GANADA';
 export type Visibility = 'PUBLIC' | 'PRIVATE';
 
 export const SUPPORTS: readonly Support[] = ['WALL', 'PEDESTAL', 'FLOOR', 'PLATFORM', 'NICHE'];
@@ -37,7 +42,7 @@ export interface PersonalGallery {
 
 export interface GalleryItem {
   ownerId: string;
-  lotId: string | null;
+  lotId: string;
   source: ItemSource;
   visibility: Visibility;
   title: string;
@@ -56,7 +61,15 @@ export interface Activity {
   createdAt: Date;
 }
 
-/** Ficha minima de una obra publica, la que hace falta para colgarla. */
+/**
+ * Id determinista del item: repetir un evento no duplica la fila. Lo del autor
+ * (proyecto u obra del catalogo) comparte id, asi pasar al catalogo no crea otra.
+ */
+export function itemId(source: ItemSource, lotId: string, ownerId: string): string {
+  return `${source === 'GANADA' ? 'GANADA' : 'PROPIA'}:${lotId}:${ownerId}`;
+}
+
+/** Ficha minima de una obra, la que hace falta para colgarla. */
 export interface PublicLot {
   lotId: string;
   title: string;

@@ -161,21 +161,30 @@ describe('bolsillo, sala en vivo, liquidacion y galeria', () => {
     }
   });
 
-  test('la sala 3D cuelga, mueve y descuelga obras publicas', async () => {
-    const added = await call<{ artworks: Array<{ lotId: string; support: string; lot: { title: string } }> }>('POST', '/me/gallery/artworks', {
-      token: buyerA.token,
-      body: { lotId: otherLotId },
+  test('la sala 3D solo cuelga lo propio: la obra ganada llega sola y el autor la pierde', async () => {
+    type Room = { artworks: Array<{ lotId: string; support: string; lot: { title: string } }> };
+    // Una obra ajena, aunque este en el catalogo, no se cuelga.
+    assert.equal((await call('POST', '/me/gallery/artworks', { token: buyerA.token, body: { lotId: otherLotId } })).status, 403);
+
+    // La ganada se cuelga sola y trae su ficha aunque ya no sea publica.
+    const room = await eventually('la obra ganada se cuelga en la sala del ganador', async () => {
+      const mine = await call<Room>('GET', '/me/gallery', { token: buyerB.token });
+      return mine.body.artworks.find((artwork) => artwork.lotId === lotId) ? mine.body : null;
     });
-    const hung = added.body.artworks.find((artwork) => artwork.lotId === otherLotId);
-    assert.ok(hung?.lot.title, 'el gateway no compuso la ficha de la obra');
-    const moved = await call<{ artworks: Array<{ lotId: string; support: string }> }>('PATCH', `/me/gallery/artworks/${otherLotId}`, {
-      token: buyerA.token,
-      body: { posX: 1.5, support: 'NICHE' },
-    });
-    assert.equal(moved.body.artworks.find((artwork) => artwork.lotId === otherLotId)?.support, 'NICHE');
-    assert.equal((await call('PATCH', `/me/gallery/artworks/${otherLotId}`, { token: buyerA.token, body: { scale: 9 } })).status, 400);
-    const removed = await call<{ artworks: Array<{ lotId: string }> }>('DELETE', `/me/gallery/artworks/${otherLotId}`, { token: buyerA.token });
-    assert.ok(!removed.body.artworks.some((artwork) => artwork.lotId === otherLotId));
+    assert.ok(room.artworks.find((artwork) => artwork.lotId === lotId)?.lot.title, 'la sala no trae la ficha de la obra ganada');
+
+    const moved = await call<Room>('PATCH', `/me/gallery/artworks/${lotId}`, { token: buyerB.token, body: { posX: 1.5, support: 'NICHE' } });
+    assert.equal(moved.body.artworks.find((artwork) => artwork.lotId === lotId)?.support, 'NICHE');
+    assert.equal((await call('PATCH', `/me/gallery/artworks/${lotId}`, { token: buyerB.token, body: { scale: 9 } })).status, 400);
+    const removed = await call<Room>('DELETE', `/me/gallery/artworks/${lotId}`, { token: buyerB.token });
+    assert.ok(!removed.body.artworks.some((artwork) => artwork.lotId === lotId));
+    const again = await call<Room>('POST', '/me/gallery/artworks', { token: buyerB.token, body: { lotId } });
+    assert.ok(again.body.artworks.some((artwork) => artwork.lotId === lotId), 'el ganador puede volver a colgar su obra');
+
+    // El autor ya no la tiene: ni en su galeria ni en su sala.
+    assert.equal((await call('POST', '/me/gallery/artworks', { token: seller.token, body: { lotId } })).status, 403);
+    const sellerItems = await call<Array<{ lotId: string }>>('GET', `/galleries/${seller.userId}`, { token: seller.token });
+    assert.ok(!sellerItems.body.some((item) => item.lotId === lotId), 'la obra vendida sigue en la galeria del autor');
   });
 
   test('seguir a otro usuario aparece en el feed', async () => {

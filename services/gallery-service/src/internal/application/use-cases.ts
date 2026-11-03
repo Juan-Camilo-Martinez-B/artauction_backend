@@ -13,10 +13,13 @@ import {
   canViewItem,
   hasManualChanges,
   initialPlacement,
+  itemId,
   placeArtwork,
   type Activity,
   type GalleryItem,
   type PersonalGallery,
+  type PublicLot,
+  type Visibility,
 } from '../domain/gallery';
 import type { CatalogPort, Clock, GalleryDesigner, GalleryRepository, IdentityPort, SocialStore } from './ports';
 
@@ -40,6 +43,15 @@ function readPreferences(body: unknown, random: boolean): GalleryPreferences {
   }
 }
 
+/** Cuelga una obra en el primer hueco libre de la sala de su duena; si ya estaba, no hace nada. */
+async function hang(galleries: GalleryRepository, ownerId: string, lot: PublicLot): Promise<void> {
+  const gallery = await galleries.mine(ownerId);
+  if (gallery.artworks.some((artwork) => artwork.lotId === lot.lotId)) {
+    return;
+  }
+  await galleries.addArtwork(gallery.id, lot.lotId, initialPlacement(gallery, lot));
+}
+
 function validConfig(input: unknown): GalleryConfig {
   try {
     return validateGalleryConfig(input);
@@ -54,6 +66,7 @@ export class PersonalGalleryUseCases {
     private readonly galleries: GalleryRepository,
     private readonly designer: GalleryDesigner,
     private readonly catalog: CatalogPort,
+    private readonly social: SocialStore,
   ) {}
 
   mine(ownerId: string): Promise<PersonalGallery> {
@@ -101,14 +114,17 @@ export class PersonalGalleryUseCases {
     return this.galleries.mine(ownerId);
   }
 
+  /** Solo se cuelga lo propio: proyectos, obras publicadas sin vender y obras ganadas. */
   async addArtwork(ownerId: string, lotId: string): Promise<PersonalGallery> {
     assertUuid(lotId, 'La obra');
-    const gallery = await this.galleries.mine(ownerId);
-    const lot = await this.catalog.publicLot(lotId);
+    if (!(await this.social.itemOf(ownerId, lotId))) {
+      throw DomainError.forbidden('Solo puedes colgar obras tuyas: tus proyectos, lo que publicaste sin vender y lo que ganaste.');
+    }
+    const lot = await this.catalog.snapshot(lotId);
     if (!lot) {
       throw DomainError.notFound('Obra no encontrada');
     }
-    await this.galleries.addArtwork(gallery.id, lotId, initialPlacement(gallery, lot));
+    await hang(this.galleries, ownerId, lot);
     return this.galleries.mine(ownerId);
   }
 
@@ -197,24 +213,67 @@ export class GalleryEventHandlers {
     private readonly clock: Clock,
   ) {}
 
-  /** LotCreated: la obra entra en la galeria de su vendedor. */
-  async lotCreated(event: { eventId: string; lotId: string; sellerId: string; title: string; artistName: string | null }): Promise<void> {
-    await this.once(event.eventId, 'catalog.LotCreated', () =>
-      this.social.upsertItem(`PROPIA:${event.lotId}:${event.sellerId}`, {
+  /**
+   * LotCreated: la obra es de su autor. Un proyecto propio llega con la
+   * visibilidad que eligio y se cuelga en su sala, que es para lo que existe.
+   */
+  async lotCreated(event: {
+    eventId: string;
+    lotId: string;
+    sellerId: string;
+    title: string;
+    artistName: string | null;
+    personal: boolean;
+    visibility: Visibility;
+  }): Promise<void> {
+    await this.once(event.eventId, 'catalog.LotCreated', async () => {
+      const source = event.personal ? 'PROYECTO' : 'PROPIA';
+      await this.social.upsertItem(itemId(source, event.lotId, event.sellerId), {
         ownerId: event.sellerId,
         lotId: event.lotId,
-        source: 'PROPIA',
-        visibility: 'PRIVATE',
+        source,
+        // Una obra del catalogo es privada en la galeria hasta que se publica.
+        visibility: event.personal ? event.visibility : 'PRIVATE',
         title: event.title,
         artistName: event.artistName,
         imageKeys: [],
         acquiredAt: this.clock.now(),
-      }),
-    );
+      });
+      if (event.personal) {
+        const lot = await this.catalog.snapshot(event.lotId);
+        if (lot) {
+          await hang(this.galleries, event.sellerId, lot);
+        }
+      }
+    });
   }
 
-  /** AuctionClosed con ganador: la obra entra en su galeria y se publica la actividad. */
-  async auctionClosed(event: { eventId: string; lotId: string; winnerId: string | null }): Promise<void> {
+  /** LotSubmitted: un proyecto propio que pasa al catalogo deja de ser PROYECTO y se oculta mientras se audita. */
+  async lotSubmitted(event: { eventId: string; lotId: string }): Promise<void> {
+    await this.once(event.eventId, 'catalog.LotSubmitted', async () => {
+      for (const item of await this.social.itemsOfLot(event.lotId)) {
+        if (item.source === 'PROYECTO') {
+          await this.social.updateItem(item.ownerId, event.lotId, { source: 'PROPIA', visibility: 'PRIVATE' });
+        }
+      }
+    });
+  }
+
+  /** LotVisibilityChanged: el autor mostro u oculto su proyecto propio en la galeria publica. */
+  async lotVisibilityChanged(event: { eventId: string; lotId: string; ownerId: string; visibility: Visibility }): Promise<void> {
+    await this.once(event.eventId, 'catalog.LotVisibilityChanged', async () => {
+      const item = await this.social.itemOf(event.ownerId, event.lotId);
+      if (item?.source === 'PROYECTO') {
+        await this.social.updateItem(event.ownerId, event.lotId, { visibility: event.visibility });
+      }
+    });
+  }
+
+  /**
+   * AuctionClosed con ganador: la obra cambia de dueno. Sale de la galeria y de
+   * la sala del autor, entra en las del ganador y se publica la actividad.
+   */
+  async auctionClosed(event: { eventId: string; lotId: string; sellerId: string; winnerId: string | null }): Promise<void> {
     const winnerId = event.winnerId;
     if (!winnerId) {
       return;
@@ -225,7 +284,14 @@ export class GalleryEventHandlers {
         return;
       }
       const now = this.clock.now();
-      await this.social.upsertItem(`GANADA:${lot.lotId}:${winnerId}`, {
+      if (event.sellerId && event.sellerId !== winnerId) {
+        await this.social.removeItem(event.sellerId, lot.lotId);
+        const sellerRoom = await this.galleries.find(event.sellerId);
+        if (sellerRoom) {
+          await this.galleries.removeArtwork(sellerRoom.id, lot.lotId);
+        }
+      }
+      await this.social.upsertItem(itemId('GANADA', lot.lotId, winnerId), {
         ownerId: winnerId,
         lotId: lot.lotId,
         source: 'GANADA',
@@ -235,6 +301,7 @@ export class GalleryEventHandlers {
         imageKeys: lot.imageKeys,
         acquiredAt: now,
       });
+      await hang(this.galleries, winnerId, lot);
       await this.social.upsertActivity(`win:${event.eventId}`, {
         actorId: winnerId,
         verb: 'WIN',

@@ -1,4 +1,4 @@
-import { commonV1, galleryHandlersV1, galleryV1 } from '@artauction/contracts';
+import { type catalogV1, commonV1, galleryHandlersV1, galleryV1 } from '@artauction/contracts';
 import { DomainError, type StructuredLogger } from '@artauction/platform';
 import { unary, type CallerResolver } from '@artauction/service-kit';
 import type { Activity, GalleryItem, PersonalGallery, Support } from '../../internal/domain/gallery';
@@ -23,17 +23,28 @@ const SUPPORT_FROM_PROTO: ReadonlyMap<galleryV1.ArtworkSupport, Support> = new M
 );
 
 const SOURCE_TO_PROTO: Readonly<Record<GalleryItem['source'], galleryV1.ItemSource>> = {
+  PROYECTO: galleryV1.ItemSource.ITEM_SOURCE_PROYECTO,
   PROPIA: galleryV1.ItemSource.ITEM_SOURCE_PROPIA,
   GANADA: galleryV1.ItemSource.ITEM_SOURCE_GANADA,
-  GRATUITA: galleryV1.ItemSource.ITEM_SOURCE_GRATUITA,
 };
 
 function visibility(value: 'PUBLIC' | 'PRIVATE'): commonV1.Visibility {
   return value === 'PUBLIC' ? commonV1.Visibility.VISIBILITY_PUBLIC : commonV1.Visibility.VISIBILITY_PRIVATE;
 }
 
-/** La sala sin fichas de obra: el gateway completa cada `lot` con catalog. */
-function galleryToProto(gallery: PersonalGallery): galleryV1.PersonalGallery {
+function visibilityFromProto(value: commonV1.Visibility): 'PUBLIC' | 'PRIVATE' {
+  return value === commonV1.Visibility.VISIBILITY_PUBLIC ? 'PUBLIC' : 'PRIVATE';
+}
+
+/** Fichas de catalog de las obras colgadas; quien las pide es la galeria, con su token de servicio. */
+export type LotSheets = (lotIds: readonly string[]) => Promise<catalogV1.Lot[]>;
+
+/**
+ * La sala con la ficha de cada obra colgada. Todo lo colgado es de su duena,
+ * aunque sea privado o ya no este en venta, por eso la ficha la pone la galeria
+ * y no la consulta publica del gateway.
+ */
+function galleryToProto(gallery: PersonalGallery, sheets: ReadonlyMap<string, catalogV1.Lot> = new Map()): galleryV1.PersonalGallery {
   return galleryV1.PersonalGallery.fromPartial({
     id: gallery.id,
     ownerId: gallery.ownerId,
@@ -51,6 +62,7 @@ function galleryToProto(gallery: PersonalGallery): galleryV1.PersonalGallery {
       rotY: artwork.rotY,
       scale: artwork.scale,
       support: SUPPORT_TO_PROTO[artwork.support],
+      lot: sheets.get(artwork.lotId),
     })),
   });
 }
@@ -58,7 +70,7 @@ function galleryToProto(gallery: PersonalGallery): galleryV1.PersonalGallery {
 function itemToProto(item: GalleryItem): galleryV1.GalleryItem {
   return galleryV1.GalleryItem.fromPartial({
     ownerId: item.ownerId,
-    lotId: item.lotId ?? undefined,
+    lotId: item.lotId,
     source: SOURCE_TO_PROTO[item.source],
     visibility: visibility(item.visibility),
     title: item.title,
@@ -77,34 +89,45 @@ export function galleryGrpcService(
   useCases: { personal: PersonalGalleryUseCases; social: SocialUseCases },
   callers: CallerResolver,
   logger: StructuredLogger,
+  lotSheets: LotSheets,
 ): galleryV1.GalleryServiceServer {
   const { personal, social } = useCases;
   const owner = (context: Parameters<CallerResolver['user']>[0]) => callers.user(context).userId;
+  // Si catalog no responde, la sala sale igual: sin fichas, el gateway no muestra esas obras.
+  const room = async (gallery: PersonalGallery) => {
+    const lotIds = [...new Set(gallery.artworks.map((artwork) => artwork.lotId))];
+    try {
+      return galleryToProto(gallery, new Map((await lotSheets(lotIds)).map((lot) => [lot.id, lot])));
+    } catch (error) {
+      logger.warn(`sala sin fichas de catalog: ${error instanceof Error ? error.message : String(error)}`, 'gallery');
+      return galleryToProto(gallery);
+    }
+  };
   return {
     getMyGallery: unary(logger, 'GetMyGallery', async (_request, context) =>
-      galleryV1.GetMyGalleryResponse.fromPartial({ gallery: galleryToProto(await personal.mine(owner(context))) }),
+      galleryV1.GetMyGalleryResponse.fromPartial({ gallery: await room(await personal.mine(owner(context))) }),
     ),
     saveGalleryPreferences: unary(logger, 'SaveGalleryPreferences', async (request, context) =>
       galleryV1.SaveGalleryPreferencesResponse.fromPartial({
-        gallery: galleryToProto(await personal.savePreferences(owner(context), request.preferences, request.random)),
+        gallery: await room(await personal.savePreferences(owner(context), request.preferences, request.random)),
       }),
     ),
     generateGallery: unary(logger, 'GenerateGallery', async (request, context) =>
       galleryV1.GenerateGalleryResponse.fromPartial({
-        gallery: galleryToProto(await personal.generate(owner(context), request.preferences, request.random, request.replaceApplied)),
+        gallery: await room(await personal.generate(owner(context), request.preferences, request.random, request.replaceApplied)),
       }),
     ),
     applyGalleryConfig: unary(logger, 'ApplyGalleryConfig', async (request, context) =>
-      galleryV1.ApplyGalleryConfigResponse.fromPartial({ gallery: galleryToProto(await personal.applyManual(owner(context), request.config)) }),
+      galleryV1.ApplyGalleryConfigResponse.fromPartial({ gallery: await room(await personal.applyManual(owner(context), request.config)) }),
     ),
     restoreSuggestedConfig: unary(logger, 'RestoreSuggestedConfig', async (_request, context) =>
-      galleryV1.RestoreSuggestedConfigResponse.fromPartial({ gallery: galleryToProto(await personal.restoreSuggested(owner(context))) }),
+      galleryV1.RestoreSuggestedConfigResponse.fromPartial({ gallery: await room(await personal.restoreSuggested(owner(context))) }),
     ),
     addArtwork: unary(logger, 'AddArtwork', async (request, context) =>
-      galleryV1.AddArtworkResponse.fromPartial({ gallery: galleryToProto(await personal.addArtwork(owner(context), request.lotId)) }),
+      galleryV1.AddArtworkResponse.fromPartial({ gallery: await room(await personal.addArtwork(owner(context), request.lotId)) }),
     ),
     removeArtwork: unary(logger, 'RemoveArtwork', async (request, context) =>
-      galleryV1.RemoveArtworkResponse.fromPartial({ gallery: galleryToProto(await personal.removeArtwork(owner(context), request.lotId)) }),
+      galleryV1.RemoveArtworkResponse.fromPartial({ gallery: await room(await personal.removeArtwork(owner(context), request.lotId)) }),
     ),
     placeArtwork: unary(logger, 'PlaceArtwork', async (request, context) => {
       const support = request.support === galleryV1.ArtworkSupport.ARTWORK_SUPPORT_UNSPECIFIED ? undefined : SUPPORT_FROM_PROTO.get(request.support);
@@ -119,7 +142,7 @@ export function galleryGrpcService(
         scale: request.scale,
         support,
       });
-      return galleryV1.PlaceArtworkResponse.fromPartial({ gallery: galleryToProto(gallery) });
+      return galleryV1.PlaceArtworkResponse.fromPartial({ gallery: await room(gallery) });
     }),
     listGalleryItems: unary(logger, 'ListGalleryItems', async (request, context) => {
       const viewer = callers.optionalUser(context)?.userId ?? null;
@@ -135,7 +158,7 @@ export function galleryGrpcService(
   };
 }
 
-/** Eventos que consume la galeria: obras nuevas (catalog) y subastas ganadas (auction). */
+/** Eventos que consume la galeria: obras nuevas, pasos al catalogo y visibilidad (catalog), y ventas (auction). */
 export function galleryEventsGrpcService(
   handlers: GalleryEventHandlers,
   callers: CallerResolver,
@@ -152,15 +175,43 @@ export function galleryEventsGrpcService(
           sellerId: event.sellerId,
           title: event.title,
           artistName: event.artistName ?? null,
+          personal: event.personal,
+          visibility: visibilityFromProto(event.visibility),
         });
       }
       return galleryHandlersV1.HandleLotCreatedResponse.fromPartial({});
+    }),
+    handleLotSubmitted: unary(logger, 'HandleLotSubmitted', async (request, context) => {
+      callers.service(context, ['catalog-service']);
+      const event = request.event;
+      if (event) {
+        await handlers.lotSubmitted({ eventId: event.metadata?.eventId ?? '', lotId: event.lotId });
+      }
+      return galleryHandlersV1.HandleLotSubmittedResponse.fromPartial({});
+    }),
+    handleLotVisibilityChanged: unary(logger, 'HandleLotVisibilityChanged', async (request, context) => {
+      callers.service(context, ['catalog-service']);
+      const event = request.event;
+      if (event) {
+        await handlers.lotVisibilityChanged({
+          eventId: event.metadata?.eventId ?? '',
+          lotId: event.lotId,
+          ownerId: event.ownerId,
+          visibility: visibilityFromProto(event.visibility),
+        });
+      }
+      return galleryHandlersV1.HandleLotVisibilityChangedResponse.fromPartial({});
     }),
     handleAuctionClosed: unary(logger, 'HandleAuctionClosed', async (request, context) => {
       callers.service(context, ['auction-service']);
       const event = request.event;
       if (event) {
-        await handlers.auctionClosed({ eventId: event.metadata?.eventId ?? '', lotId: event.lotId, winnerId: event.winnerId || null });
+        await handlers.auctionClosed({
+          eventId: event.metadata?.eventId ?? '',
+          lotId: event.lotId,
+          sellerId: event.sellerId,
+          winnerId: event.winnerId || null,
+        });
       }
       return galleryHandlersV1.HandleAuctionClosedResponse.fromPartial({});
     }),
