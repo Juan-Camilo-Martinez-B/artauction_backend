@@ -164,8 +164,21 @@ export function texturedPng(width: number, height: number, seed: number): Buffer
 
 /** Publica una obra completa: alta, hash, subida firmada a Garage, registro de la imagen y envio a auditoria. */
 export async function publishLot(seller: Account, fields: Record<string, unknown>, seed: number): Promise<string> {
+  const lotId = await createLotWithImage(seller, fields, seed);
+  const submitted = await call('POST', `/lots/${lotId}/submit`, { token: seller.token });
+  if (submitted.status !== 201) {
+    throw new Error(`envio a auditoria respondio ${String(submitted.status)}`);
+  }
+  return lotId;
+}
+
+/**
+ * Alta de una obra con su imagen, sin enviarla a auditoria: un borrador del
+ * catalogo o, con `destination: 'PERSONAL'`, un proyecto propio.
+ */
+export async function createLotWithImage(author: Account, fields: Record<string, unknown>, seed: number): Promise<string> {
   const created = await call<{ id: string }>('POST', '/lots', {
-    token: seller.token,
+    token: author.token,
     body: { categorySlug: 'pinturas', representationKind: 'TWO_D', widthCm: 120, heightCm: 90, ...fields },
   });
   if (created.status !== 201) {
@@ -175,22 +188,21 @@ export async function publishLot(seller: Account, fields: Record<string, unknown
   // La corrida entra en la semilla: con una imagen repetida entre corridas, la
   // auditoria detectaria un duplicado de otro vendedor y no publicaria la obra.
   const image = texturedPng(1200, 900, Math.imul(seed, 0x9e3779b1) ^ Number.parseInt(RUN_ID, 16));
-  const hash = await call<{ perceptualHash: string }>('POST', `/lots/${lotId}/hash`, { token: seller.token, body: { imageBase64: image.toString('base64') } });
+  const hash = await call<{ perceptualHash: string }>('POST', `/lots/${lotId}/hash`, { token: author.token, body: { imageBase64: image.toString('base64') } });
   const signed = await call<{ uploadUrl: string; objectKey: string }>('POST', `/lots/${lotId}/uploads`, {
-    token: seller.token,
+    token: author.token,
     body: { contentType: 'image/png', position: 0 },
   });
   const upload = await fetch(signed.body.uploadUrl, { method: 'PUT', headers: { 'content-type': 'image/png' }, body: new Uint8Array(image) });
   if (!upload.ok) {
     throw new Error(`subida a Garage respondio ${String(upload.status)}`);
   }
-  await call('POST', `/lots/${lotId}/images`, {
-    token: seller.token,
+  const registered = await call('POST', `/lots/${lotId}/images`, {
+    token: author.token,
     body: { objectKey: signed.body.objectKey, position: 0, perceptualHash: hash.body.perceptualHash },
   });
-  const submitted = await call('POST', `/lots/${lotId}/submit`, { token: seller.token });
-  if (submitted.status !== 201) {
-    throw new Error(`envio a auditoria respondio ${String(submitted.status)}`);
+  if (registered.status !== 201) {
+    throw new Error(`registro de la imagen respondio ${String(registered.status)}`);
   }
   return lotId;
 }
