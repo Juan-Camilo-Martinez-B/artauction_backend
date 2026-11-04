@@ -10,6 +10,7 @@ import {
 } from '../domain/gallery-design';
 import {
   asConfigRecord,
+  canExhibit,
   canViewItem,
   hasManualChanges,
   initialPlacement,
@@ -45,8 +46,14 @@ function readPreferences(body: unknown, random: boolean): GalleryPreferences {
   }
 }
 
-/** Cuelga una obra en el primer hueco libre de la sala de su duena; si ya estaba, no hace nada. */
+/**
+ * Cuelga una obra en el primer hueco libre de la sala de su duena; si ya
+ * estaba, o es un objeto sin modelo 3D, no hace nada.
+ */
 async function hang(galleries: GalleryRepository, ownerId: string, lot: PublicLot): Promise<void> {
+  if (!canExhibit(lot)) {
+    return;
+  }
   const gallery = await galleries.mine(ownerId);
   if (gallery.artworks.some((artwork) => artwork.lotId === lot.lotId)) {
     return;
@@ -125,6 +132,9 @@ export class PersonalGalleryUseCases {
     const lot = await this.catalog.snapshot(lotId);
     if (!lot) {
       throw DomainError.notFound('Obra no encontrada');
+    }
+    if (!canExhibit(lot)) {
+      throw DomainError.precondition('Esta obra tridimensional no tiene modelo 3D: súbelo para exponerla en tu sala.');
     }
     await hang(this.galleries, ownerId, lot);
     return this.galleries.mine(ownerId);

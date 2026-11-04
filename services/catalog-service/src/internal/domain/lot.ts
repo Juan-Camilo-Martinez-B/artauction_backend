@@ -86,6 +86,16 @@ export function assertAcceptsModel(lot: Lot): void {
   }
 }
 
+/**
+ * Una obra tridimensional solo se muestra con su modelo 3D real: sin el no va
+ * a auditoria ni se hace publica. La foto sola no alcanza para exponerla.
+ */
+export function assertShowable(lot: Pick<Lot, 'representationKind' | 'model'>): void {
+  if (lot.representationKind === 'THREE_D' && lot.model === null) {
+    throw DomainError.precondition('Una obra tridimensional necesita su modelo 3D (.glb, .gltf, .fbx u .obj) antes de mostrarse.');
+  }
+}
+
 export function canViewLot(lot: Pick<Lot, 'visibility' | 'sellerId'>, viewerId: string | null): boolean {
   return lot.visibility === 'PUBLIC' || (viewerId !== null && viewerId === lot.sellerId);
 }
@@ -108,9 +118,17 @@ export function assertCanCreate(actor: Actor, destination: LotDestination): void
 }
 
 /** Estado y visibilidad con que nace una obra segun su destino. */
-export function initialState(destination: LotDestination, visibility: Visibility | null): { status: LotStatus; visibility: Visibility } {
+export function initialState(
+  destination: LotDestination,
+  visibility: Visibility | null,
+  kind: RepresentationKind,
+): { status: LotStatus; visibility: Visibility } {
   // Una obra del catalogo es privada hasta que la auditoria la publica.
-  return destination === 'PERSONAL' ? { status: 'PERSONAL', visibility: visibility ?? 'PRIVATE' } : { status: 'BORRADOR', visibility: 'PRIVATE' };
+  if (destination !== 'PERSONAL') {
+    return { status: 'BORRADOR', visibility: 'PRIVATE' };
+  }
+  // Una obra tridimensional nace sin modelo: se hace publica despues de subirlo.
+  return { status: 'PERSONAL', visibility: kind === 'THREE_D' ? 'PRIVATE' : (visibility ?? 'PRIVATE') };
 }
 
 /** El vendedor solo modifica sus obras y solo mientras no esten cerradas. */

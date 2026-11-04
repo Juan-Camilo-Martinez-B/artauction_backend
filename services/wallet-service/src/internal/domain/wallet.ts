@@ -9,7 +9,8 @@ export const MAX_TOP_UP_COINS = 10_000;
 /** Una reserva sin confirmar se revisa tras este tiempo. */
 export const RESERVATION_TTL_MS = 2 * 60 * 1000;
 
-export type EntryKind = 'RECARGA' | 'RETENCION' | 'LIBERACION' | 'CANJE' | 'VENTA';
+/** REEMBOLSO y ANULACION solo los escribe la anulacion de una venta (mantenimiento de la base). */
+export type EntryKind = 'RECARGA' | 'RETENCION' | 'LIBERACION' | 'CANJE' | 'VENTA' | 'REEMBOLSO' | 'ANULACION';
 
 export interface WalletEntry {
   id: string;

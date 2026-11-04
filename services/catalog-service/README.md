@@ -34,7 +34,7 @@ La máquina de estados es una lista de adyacencia en `internal/domain/lot-status
 | `CreateLot` | `CreateLot` | Al catálogo, solo `SELLER` o `ADMIN`; un proyecto propio (`destination = PERSONAL`), cualquier cuenta. Valida medidas (0,1 a 2000 cm, dos decimales) y exige profundidad a un objeto 3D. Emite `LotCreated` con `personal` y `visibility`. |
 | `SignUpload` | `SignImageUpload` | URL prefirmada S3 (SigV4) con el Content-Type firmado; clave nueva en cada subida (`lots/<id>/<pos>-<aleatorio>`). |
 | `RegisterImage` | `RegisterLotImage` | La clave tiene que ser de esa obra o una URL https: una obra no puede apropiarse de la imagen de otra. |
-| `SignModelUpload`, `RegisterModel`, `RemoveModel` | `SignModelUpload`, `RegisterLotModel`, `RemoveLotModel` | Modelo 3D opcional de una obra `THREE_D`, solo en `BORRADOR` o `PERSONAL`. Ver «Modelo 3D». |
+| `SignModelUpload`, `RegisterModel`, `RemoveModel` | `SignModelUpload`, `RegisterLotModel`, `RemoveLotModel` | Modelo 3D de una obra `THREE_D`, obligatorio para mostrarla; solo cambia en `BORRADOR` o `PERSONAL`. Ver «Modelo 3D». |
 | `HashImage` | `HashLotImage` | dHash de 64 bits en un pool de `worker_threads` (vCPU − 1); el event loop no se bloquea. |
 | `SubmitLot` | `SubmitLot` | `BORRADOR` o `PERSONAL` `-> PENDIENTE_AUDITORIA`, privada mientras se audita. Solo quien vende. Emite `LotSubmitted`. |
 | `SetLotVisibility` | `SetLotVisibility` | Solo el autor y solo en `PERSONAL`: muestra u oculta el proyecto en su galería pública. Emite `LotVisibilityChanged`. |
@@ -70,7 +70,7 @@ Cada decisión del administrador queda en `catalog.lot_reviews`, en la misma tra
 La ficha y la imagen **solo cambian en borrador**: una obra auditada no puede cambiar de foto ni de datos sin pasar otra vez por la auditoría.
 ## Modelo 3D
 
-Una obra tridimensional puede llevar su modelo GLB (glTF 2.0 binario, lo que exporta Blender). Es opcional: sin él, la sala 3D usa la foto.
+Una obra tridimensional se muestra con su modelo GLB (glTF 2.0 binario). El frontend acepta también .gltf, .fbx y .obj y los convierte a GLB en el navegador; aquí solo llega GLB. Sin modelo, la obra tridimensional no se muestra (`assertShowable`): no va a auditoría (`SubmitLot`), un proyecto propio no se hace público (`SetLotVisibility`) y nace privado aunque se pida público. Un proyecto propio público no se queda sin modelo: se reemplaza subiendo otro.
 
 1. `SignModelUpload` firma un `PUT` con `Content-Type: model/gltf-binary` a `lots/<obra>/model-<aleatorio>.glb`.
 2. `RegisterModel` lee el archivo del bucket (corta en 30 MB) y lo valida con `domain/glb.ts`, un lector propio sin dependencias. Lee solo la cabecera y el bloque JSON, que glTF obliga a traer con el conteo de cada accessor y el mínimo y máximo de las posiciones; por eso funciona igual con geometría comprimida (Draco o meshopt).

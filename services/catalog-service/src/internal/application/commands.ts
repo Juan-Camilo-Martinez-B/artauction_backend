@@ -8,6 +8,7 @@ import {
   assertEditable,
   assertOwnedAndOpen,
   assertPersonal,
+  assertShowable,
   initialState,
   modelKeyPattern,
   parseNewLot,
@@ -57,7 +58,7 @@ export class CreateLot {
     if (!category) {
       throw DomainError.invalid('La categoria no existe.');
     }
-    return this.lots.create(actor.userId, lot, category.id, initialState(destination, input.visibility ?? null), (created) => [lotCreated(created)]);
+    return this.lots.create(actor.userId, lot, category.id, initialState(destination, input.visibility ?? null, lot.representationKind), (created) => [lotCreated(created)]);
   }
 }
 
@@ -197,6 +198,10 @@ export class RemoveLotModel {
 
   async execute(actor: Actor, lotId: string): Promise<void> {
     const lot = assertEditable(await this.lots.findById(lotId), actor);
+    // Un proyecto propio publico no se queda sin modelo: se reemplaza subiendo otro.
+    if (lot.visibility === 'PUBLIC' && lot.representationKind === 'THREE_D') {
+      throw DomainError.precondition('Tu obra es publica: sube otro modelo para reemplazarlo u ocultala antes de quitarlo.');
+    }
     await this.lots.removeModel(lot.id);
   }
 }
@@ -228,6 +233,7 @@ export class SubmitLot {
     assertCanSell(actor);
     const lot = assertOwnedAndOpen(await this.lots.findById(lotId), actor);
     assertTransition(lot.status, 'PENDIENTE_AUDITORIA');
+    assertShowable(lot);
     // Un proyecto propio publico se oculta mientras se audita: lo publica la auditoria.
     const updated = await this.lots.transition(lotId, lot.status, 'PENDIENTE_AUDITORIA', { visibility: 'PRIVATE' }, () => [lotSubmitted(lotId)]);
     if (!updated) {
@@ -245,6 +251,9 @@ export class SetLotVisibility {
     const lot = assertPersonal(await this.lots.findById(lotId), actor);
     if (lot.visibility === visibility) {
       return lot;
+    }
+    if (visibility === 'PUBLIC') {
+      assertShowable(lot);
     }
     // Mismo estado de origen y destino: el control optimista evita pisar un envio al catalogo.
     const updated = await this.lots.transition(lotId, 'PERSONAL', 'PERSONAL', { visibility }, (changed) => [lotVisibilityChanged(changed)]);

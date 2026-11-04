@@ -29,6 +29,7 @@ function toPublicLot(lot: catalogV1.Lot): PublicLot {
     artistName: lot.artistName ?? null,
     representationKind: REPRESENTATION.get(lot.representationKind) ?? 'TWO_D',
     imageKeys: [...lot.images].sort((left, right) => left.position - right.position).map((image) => image.objectKey),
+    hasModel: lot.model !== undefined,
   };
 }
 

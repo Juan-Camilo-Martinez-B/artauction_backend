@@ -16,6 +16,8 @@ const KIND_TO_PROTO: Readonly<Record<EntryKind, walletV1.EntryKind>> = {
   LIBERACION: walletV1.EntryKind.ENTRY_KIND_LIBERACION,
   CANJE: walletV1.EntryKind.ENTRY_KIND_CANJE,
   VENTA: walletV1.EntryKind.ENTRY_KIND_VENTA,
+  REEMBOLSO: walletV1.EntryKind.ENTRY_KIND_REEMBOLSO,
+  ANULACION: walletV1.EntryKind.ENTRY_KIND_ANULACION,
 };
 
 /** Frontera gRPC publica del bolsillo. */

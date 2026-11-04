@@ -597,4 +597,24 @@ describe('modelo 3D de una obra tridimensional', () => {
     );
     await expectKind(new RemoveLotModel(repo).execute(SELLER, sculpture.id), 'FAILED_PRECONDITION');
   });
+
+  it('una obra tridimensional no se muestra sin su modelo 3D', async () => {
+    const repo = new MemoryLots();
+    const register = new RegisterLotModel(repo, reader(glb(12_000)));
+
+    // Sin modelo no va a auditoria; con el, si.
+    const sculpture = await new CreateLot(repo).execute(SELLER, SCULPTURE);
+    await expectKind(new SubmitLot(repo).execute(SELLER, sculpture.id), 'FAILED_PRECONDITION');
+    await register.execute(SELLER, { lotId: sculpture.id, objectKey: `lots/${sculpture.id}/model-abc.glb` });
+    await new SubmitLot(repo).execute(SELLER, sculpture.id);
+
+    // Un proyecto propio tridimensional nace privado aunque se pida publico, y
+    // solo se hace publico con su modelo; publico, el modelo no se quita.
+    const own = await new CreateLot(repo).execute(SELLER, { ...SCULPTURE, destination: 'PERSONAL', visibility: 'PUBLIC' });
+    expect(own.visibility).toBe('PRIVATE');
+    await expectKind(new SetLotVisibility(repo).execute(SELLER, own.id, 'PUBLIC'), 'FAILED_PRECONDITION');
+    await register.execute(SELLER, { lotId: own.id, objectKey: `lots/${own.id}/model-abc.glb` });
+    expect((await new SetLotVisibility(repo).execute(SELLER, own.id, 'PUBLIC')).visibility).toBe('PUBLIC');
+    await expectKind(new RemoveLotModel(repo).execute(SELLER, own.id), 'FAILED_PRECONDITION');
+  });
 });

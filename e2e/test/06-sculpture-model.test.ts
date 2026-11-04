@@ -104,11 +104,14 @@ describe('modelo 3D de una escultura', () => {
     assert.equal((await lotOf(vase)).body.model?.triangleCount, 2304);
   });
 
-  test('quitar el modelo de un borrador lo saca de la ficha', async () => {
+  test('quitar el modelo de un borrador lo saca de la ficha y sin modelo no va a auditoria', async () => {
     const draft = await createLotWithImage(seller, { ...VASE, title: 'E2E Jarron sin modelo' }, 63);
     assert.equal((await uploadModel(seller, draft, vaseGlb())).status, 201);
     assert.equal((await call('DELETE', `/lots/${draft}/model`, { token: seller.token })).status, 204);
     assert.equal((await lotOf(draft)).body.model, null);
+    // Una obra tridimensional solo se muestra con su modelo real.
+    assert.equal((await call('POST', `/lots/${draft}/submit`, { token: seller.token })).status, 409);
+    assert.equal((await lotOf(draft)).body.status, 'BORRADOR');
   });
 
   test('la auditoria usa el modelo como evidencia y avisa si sus proporciones no cuadran', async () => {
