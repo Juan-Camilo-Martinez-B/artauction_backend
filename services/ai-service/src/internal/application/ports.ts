@@ -9,7 +9,7 @@ export interface JsonGenerationRequest {
   temperature: number;
 }
 
-/** Modelo generativo detras de una API externa (Gemini u otro proveedor). */
+/** Modelo generativo detras de una API externa (hoy Groq). */
 export interface LanguageModel {
   readonly name: string;
   generateJson(request: JsonGenerationRequest): Promise<unknown>;

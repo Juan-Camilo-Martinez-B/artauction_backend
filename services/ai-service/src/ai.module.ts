@@ -5,7 +5,7 @@ import { CallerResolver } from '@artauction/service-kit';
 import { aiGrpcService } from './api/grpc/ai.grpc';
 import type { LanguageModel } from './internal/application/ports';
 import { AuditArtwork, DesignGallery } from './internal/application/use-cases';
-import { GeminiModel } from './internal/infrastructure/gemini-model';
+import { GroqModel } from './internal/infrastructure/groq-model';
 import type { AiConfig } from './config';
 
 // Raiz de composicion de ai-service: sin base de datos ni clientes de otros
@@ -22,19 +22,19 @@ const providers: Provider[] = [
     provide: MODEL,
     inject: [CONFIG, LOGGER],
     useFactory: (config: AiConfig, logger: StructuredLogger): LanguageModel | null => {
-      if (!config.geminiConfigured) {
-        logger.warn('GEMINI_API_KEY vacia: la auditoria usa la evaluacion local y DesignGallery no esta disponible', 'ai');
+      if (!config.groqConfigured) {
+        logger.warn('GROQ_API_KEY vacia: la auditoria usa la evaluacion local y DesignGallery no esta disponible', 'ai');
         return null;
       }
-      return new GeminiModel({
-        apiKey: config.GEMINI_API_KEY,
-        model: config.GEMINI_MODEL,
-        timeoutMs: config.GEMINI_TIMEOUT_MS,
+      return new GroqModel({
+        apiKey: config.GROQ_API_KEY,
+        model: config.GROQ_MODEL,
+        timeoutMs: config.GROQ_TIMEOUT_MS,
         // Solo cifras: ni la peticion ni la respuesta van al log.
         onUsage: (usage) => {
           logger.log(
             `tokens de ${usage.model}: entrada ${String(usage.promptTokens)}, salida ${String(usage.outputTokens)}, total ${String(usage.totalTokens)}`,
-            'gemini-usage',
+            'ai-usage',
           );
         },
       });

@@ -18,19 +18,23 @@ export class AiConfig {
   @MinLength(1)
   JWT_PUBLIC_KEY_PATH!: string;
 
-  /** Unico lugar del sistema con la clave de Gemini. Vacia usa la evaluacion local. */
+  /** Unico lugar del sistema con la clave de Groq. Vacia usa la evaluacion local. */
   @IsOptional()
   @IsString()
-  GEMINI_API_KEY = '';
+  GROQ_API_KEY = '';
 
+  /**
+   * Modelo de Groq. Debe admitir salida JSON en modo estricto (los gpt-oss lo
+   * hacen): la auditoria y el diseno de salas dependen de ese formato.
+   */
   @IsString()
   @MinLength(1)
-  GEMINI_MODEL = 'gemini-2.5-flash';
+  GROQ_MODEL = 'openai/gpt-oss-120b';
 
   @IsInt()
   @Min(1_000)
   @Max(60_000)
-  GEMINI_TIMEOUT_MS = 15_000;
+  GROQ_TIMEOUT_MS = 15_000;
 
   @IsBoolean()
   GRPC_TLS = false;
@@ -47,8 +51,8 @@ export class AiConfig {
   @IsString()
   GRPC_TLS_CA?: string;
 
-  get geminiConfigured(): boolean {
-    return this.GEMINI_API_KEY.trim().length > 0;
+  get groqConfigured(): boolean {
+    return this.GROQ_API_KEY.trim().length > 0;
   }
 
   get tls(): TlsSettings {

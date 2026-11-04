@@ -101,7 +101,7 @@ jobs:
           cache-dependency-path: artauction_backend/package-lock.json
 
       # Secretos efimeros del runner: los mismos scripts que en local, sin
-      # imprimir nada. Sin GEMINI_API_KEY, ai-service usa la evaluacion local
+      # imprimir nada. Sin GROQ_API_KEY, ai-service usa la evaluacion local
       # determinista.
       - name: Generate secrets
         # La clave privada queda con modo 600; se le entrega al uid 1000 (node en
