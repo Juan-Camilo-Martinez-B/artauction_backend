@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, designTexts, type Locale } from './gallery-labels';
+
 export const ART_STYLES = [
   'clasico',
   'renacimiento',
@@ -136,7 +138,13 @@ export function parsePreferences(input: unknown): GalleryPreferences {
   };
 }
 
-export function designFromPreferences(preferences: GalleryPreferences, source: GalleryConfig['source']): GalleryConfig {
+/** Diseno local a partir de las respuestas, con sus textos en el idioma de quien lo pide. */
+export function designFromPreferences(
+  preferences: GalleryPreferences,
+  source: GalleryConfig['source'],
+  locale: Locale = DEFAULT_LOCALE,
+): GalleryConfig {
+  const texts = designTexts(preferences, locale);
   const palette = shiftPalette(PALETTE_HEX[preferences.paletteId as (typeof PALETTES)[number]], preferences);
   const width = preferences.layout === 'abiertos' || preferences.layout === 'esculturas' ? 16 : 12;
   const depth = preferences.layout === 'intimas' ? 8 : 10;
@@ -149,8 +157,8 @@ export function designFromPreferences(preferences: GalleryPreferences, source: G
     schemaVersion: 1,
     source,
     identity: {
-      styleName: labelStyle(preferences.favoriteStyle),
-      summary: `Sala ${preferences.atmosphere} con acento de ${preferences.favoriteStyle}.`,
+      styleName: texts.styleName,
+      summary: texts.summary,
       artStyles: preferences.artStyles,
     },
     architecture: {
@@ -170,7 +178,7 @@ export function designFromPreferences(preferences: GalleryPreferences, source: G
       ambientIntensity: preferences.light === 'dramatica' ? Math.min(ambient, 0.35) : ambient,
       colorTemperature: preferences.lightMood === 'calidez' ? 2700 : temperature,
       spotIntensity: spot,
-      mood: preferences.lightMood,
+      mood: texts.mood,
     },
     navigation: {
       tour: preferences.tour,
@@ -464,10 +472,6 @@ function motionOf(access: string): GalleryConfig['navigation']['motion'] {
     return 'contrast';
   }
   return 'default';
-}
-
-function labelStyle(style: string): string {
-  return style.charAt(0).toUpperCase() + style.slice(1);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

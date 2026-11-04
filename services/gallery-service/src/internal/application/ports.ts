@@ -1,4 +1,5 @@
 import type { GalleryConfig, GalleryPreferences } from '../domain/gallery-design';
+import type { Locale } from '../domain/gallery-labels';
 import type { Activity, Artwork, GalleryItem, PersonalGallery, PublicLot, PurchasedSheet } from '../domain/gallery';
 
 export interface GalleryPatch {
@@ -60,7 +61,8 @@ export interface IdentityPort {
 }
 
 export interface GalleryDesigner {
-  design(preferences: GalleryPreferences): Promise<GalleryConfig>;
+  /** Los textos de la sala (estilo, resumen, clima) salen en locale. */
+  design(preferences: GalleryPreferences, locale: Locale): Promise<GalleryConfig>;
 }
 
 export interface Clock {

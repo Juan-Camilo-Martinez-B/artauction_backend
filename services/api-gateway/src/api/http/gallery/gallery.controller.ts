@@ -99,7 +99,7 @@ export class PersonalGalleryController {
   async generate(@Headers('authorization') authorization: string | undefined, @Body() body: GenerateGalleryDto, @RequestLocale() locale: Locale) {
     const response = await invoke(
       this.gallery.generateGallery.bind(this.gallery),
-      { preferences: asStruct(body.preferences), random: body.random === true, replaceApplied: body.replaceApplied === true },
+      { preferences: asStruct(body.preferences), random: body.random === true, replaceApplied: body.replaceApplied === true, locale },
       { ...this.options(authorization), deadlineMs: Math.max(this.config.GRPC_DEADLINE_MS, 35_000) },
     );
     return this.compose(response.gallery, locale);

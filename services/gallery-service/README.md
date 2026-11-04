@@ -8,7 +8,7 @@ Cada usuario tiene una sala, que se crea en su primer acceso.
 
 | Operación | Regla |
 |---|---|
-| Preferencias y diseño | Las preferencias del cuestionario se validan con `parsePreferences`. El diseño lo pide a ai-service; si no hay modelo, no responde o propone algo inválido, usa el diseño local (`designFromPreferences`). El usuario siempre obtiene una sala válida |
+| Preferencias y diseño | Las preferencias del cuestionario se validan con `parsePreferences`. El diseño lo pide a ai-service; si no hay modelo, no responde o propone algo inválido, usa el diseño local (`designFromPreferences`). El usuario siempre obtiene una sala válida. Los textos de la sala (nombre de estilo, resumen y clima de luz) salen en el idioma de quien la genera (`locale` de `GenerateGallery`, `es` o `en`): se lo pide al modelo y el diseño local los toma de `gallery-labels`, con un texto por idioma para cada identificador |
 | Cambios manuales | Editar la sala la deja `EDITADA`. Generar una nueva sobre cambios manuales pide confirmación (`409`) |
 | Colgar una obra | Solo lo propio: la obra tiene que estar en la galería de quien la cuelga (`PROYECTO`, `PROPIA` o `GANADA`); si no, `403`. Un proyecto propio y una obra ganada se cuelgan solos al llegar. Una pintura va al primer hueco libre de 2 m, recorriendo el fondo, la izquierda, la derecha y la entrada; una escultura, al primer punto libre de una retícula de pedestales en el centro. Un hueco ocupado por una obra movida a mano se respeta. Repetirla no la duplica. Un objeto sin modelo 3D no se cuelga (`canExhibit`): si llega por evento se omite y a mano responde `409`. El botón **Organizar** de la sala reparte todo según las medidas reales |
 | Mover una obra | Soporte entre `WALL`, `PEDESTAL`, `FLOOR`, `PLATFORM` y `NICHE`; escala mayor que 0 y hasta 3 |
@@ -52,7 +52,7 @@ src/
   api/grpc/          GalleryService y GalleryEventHandlerService
   api/clients/       catalog (fichas), identity (usuario) y ai-service (diseño con respaldo local)
   internal/
-    domain/          gallery-design (esquema 1, preferencias, diseño local, JSON Schema) y reglas de la sala
+    domain/          gallery-design (esquema 1, preferencias, diseño local, JSON Schema), gallery-labels (textos de la sala por idioma) y reglas de la sala
     application/     PersonalGalleryUseCases, SocialUseCases, GalleryEventHandlers y puertos
     infrastructure/  Prisma (esquema gallery)
   gallery.module.ts  raíz de composición

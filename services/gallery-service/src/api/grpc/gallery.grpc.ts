@@ -2,6 +2,7 @@ import { catalogV1, commonV1, galleryHandlersV1, galleryV1 } from '@artauction/c
 import { DomainError, type StructuredLogger } from '@artauction/platform';
 import { unary, type CallerResolver } from '@artauction/service-kit';
 import type { Activity, GalleryItem, PersonalGallery, PurchasedSheet, Support } from '../../internal/domain/gallery';
+import { localeOf } from '../../internal/domain/gallery-labels';
 import type { GalleryEventHandlers, PersonalGalleryUseCases, SocialUseCases } from '../../internal/application/use-cases';
 
 const STATUS_TO_PROTO: Readonly<Record<PersonalGallery['customizationStatus'], galleryV1.CustomizationStatus>> = {
@@ -124,7 +125,7 @@ export function galleryGrpcService(
     ),
     generateGallery: unary(logger, 'GenerateGallery', async (request, context) =>
       galleryV1.GenerateGalleryResponse.fromPartial({
-        gallery: await room(await personal.generate(owner(context), request.preferences, request.random, request.replaceApplied)),
+        gallery: await room(await personal.generate(owner(context), request.preferences, request.random, request.replaceApplied, localeOf(request.locale))),
       }),
     ),
     applyGalleryConfig: unary(logger, 'ApplyGalleryConfig', async (request, context) =>

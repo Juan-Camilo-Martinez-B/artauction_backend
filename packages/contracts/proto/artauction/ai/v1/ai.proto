@@ -67,6 +67,8 @@ message DesignGalleryRequest {
   // JSON Schema de la configuracion, definido por el duenio de la galeria. El
   // modelo responde con esa estructura (responseJsonSchema).
   optional google.protobuf.Struct response_schema = 2;
+  // Idioma en que el modelo escribe los textos de la sala: "es" o "en".
+  string locale = 3;
 }
 
 message DesignGalleryResponse {

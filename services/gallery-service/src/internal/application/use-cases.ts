@@ -8,6 +8,7 @@ import {
   type GalleryConfig,
   type GalleryPreferences,
 } from '../domain/gallery-design';
+import type { Locale } from '../domain/gallery-labels';
 import {
   asConfigRecord,
   canExhibit,
@@ -88,10 +89,10 @@ export class PersonalGalleryUseCases {
     return this.galleries.mine(ownerId);
   }
 
-  async generate(ownerId: string, body: unknown, random: boolean, replaceApplied: boolean): Promise<PersonalGallery> {
+  async generate(ownerId: string, body: unknown, random: boolean, replaceApplied: boolean, locale: Locale): Promise<PersonalGallery> {
     const preferences = readPreferences(body, random);
     const gallery = await this.galleries.mine(ownerId);
-    const designed = await this.designer.design(preferences);
+    const designed = await this.designer.design(preferences, locale);
     const config = validConfig(random ? { ...designed, source: 'random' } : designed);
     if (hasManualChanges(gallery, configsDiffer) && !replaceApplied) {
       throw DomainError.conflict('Hay cambios manuales. Confirma si quieres reemplazar la sala actual.', { code: 'GALLERY_MANUAL_CHANGES' });

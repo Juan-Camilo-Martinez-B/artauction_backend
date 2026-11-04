@@ -4,7 +4,7 @@ import { unary, type CallerResolver } from '@artauction/service-kit';
 import type { ArtworkDossier, Finding, Severity } from '../../internal/domain/assessment';
 import type { TranslateLot } from '../../internal/application/translate-lot';
 import type { AuditArtwork, DesignGallery } from '../../internal/application/use-cases';
-import type { LotTexts } from '../../internal/domain/translation';
+import { isLocale, type LotTexts } from '../../internal/domain/translation';
 
 const SEVERITY_FROM_PROTO: ReadonlyMap<aiV1.FindingSeverity, Severity> = new Map([
   [aiV1.FindingSeverity.FINDING_SEVERITY_INFO, 'INFO'],
@@ -85,7 +85,8 @@ export function aiGrpcService(
     // gallery-service envia el JSON Schema de la sala; la validacion final es suya.
     designGallery: unary(logger, 'DesignGallery', async (request, context) => {
       callers.service(context, ['gallery-service']);
-      const designed = await useCases.design.execute(request.preferences ?? {}, request.responseSchema ?? null);
+      const locale = isLocale(request.locale) ? request.locale : 'es';
+      const designed = await useCases.design.execute(request.preferences ?? {}, request.responseSchema ?? null, locale);
       return aiV1.DesignGalleryResponse.fromPartial(designed);
     }),
 

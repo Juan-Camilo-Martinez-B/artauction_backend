@@ -11,6 +11,7 @@ import {
   type GalleryPreferences,
 } from '../../internal/domain/gallery-design';
 import type { PublicLot } from '../../internal/domain/gallery';
+import type { Locale } from '../../internal/domain/gallery-labels';
 import type { CatalogPort, GalleryDesigner, IdentityPort } from '../../internal/application/ports';
 
 const DEADLINE_MS = 5_000;
@@ -96,18 +97,18 @@ export class AiGalleryDesigner implements GalleryDesigner {
     private readonly logger: StructuredLogger,
   ) {}
 
-  async design(preferences: GalleryPreferences): Promise<GalleryConfig> {
+  async design(preferences: GalleryPreferences, locale: Locale): Promise<GalleryConfig> {
     try {
       const response = await invoke(
         this.ai.designGallery.bind(this.ai),
-        { preferences: { ...preferences }, responseSchema: GALLERY_CONFIG_JSON_SCHEMA },
+        { preferences: { ...preferences }, responseSchema: GALLERY_CONFIG_JSON_SCHEMA, locale },
         { deadlineMs: DESIGN_DEADLINE_MS, authorization: await this.tokens.authorization() },
       );
       return validateGalleryConfig(response.config);
     } catch (error) {
       const reason = isServiceError(error) ? error.details : error instanceof Error ? error.message : String(error);
       this.logger.warn(`diseno local en lugar de ai-service: ${reason}`, 'gallery-design');
-      return designFromPreferences(preferences, 'ai-local');
+      return designFromPreferences(preferences, 'ai-local', locale);
     }
   }
 }

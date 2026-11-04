@@ -55,7 +55,7 @@ La evaluación local determinista (`local-rules`):
 
 La respuesta lleva `model = local-rules`. Con eso audit-service la registra como `decided_by = LOCAL` (no como IA) y no la guarda en la caché. Solo aprueba una obra sin advertencias; lo demás va a revisión manual, donde el administrador puede pedir **re-auditar con IA**.
 
-`DesignGallery` no tiene respaldo aquí: responde `FAILED_PRECONDITION` o `UNAVAILABLE` y gallery-service usa su diseño local. Un diseño generado por IA se marca con el origen neutro `"ai"`, que no depende del proveedor.
+`DesignGallery` no tiene respaldo aquí: responde `FAILED_PRECONDITION` o `UNAVAILABLE` y gallery-service usa su diseño local. Un diseño generado por IA se marca con el origen neutro `"ai"`, que no depende del proveedor. El pedido trae `locale` y el prompt indica en qué idioma escribir los textos libres de la sala (`identity.styleName`, `identity.summary`, `lighting.mood`).
 
 ## Resiliencia
 
