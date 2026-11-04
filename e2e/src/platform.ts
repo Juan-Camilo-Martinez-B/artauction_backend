@@ -206,3 +206,94 @@ export async function createLotWithImage(author: Account, fields: Record<string,
   }
   return lotId;
 }
+
+/**
+ * GLB real de un jarron torneado: posiciones, normales e indices en el bloque
+ * binario, 0,32 x 0,5 x 0,32 m. Con los valores por omision, 48 segmentos x 24
+ * anillos = 2 304 triangulos.
+ */
+export function vaseGlb(segments = 48, rings = 24): Buffer {
+  const height = 0.5;
+  const radius = (t: number) => 0.06 + 0.1 * Math.sin(Math.PI * Math.min(1, t * 1.15)) * (t < 0.85 ? 1 : 0.6) + (t > 0.9 ? 0.03 : 0);
+  const positions: number[] = [];
+  const normals: number[] = [];
+  for (let ring = 0; ring <= rings; ring += 1) {
+    const t = ring / rings;
+    const r = radius(t);
+    for (let segment = 0; segment <= segments; segment += 1) {
+      const angle = (segment / segments) * Math.PI * 2;
+      positions.push(Math.cos(angle) * r, t * height, Math.sin(angle) * r);
+      normals.push(Math.cos(angle), 0, Math.sin(angle));
+    }
+  }
+  const indices: number[] = [];
+  for (let ring = 0; ring < rings; ring += 1) {
+    for (let segment = 0; segment < segments; segment += 1) {
+      const a = ring * (segments + 1) + segment;
+      const b = a + segments + 1;
+      indices.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  }
+  const positionBytes = Buffer.from(new Float32Array(positions).buffer);
+  const normalBytes = Buffer.from(new Float32Array(normals).buffer);
+  const indexBytes = Buffer.from(new Uint32Array(indices).buffer);
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < positions.length; i += 3) {
+    for (let axis = 0; axis < 3; axis += 1) {
+      const value = positions[i + axis] as number;
+      min[axis] = Math.min(min[axis] as number, value);
+      max[axis] = Math.max(max[axis] as number, value);
+    }
+  }
+  const bin = Buffer.concat([positionBytes, normalBytes, indexBytes]);
+  const json = {
+    asset: { version: '2.0', generator: 'ArtAuction e2e' },
+    scene: 0,
+    scenes: [{ nodes: [0] }],
+    nodes: [{ mesh: 0, name: 'Jarron' }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0, NORMAL: 1 }, indices: 2, material: 0 }] }],
+    materials: [{ pbrMetallicRoughness: { baseColorFactor: [0.55, 0.32, 0.2, 1], metallicFactor: 0, roughnessFactor: 0.6 } }],
+    buffers: [{ byteLength: bin.length }],
+    bufferViews: [
+      { buffer: 0, byteOffset: 0, byteLength: positionBytes.length, target: 34962 },
+      { buffer: 0, byteOffset: positionBytes.length, byteLength: normalBytes.length, target: 34962 },
+      { buffer: 0, byteOffset: positionBytes.length + normalBytes.length, byteLength: indexBytes.length, target: 34963 },
+    ],
+    accessors: [
+      { bufferView: 0, componentType: 5126, count: positions.length / 3, type: 'VEC3', min, max },
+      { bufferView: 1, componentType: 5126, count: normals.length / 3, type: 'VEC3' },
+      { bufferView: 2, componentType: 5125, count: indices.length, type: 'SCALAR' },
+    ],
+  };
+  const jsonBuffer = Buffer.from(JSON.stringify(json));
+  const jsonPadded = Buffer.concat([jsonBuffer, Buffer.alloc((4 - (jsonBuffer.length % 4)) % 4, 0x20)]);
+  const binPadded = Buffer.concat([bin, Buffer.alloc((4 - (bin.length % 4)) % 4, 0)]);
+  const header = Buffer.alloc(12);
+  header.writeUInt32LE(0x46546c67, 0);
+  header.writeUInt32LE(2, 4);
+  header.writeUInt32LE(12 + 8 + jsonPadded.length + 8 + binPadded.length, 8);
+  const chunkHeader = (length: number, type: number) => {
+    const chunk = Buffer.alloc(8);
+    chunk.writeUInt32LE(length, 0);
+    chunk.writeUInt32LE(type, 4);
+    return chunk;
+  };
+  return Buffer.concat([header, chunkHeader(jsonPadded.length, 0x4e4f534a), jsonPadded, chunkHeader(binPadded.length, 0x004e4942), binPadded]);
+}
+
+/** Sube un modelo como el formulario: URL firmada, PUT a Garage y registro en catalog. */
+export async function uploadModel(author: Account, lotId: string, file: Buffer): Promise<Reply> {
+  const signed = await call<{ uploadUrl: string; objectKey: string }>('POST', `/lots/${lotId}/model-uploads`, {
+    token: author.token,
+    body: { contentType: 'model/gltf-binary' },
+  });
+  if (signed.status !== 201) {
+    return signed;
+  }
+  const upload = await fetch(signed.body.uploadUrl, { method: 'PUT', headers: { 'content-type': 'model/gltf-binary' }, body: new Uint8Array(file) });
+  if (!upload.ok) {
+    throw new Error(`subida del modelo a Garage respondio ${String(upload.status)}`);
+  }
+  return call('POST', `/lots/${lotId}/model`, { token: author.token, body: { objectKey: signed.body.objectKey } });
+}
