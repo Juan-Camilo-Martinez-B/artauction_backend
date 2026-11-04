@@ -21,6 +21,19 @@ export interface Category {
   active: boolean;
 }
 
+/** Modelo 3D (GLB) de una obra tridimensional, ya validado y medido. */
+export interface LotModel {
+  objectKey: string;
+  bytes: number;
+  triangleCount: number;
+  vertexCount: number;
+  /** Caja que envuelve el modelo, en sus unidades. */
+  sizeX: number;
+  sizeY: number;
+  sizeZ: number;
+  createdAt: Date;
+}
+
 export interface LotImage {
   id: string;
   objectKey: string;
@@ -57,6 +70,30 @@ export interface Lot {
   categories: Array<{ isPrimary: boolean; category: Category }>;
   /** Ultima decision de un administrador; null si nunca paso por revision manual. */
   lastReview: LotReview | null;
+  /** Modelo 3D opcional de una obra tridimensional. */
+  model: LotModel | null;
+}
+
+/** Clave del modelo 3D de una obra en el bucket: siempre bajo su prefijo. */
+export function modelKeyPattern(lotId: string): RegExp {
+  return new RegExp(`^lots/${lotId}/model-[A-Za-z0-9_-]{1,64}\\.glb$`);
+}
+
+/** Un modelo 3D solo tiene sentido en una obra tridimensional. */
+export function assertAcceptsModel(lot: Lot): void {
+  if (lot.representationKind !== 'THREE_D') {
+    throw DomainError.precondition('Solo una obra tridimensional (escultura u objeto) lleva modelo 3D.');
+  }
+}
+
+/**
+ * Una obra tridimensional solo se muestra con su modelo 3D real: sin el no va
+ * a auditoria ni se hace publica. La foto sola no alcanza para exponerla.
+ */
+export function assertShowable(lot: Pick<Lot, 'representationKind' | 'model'>): void {
+  if (lot.representationKind === 'THREE_D' && lot.model === null) {
+    throw DomainError.precondition('Una obra tridimensional necesita su modelo 3D (.glb, .gltf, .fbx u .obj) antes de mostrarse.');
+  }
 }
 
 export function canViewLot(lot: Pick<Lot, 'visibility' | 'sellerId'>, viewerId: string | null): boolean {
@@ -81,9 +118,17 @@ export function assertCanCreate(actor: Actor, destination: LotDestination): void
 }
 
 /** Estado y visibilidad con que nace una obra segun su destino. */
-export function initialState(destination: LotDestination, visibility: Visibility | null): { status: LotStatus; visibility: Visibility } {
+export function initialState(
+  destination: LotDestination,
+  visibility: Visibility | null,
+  kind: RepresentationKind,
+): { status: LotStatus; visibility: Visibility } {
   // Una obra del catalogo es privada hasta que la auditoria la publica.
-  return destination === 'PERSONAL' ? { status: 'PERSONAL', visibility: visibility ?? 'PRIVATE' } : { status: 'BORRADOR', visibility: 'PRIVATE' };
+  if (destination !== 'PERSONAL') {
+    return { status: 'BORRADOR', visibility: 'PRIVATE' };
+  }
+  // Una obra tridimensional nace sin modelo: se hace publica despues de subirlo.
+  return { status: 'PERSONAL', visibility: kind === 'THREE_D' ? 'PRIVATE' : (visibility ?? 'PRIVATE') };
 }
 
 /** El vendedor solo modifica sus obras y solo mientras no esten cerradas. */

@@ -48,10 +48,15 @@ export class GrpcCatalogClient implements CatalogPort {
       materials: lot.materials,
       widthCm: centimeters(lot.widthCm),
       heightCm: centimeters(lot.heightCm),
+      depthCm: centimeters(lot.depthCm),
       provenance: lot.provenance ?? '',
       images: [...lot.images]
         .sort((left, right) => left.position - right.position)
         .map((image) => ({ url: image.url ?? null, perceptualHash: image.perceptualHash ?? null })),
+      // Lo que catalog midio al validar el modelo 3D; la auditoria no descarga el archivo.
+      model: lot.model
+        ? { triangles: lot.model.triangleCount, sizeX: lot.model.sizeX, sizeY: lot.model.sizeY, sizeZ: lot.model.sizeZ }
+        : null,
     };
   }
 

@@ -1,5 +1,5 @@
 import type { DomainEvent } from '@artauction/platform';
-import type { Category, Lot, LotImage, NewLot, RepresentationKind, Visibility } from '../domain/lot';
+import type { Category, Lot, LotImage, LotModel, NewLot, RepresentationKind, Visibility } from '../domain/lot';
 import type { LotStatus } from '../domain/lot-status';
 
 export type LotSort = 'recent' | 'title' | 'score';
@@ -64,6 +64,9 @@ export interface LotRepository {
   /** Obras de un vendedor, la mas reciente primero. */
   listBySeller(sellerId: string, limit: number): Promise<Lot[]>;
   upsertImage(lotId: string, image: { objectKey: string; position: number; perceptualHash: string | null }): Promise<LotImage>;
+  /** Registra o reemplaza el modelo 3D de la obra. */
+  saveModel(lotId: string, model: Omit<LotModel, 'createdAt'>): Promise<LotModel>;
+  removeModel(lotId: string): Promise<void>;
   /**
    * Cambia el estado solo si el lote sigue en `from` (control optimista) y guarda
    * los eventos en la misma transaccion. Devuelve el lote actualizado o null.
@@ -97,6 +100,11 @@ export interface SignedUpload {
 
 export interface UploadSigner {
   sign(objectKey: string, contentType: string): Promise<SignedUpload>;
+}
+
+/** Lee un archivo subido al bucket para validarlo; corta en `maxBytes`. */
+export interface ModelReader {
+  read(objectKey: string, maxBytes: number): Promise<Uint8Array>;
 }
 
 export interface TokenSource {

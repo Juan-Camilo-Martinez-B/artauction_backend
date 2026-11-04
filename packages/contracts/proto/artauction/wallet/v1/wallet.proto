@@ -22,6 +22,10 @@ enum EntryKind {
   ENTRY_KIND_CANJE = 4;
   // Abono al vendedor: precio de venta menos la comision de la plataforma.
   ENTRY_KIND_VENTA = 5;
+  // Anulacion de una venta: vuelve al comprador lo que pago.
+  ENTRY_KIND_REEMBOLSO = 6;
+  // Anulacion de una venta: se descuenta al vendedor lo que cobro.
+  ENTRY_KIND_ANULACION = 7;
 }
 
 message WalletEntry {

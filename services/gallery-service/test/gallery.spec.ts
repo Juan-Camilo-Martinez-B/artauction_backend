@@ -128,8 +128,8 @@ class MemorySocial implements SocialStore {
 }
 
 const LOTS: Record<string, PublicLot> = {
-  [LOT]: { lotId: LOT, title: 'Study in Black and Green', artistName: 'J. W. Alexander', representationKind: 'TWO_D', imageKeys: ['lots/x/1.jpg'] },
-  [SCULPTURE]: { lotId: SCULPTURE, title: 'Aphrodite', artistName: null, representationKind: 'THREE_D', imageKeys: [] },
+  [LOT]: { lotId: LOT, title: 'Study in Black and Green', artistName: 'J. W. Alexander', representationKind: 'TWO_D', imageKeys: ['lots/x/1.jpg'], hasModel: false },
+  [SCULPTURE]: { lotId: SCULPTURE, title: 'Aphrodite', artistName: null, representationKind: 'THREE_D', imageKeys: [], hasModel: true },
 };
 const catalog: CatalogPort = {
   snapshot: (lotId) => Promise.resolve(LOTS[lotId] ?? null),
@@ -306,6 +306,21 @@ describe('propiedad de las obras', () => {
     expect((await galleries.mine(OWNER)).artworks).toEqual([expect.objectContaining({ lotId: SCULPTURE, support: 'PEDESTAL' })]);
     // Se ve en la galeria publica del autor.
     expect(await new SocialUseCases(galleries, social, identity, clock, catalog).items(OWNER, null)).toHaveLength(1);
+  });
+
+  it('un objeto sin modelo 3D no entra en la sala, ni solo ni a mano', async () => {
+    const BARE = 'c0000000-0000-4000-8000-0000000b0a2e';
+    const bare: CatalogPort = {
+      snapshot: (lotId) => Promise.resolve(lotId === BARE ? { lotId, title: 'Busto', artistName: null, representationKind: 'THREE_D' as const, imageKeys: [], hasModel: false } : null),
+      sheet: () => Promise.resolve(null),
+    };
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial();
+    await new GalleryEventHandlers(galleries, social, bare, clock).lotCreated({ eventId: 'e1', lotId: BARE, sellerId: OWNER, title: 'Busto', artistName: null, personal: true, visibility: 'PRIVATE' });
+    // Queda en la galeria del autor, pero no en su sala.
+    expect(await social.itemOf(OWNER, BARE)).toMatchObject({ source: 'PROYECTO' });
+    expect((await galleries.mine(OWNER)).artworks).toEqual([]);
+    await expectKind(new PersonalGalleryUseCases(galleries, designer, bare, social).addArtwork(OWNER, BARE), 'FAILED_PRECONDITION');
   });
 
   it('el autor oculta su proyecto y, al pasarlo al catalogo, deja de ser PROYECTO y se oculta', async () => {

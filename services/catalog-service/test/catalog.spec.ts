@@ -1,9 +1,20 @@
 import { DomainError, type DomainEvent } from '@artauction/platform';
 import { CATALOG_EVENTS } from '../src/internal/domain/events';
-import { canViewLot, imageUrl, parseNewLot, type Actor, type Category, type Lot, type LotImage, type NewLot } from '../src/internal/domain/lot';
+import { canViewLot, imageUrl, parseNewLot, type Actor, type Category, type Lot, type LotImage, type LotModel, type NewLot } from '../src/internal/domain/lot';
 import { canTransition, type LotStatus } from '../src/internal/domain/lot-status';
 import type { LotPatch, LotRepository, LotTransitions, NewLotReview, PublicLotQuery, SimilarImage } from '../src/internal/application/ports';
-import { CreateLot, RegisterLotImage, ResolveManualReview, SetLotVisibility, SignImageUpload, SubmitLot, UpdateLot } from '../src/internal/application/commands';
+import {
+  CreateLot,
+  RegisterLotImage,
+  RegisterLotModel,
+  RemoveLotModel,
+  ResolveManualReview,
+  SetLotVisibility,
+  SignImageUpload,
+  SignModelUpload,
+  SubmitLot,
+  UpdateLot,
+} from '../src/internal/application/commands';
 import { MarkLotSold } from '../src/internal/application/event-handlers';
 import { BatchGetPublicLots, FindSimilarImages, GetLotForViewer, ListAuctionCandidates, ListMyLots, ListPublicLots, ListReviewQueue } from '../src/internal/application/queries';
 import { hasSuggestedPrice, planReview } from '../src/internal/domain/review';
@@ -100,10 +111,24 @@ class MemoryLots implements LotRepository {
       images: [],
       categories: [{ isPrimary: true, category: PAINTINGS }],
       lastReview: null,
+      model: null,
     };
     this.lots.set(created.id, created);
     this.outbox.push(...events(created));
     return Promise.resolve(created);
+  }
+
+  saveModel(lotId: string, model: Omit<LotModel, 'createdAt'>) {
+    const saved: LotModel = { ...model, createdAt: new Date(0) };
+    const lot = this.lots.get(lotId);
+    if (lot) this.lots.set(lotId, { ...lot, model: saved });
+    return Promise.resolve(saved);
+  }
+
+  removeModel(lotId: string) {
+    const lot = this.lots.get(lotId);
+    if (lot) this.lots.set(lotId, { ...lot, model: null });
+    return Promise.resolve();
   }
 
   upsertImage(lotId: string, image: { objectKey: string; position: number; perceptualHash: string | null }): Promise<LotImage> {
@@ -494,5 +519,102 @@ describe('proyectos propios', () => {
     expect(repo.outbox.at(-1)).toMatchObject({ type: CATALOG_EVENTS.lotSubmitted, payload: { lotId: own.id } });
     // Ya en auditoria, deja de ser editable como cualquier obra del catalogo.
     await expectKind(new UpdateLot(repo).execute(SELLER, own.id, NEW_LOT), 'FAILED_PRECONDITION');
+  });
+});
+
+describe('modelo 3D de una obra tridimensional', () => {
+  /** GLB minimo valido: una malla de `triangles` caras dentro de una caja de 0,4 x 1,8 x 0,3. */
+  function glb(triangles: number): Uint8Array {
+    const json = new TextEncoder().encode(
+      JSON.stringify({
+        asset: { version: '2.0' },
+        scenes: [{ nodes: [0] }],
+        nodes: [{ mesh: 0 }],
+        meshes: [{ primitives: [{ attributes: { POSITION: 0 }, indices: 1 }] }],
+        accessors: [
+          { count: triangles, type: 'VEC3', componentType: 5126, min: [-0.2, 0, -0.15], max: [0.2, 1.8, 0.15] },
+          { count: triangles * 3, type: 'SCALAR', componentType: 5125 },
+        ],
+        buffers: [{ byteLength: 4 }],
+      }),
+    );
+    const padded = Math.ceil(json.length / 4) * 4;
+    const bytes = new Uint8Array(12 + 8 + padded);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(0, 0x46546c67, true);
+    view.setUint32(4, 2, true);
+    view.setUint32(8, bytes.length, true);
+    view.setUint32(12, padded, true);
+    view.setUint32(16, 0x4e4f534a, true);
+    bytes.fill(0x20, 20);
+    bytes.set(json, 20);
+    return bytes;
+  }
+
+  const SCULPTURE = { ...NEW_LOT, representationKind: 'THREE_D' as const, depthCm: '30' };
+  const signer = { sign: (objectKey: string, contentType: string) => Promise.resolve({ uploadUrl: `https://s3/${objectKey}?type=${contentType}`, objectKey, expiresAt: new Date(0) }) };
+  const reader = (file: Uint8Array) => ({ read: () => Promise.resolve(file) });
+
+  it('firma la subida de un .glb bajo el prefijo de la obra, solo en una obra tridimensional', async () => {
+    const repo = new MemoryLots();
+    const sculpture = await new CreateLot(repo).execute(SELLER, SCULPTURE);
+    const signed = await new SignModelUpload(repo, signer, { next: () => 'abc123' }).execute(SELLER, { lotId: sculpture.id, contentType: 'model/gltf-binary' });
+    expect(signed.objectKey).toBe(`lots/${sculpture.id}/model-abc123.glb`);
+    await expectKind(new SignModelUpload(repo, signer, { next: () => 'x' }).execute(SELLER, { lotId: sculpture.id, contentType: 'image/png' }), 'INVALID_ARGUMENT');
+    const painting = await new CreateLot(repo).execute(SELLER, NEW_LOT);
+    await expectKind(new SignModelUpload(repo, signer, { next: () => 'x' }).execute(SELLER, { lotId: painting.id, contentType: 'model/gltf-binary' }), 'FAILED_PRECONDITION');
+    await expectKind(new SignModelUpload(repo, signer, { next: () => 'x' }).execute(OTHER, { lotId: sculpture.id, contentType: 'model/gltf-binary' }), 'NOT_FOUND');
+  });
+
+  it('registra el modelo medido: triangulos, vertices, caja y bytes', async () => {
+    const repo = new MemoryLots();
+    const sculpture = await new CreateLot(repo).execute(SELLER, SCULPTURE);
+    const file = glb(12_000);
+    const model = await new RegisterLotModel(repo, reader(file)).execute(SELLER, { lotId: sculpture.id, objectKey: `lots/${sculpture.id}/model-abc123.glb` });
+    expect(model).toMatchObject({ triangleCount: 12_000, vertexCount: 12_000, sizeX: 0.4, sizeY: 1.8, bytes: file.byteLength });
+    expect(repo.lots.get(sculpture.id)?.model?.triangleCount).toBe(12_000);
+    await new RemoveLotModel(repo).execute(SELLER, sculpture.id);
+    expect(repo.lots.get(sculpture.id)?.model).toBeNull();
+  });
+
+  it('no registra la clave de otra obra ni un modelo fuera de los limites', async () => {
+    const repo = new MemoryLots();
+    const sculpture = await new CreateLot(repo).execute(SELLER, SCULPTURE);
+    const register = new RegisterLotModel(repo, reader(glb(12_000)));
+    await expectKind(register.execute(SELLER, { lotId: sculpture.id, objectKey: 'lots/b0000000-0000-4000-8000-000000000099/model-abc.glb' }), 'INVALID_ARGUMENT');
+    await expectKind(register.execute(SELLER, { lotId: sculpture.id, objectKey: `lots/${sculpture.id}/model-a.glb?x=1` }), 'INVALID_ARGUMENT');
+    await expectKind(new RegisterLotModel(repo, reader(glb(50))).execute(SELLER, { lotId: sculpture.id, objectKey: `lots/${sculpture.id}/model-abc.glb` }), 'INVALID_ARGUMENT');
+    expect(repo.lots.get(sculpture.id)?.model).toBeNull();
+  });
+
+  it('una obra auditada no cambia de modelo sin volver a auditarse', async () => {
+    const repo = new MemoryLots();
+    const sculpture = await new CreateLot(repo).execute(SELLER, SCULPTURE);
+    repo.lots.set(sculpture.id, { ...(repo.lots.get(sculpture.id) as Lot), status: 'PUBLICADA' });
+    await expectKind(
+      new RegisterLotModel(repo, reader(glb(12_000))).execute(SELLER, { lotId: sculpture.id, objectKey: `lots/${sculpture.id}/model-abc.glb` }),
+      'FAILED_PRECONDITION',
+    );
+    await expectKind(new RemoveLotModel(repo).execute(SELLER, sculpture.id), 'FAILED_PRECONDITION');
+  });
+
+  it('una obra tridimensional no se muestra sin su modelo 3D', async () => {
+    const repo = new MemoryLots();
+    const register = new RegisterLotModel(repo, reader(glb(12_000)));
+
+    // Sin modelo no va a auditoria; con el, si.
+    const sculpture = await new CreateLot(repo).execute(SELLER, SCULPTURE);
+    await expectKind(new SubmitLot(repo).execute(SELLER, sculpture.id), 'FAILED_PRECONDITION');
+    await register.execute(SELLER, { lotId: sculpture.id, objectKey: `lots/${sculpture.id}/model-abc.glb` });
+    await new SubmitLot(repo).execute(SELLER, sculpture.id);
+
+    // Un proyecto propio tridimensional nace privado aunque se pida publico, y
+    // solo se hace publico con su modelo; publico, el modelo no se quita.
+    const own = await new CreateLot(repo).execute(SELLER, { ...SCULPTURE, destination: 'PERSONAL', visibility: 'PUBLIC' });
+    expect(own.visibility).toBe('PRIVATE');
+    await expectKind(new SetLotVisibility(repo).execute(SELLER, own.id, 'PUBLIC'), 'FAILED_PRECONDITION');
+    await register.execute(SELLER, { lotId: own.id, objectKey: `lots/${own.id}/model-abc.glb` });
+    expect((await new SetLotVisibility(repo).execute(SELLER, own.id, 'PUBLIC')).visibility).toBe('PUBLIC');
+    await expectKind(new RemoveLotModel(repo).execute(SELLER, own.id), 'FAILED_PRECONDITION');
   });
 });

@@ -1,6 +1,6 @@
 import { catalogV1, commonV1 } from '@artauction/contracts';
 import { DomainError } from '@artauction/platform';
-import { imageUrl, type Category, type Lot, type LotDestination, type LotImage, type RepresentationKind, type Visibility } from '../../internal/domain/lot';
+import { imageUrl, type Category, type Lot, type LotDestination, type LotImage, type LotModel, type RepresentationKind, type Visibility } from '../../internal/domain/lot';
 import type { LotStatus } from '../../internal/domain/lot-status';
 import type { LotSort } from '../../internal/application/ports';
 import type { ReviewDecision } from '../../internal/application/commands';
@@ -90,6 +90,19 @@ export function imageToProto(image: LotImage, mediaBaseUrl: string): catalogV1.L
   });
 }
 
+export function modelToProto(model: LotModel, mediaBaseUrl: string): catalogV1.LotModel {
+  return catalogV1.LotModel.fromPartial({
+    objectKey: model.objectKey,
+    url: imageUrl(model.objectKey, mediaBaseUrl) ?? undefined,
+    bytes: model.bytes,
+    triangleCount: model.triangleCount,
+    vertexCount: model.vertexCount,
+    sizeX: model.sizeX,
+    sizeY: model.sizeY,
+    sizeZ: model.sizeZ,
+  });
+}
+
 export function lotToProto(lot: Lot, mediaBaseUrl: string): catalogV1.Lot {
   return catalogV1.Lot.fromPartial({
     id: lot.id,
@@ -115,6 +128,7 @@ export function lotToProto(lot: Lot, mediaBaseUrl: string): catalogV1.Lot {
     images: lot.images.map((image) => imageToProto(image, mediaBaseUrl)),
     categories: lot.categories.map((link) => ({ isPrimary: link.isPrimary, category: categoryToProto(link.category) })),
     createdAt: lot.createdAt,
+    model: lot.model ? modelToProto(lot.model, mediaBaseUrl) : undefined,
     lastReview: lot.lastReview
       ? {
           decision: DECISION_TO_PROTO[lot.lastReview.decision],

@@ -28,6 +28,11 @@ service CatalogService {
   rpc HashImage(HashImageRequest) returns (HashImageResponse);
   rpc SignUpload(SignUploadRequest) returns (SignUploadResponse);
   rpc RegisterImage(RegisterImageRequest) returns (RegisterImageResponse);
+  // Modelo 3D (GLB) opcional de una obra tridimensional: URL firmada para
+  // subirlo, registro (catalog lo lee, valida y mide) y retiro.
+  rpc SignModelUpload(SignModelUploadRequest) returns (SignModelUploadResponse);
+  rpc RegisterModel(RegisterModelRequest) returns (RegisterModelResponse);
+  rpc RemoveModel(RemoveModelRequest) returns (RemoveModelResponse);
   rpc SubmitLot(SubmitLotRequest) returns (SubmitLotResponse);
   // Solo el vendedor duenio y solo en BORRADOR: corrige la ficha de una obra
   // devuelta (o aun no enviada) antes de mandarla a auditoria.
@@ -140,6 +145,20 @@ message Lot {
   repeated LotCategory categories = 20;
   google.protobuf.Timestamp created_at = 21;
   optional LotReview last_review = 22;
+  optional LotModel model = 23;
+}
+
+// Modelo 3D validado: lo medido sirve para escalarlo y como evidencia de la auditoria.
+message LotModel {
+  string object_key = 1;
+  optional string url = 2;
+  int32 bytes = 3;
+  int32 triangle_count = 4;
+  int32 vertex_count = 5;
+  // Caja que envuelve el modelo, en sus unidades.
+  double size_x = 6;
+  double size_y = 7;
+  double size_z = 8;
 }
 
 message SignedUpload {
@@ -275,6 +294,30 @@ message SignUploadRequest {
 message SignUploadResponse {
   SignedUpload upload = 1;
 }
+
+message SignModelUploadRequest {
+  string lot_id = 1;
+  string content_type = 2;
+}
+
+message SignModelUploadResponse {
+  SignedUpload upload = 1;
+}
+
+message RegisterModelRequest {
+  string lot_id = 1;
+  string object_key = 2;
+}
+
+message RegisterModelResponse {
+  LotModel model = 1;
+}
+
+message RemoveModelRequest {
+  string lot_id = 1;
+}
+
+message RemoveModelResponse {}
 
 message RegisterImageRequest {
   string lot_id = 1;

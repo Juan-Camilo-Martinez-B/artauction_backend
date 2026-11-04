@@ -98,6 +98,13 @@ export interface PublicLot {
   artistName: string | null;
   representationKind: 'TWO_D' | 'THREE_D' | 'OTHER';
   imageKeys: string[];
+  /** Si la obra tiene modelo 3D validado por catalog. */
+  hasModel: boolean;
+}
+
+/** Un objeto solo se expone en la sala con su modelo 3D real; una obra plana, siempre. */
+export function canExhibit(lot: Pick<PublicLot, 'representationKind' | 'hasModel'>): boolean {
+  return lot.representationKind !== 'THREE_D' || lot.hasModel;
 }
 
 export function isSupport(value: string): value is Support {

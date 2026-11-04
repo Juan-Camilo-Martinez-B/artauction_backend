@@ -19,9 +19,12 @@ import {
   CreateLot,
   HashLotImage,
   RegisterLotImage,
+  RegisterLotModel,
+  RemoveLotModel,
   ResolveManualReview,
   SetLotVisibility,
   SignImageUpload,
+  SignModelUpload,
   SubmitLot,
   UpdateLot,
 } from './internal/application/commands';
@@ -40,6 +43,7 @@ import {
 } from './internal/application/queries';
 import { ImageHashPool } from './internal/infrastructure/image-hash.pool';
 import { CATALOG_SCHEMA, PrismaLotRepository, sqlExecutor } from './internal/infrastructure/prisma-lot.repository';
+import { S3ObjectReader } from './internal/infrastructure/s3-object-reader';
 import { S3UploadSigner } from './internal/infrastructure/s3-upload-signer';
 import type { CatalogConfig } from './config';
 
@@ -103,6 +107,14 @@ const providers: Provider[] = [
         expiresInSeconds: config.S3_UPLOAD_TTL_SECONDS,
       });
       const tokens = { next: () => randomBytes(6).toString('hex') };
+      // Lee los modelos subidos para validarlos, con la misma llave del catalogo.
+      const reader = new S3ObjectReader({
+        endpoint: config.S3_ENDPOINT,
+        region: config.S3_REGION,
+        bucket: config.S3_BUCKET,
+        accessKeyId: config.S3_ACCESS_KEY_ID,
+        secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+      });
       return catalogGrpcService(
         {
           listPublic: new ListPublicLots(lots),
@@ -117,6 +129,9 @@ const providers: Provider[] = [
           create: new CreateLot(lots),
           signUpload: new SignImageUpload(lots, signer, tokens),
           registerImage: new RegisterLotImage(lots),
+          signModelUpload: new SignModelUpload(lots, signer, tokens),
+          registerModel: new RegisterLotModel(lots, reader),
+          removeModel: new RemoveLotModel(lots),
           hashImage: new HashLotImage(lots, hashes),
           submit: new SubmitLot(lots),
           update: new UpdateLot(lots),

@@ -114,6 +114,7 @@ Para iterar sobre un servicio sin reconstruir imágenes, se puede correr cada pr
 | `npm run lint:proto -w @artauction/contracts` | `buf lint` de los contratos |
 | `npm run e2e` | prueba de punta a punta contra la plataforma levantada ([e2e/](e2e)) |
 | `npm run compose:up` / `compose:down` | levantar y detener la plataforma |
+| `npm run catalog:sample-3d` | publica en el catálogo 12 obras tridimensionales de muestra con su modelo 3D real (esculturas, jarrones y relojes CC0 de [Poly Haven](https://polyhaven.com)), como el vendedor de la semilla. Descarga cada glTF y su render, lo empaqueta en un GLB sin dependencias y sigue el recorrido del frontend: alta con las medidas reales del modelo, imagen, modelo y envío a auditoría; si queda en revisión manual, la aprueba el administrador de la semilla con un rango de precio fijo. Es idempotente: retoma cada obra donde quedó y no toca las publicadas. Usa `SAMPLE_API_URL`, `SAMPLE_SELLER_EMAIL`, `SAMPLE_ADMIN_EMAIL` y `SEED_PASSWORD` (por omisión, los de desarrollo) y no corre con `NODE_ENV=production` |
 | `npm run storage:prune -- <ids-vivos.txt> [--delete]` | imágenes huérfanas del bucket: archivos bajo `lots/<id>/` cuya obra ya no existe. Sin `--delete` solo informa. Ver «Limpiar los datos de la e2e» |
 
 ### Limpiar los datos de la e2e

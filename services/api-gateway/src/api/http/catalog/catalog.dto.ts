@@ -123,6 +123,19 @@ export class SignUploadDto {
   position!: number;
 }
 
+/** Subida firmada del modelo 3D: solo GLB. */
+export class SignModelUploadDto {
+  @IsIn(['model/gltf-binary'])
+  contentType!: 'model/gltf-binary';
+}
+
+export class RegisterModelDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(300)
+  objectKey!: string;
+}
+
 export class RegisterImageDto {
   @IsString()
   @MinLength(3)

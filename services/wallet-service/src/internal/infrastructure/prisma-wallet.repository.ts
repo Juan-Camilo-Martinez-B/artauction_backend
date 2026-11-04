@@ -17,7 +17,7 @@ export const WALLET_SCHEMA = 'wallet';
 type Tx = Prisma.TransactionClient;
 
 const UNIQUE_VIOLATION = 'P2002';
-const ENTRY_KINDS: ReadonlySet<string> = new Set(['RECARGA', 'RETENCION', 'LIBERACION', 'CANJE', 'VENTA']);
+const ENTRY_KINDS: ReadonlySet<string> = new Set(['RECARGA', 'RETENCION', 'LIBERACION', 'CANJE', 'VENTA', 'REEMBOLSO', 'ANULACION']);
 
 /**
  * Bloquea el bolsillo de cada usuario (creandolo en cero si no existe) y

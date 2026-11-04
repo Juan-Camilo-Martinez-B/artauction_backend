@@ -38,6 +38,7 @@ model Lot {
   images     LotImage[]
   categories LotCategory[]
   reviews    LotReview[]
+  model      LotModel?
 
   @@index([sellerId], map: "lots_seller_id_idx")
   @@index([status], map: "lots_status_idx")
@@ -45,6 +46,23 @@ model Lot {
 }
 
 // Decisiones de un administrador en la revision manual (desde 0026).
+/// Modelo 3D (GLB) opcional de una obra tridimensional (0033). Los limites viven en la migracion.
+model LotModel {
+  lotId         String   @id @map("lot_id") @db.Uuid
+  objectKey     String   @map("object_key")
+  bytes         Int
+  triangleCount Int      @map("triangle_count")
+  vertexCount   Int      @map("vertex_count")
+  sizeX         Decimal  @map("size_x") @db.Decimal(14, 6)
+  sizeY         Decimal  @map("size_y") @db.Decimal(14, 6)
+  sizeZ         Decimal  @map("size_z") @db.Decimal(14, 6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  lot Lot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@map("lot_models")
+}
+
 model LotReview {
   id        String   @id @default(uuid()) @db.Uuid
   lotId     String   @map("lot_id") @db.Uuid

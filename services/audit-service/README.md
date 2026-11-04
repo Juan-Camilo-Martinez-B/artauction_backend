@@ -43,6 +43,7 @@ La IA nunca recibe imágenes. El sistema mide la obra y la IA razona sobre ese r
 | `DUPLICATE_IMAGE_SAME_SELLER` | advertencia | El vendedor reutiliza la imagen de otra de sus obras |
 | `ASPECT_MISMATCH` | advertencia | La proporción de la imagen principal no cuadra con las medidas declaradas (tolerancia 15 %) |
 | `LOW_RESOLUTION` | advertencia | Lado mayor por debajo de 800 px |
+| `MODEL_PROPORTIONS_MISMATCH` | advertencia | Las proporciones del modelo 3D (alto en el eje Y, lados ordenados) difieren más de un 20 % de las medidas declaradas. El expediente lleva además `model.triangles` y `model.size`: los triángulos son evidencia, nunca precio |
 | `BLURRY_IMAGE` | advertencia | Nitidez baja |
 | `NO_ANALYZABLE_IMAGES` | advertencia | Ninguna imagen se pudo analizar |
 

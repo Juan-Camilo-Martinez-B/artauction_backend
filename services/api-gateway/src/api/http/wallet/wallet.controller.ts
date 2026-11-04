@@ -48,6 +48,8 @@ const KIND_NAMES: ReadonlyMap<walletV1.EntryKind, string> = new Map([
   [walletV1.EntryKind.ENTRY_KIND_LIBERACION, 'LIBERACION'],
   [walletV1.EntryKind.ENTRY_KIND_CANJE, 'CANJE'],
   [walletV1.EntryKind.ENTRY_KIND_VENTA, 'VENTA'],
+  [walletV1.EntryKind.ENTRY_KIND_REEMBOLSO, 'REEMBOLSO'],
+  [walletV1.EntryKind.ENTRY_KIND_ANULACION, 'ANULACION'],
 ]);
 
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,100}$/;
