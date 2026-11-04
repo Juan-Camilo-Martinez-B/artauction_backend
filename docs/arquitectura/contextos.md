@@ -20,7 +20,7 @@ flowchart LR
   GAL -- DesignGallery --> AI
   GAL -- GetPublicLot --> CAT
   GAL -- GetPublicProfile --> ID
-  AI -- REST --> GEM[(Gemini API)]
+  AI -- REST --> GEM[(Groq API)]
 
   CAT -. LotCreated .-> GAL
   CAT -. LotSubmitted .-> AUD

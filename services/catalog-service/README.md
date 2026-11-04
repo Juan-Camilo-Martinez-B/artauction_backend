@@ -65,7 +65,7 @@ Cada decisión del administrador queda en `catalog.lot_reviews`, en la misma tra
 
 - **Aprobar:** publica la obra. Si la auditoría no estimó precio (evaluación fallida o sin rango), el administrador **debe** fijar el rango en artacoins enteras. Si lo fija, reemplaza el de la auditoría, y la subasta sale del punto medio.
 - **Devolver a borrador:** exige un motivo de 10 a 500 caracteres. El vendedor lo recibe como aviso, ve la obra como devuelta en «Mis obras», la corrige (`UpdateLot`, imagen incluida) y la reenvía (`SubmitLot`).
-- **Re-auditar:** vuelve a pedir la auditoría, por ejemplo cuando Gemini vuelve a responder después de una evaluación local.
+- **Re-auditar:** vuelve a pedir la auditoría, por ejemplo cuando el modelo de IA vuelve a responder después de una evaluación local.
 
 La ficha y la imagen **solo cambian en borrador**: una obra auditada no puede cambiar de foto ni de datos sin pasar otra vez por la auditoría.
 ## Modelo 3D

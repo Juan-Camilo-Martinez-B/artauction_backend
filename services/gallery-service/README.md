@@ -17,7 +17,7 @@ La sala guarda solo posiciones y el `lotId`. Al devolverla, este servicio agrega
 
 ### Diseño con IA y esquema de la sala
 
-El esquema de la configuración (`GalleryConfig`, versión 1) es de este servicio. Al pedir un diseño se envía a ai-service el JSON Schema equivalente (`GALLERY_CONFIG_JSON_SCHEMA`), que Gemini usa como `responseJsonSchema`. La respuesta pasa además por `validateGalleryConfig`. Una prueba comprueba que el diseño local cumple los mismos campos obligatorios, así esquema y validador no se separan.
+El esquema de la configuración (`GalleryConfig`, versión 1) es de este servicio. Al pedir un diseño se envía a ai-service el JSON Schema equivalente (`GALLERY_CONFIG_JSON_SCHEMA`), que el modelo de IA usa como esquema de salida en modo estricto (ai-service lo adapta a lo que exige Groq). La respuesta pasa además por `validateGalleryConfig`. Una prueba comprueba que el diseño local cumple los mismos campos obligatorios, así esquema y validador no se separan.
 
 ## Galería social
 
