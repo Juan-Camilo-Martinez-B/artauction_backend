@@ -1,6 +1,6 @@
 import type { LanguageDetector, Translator } from '../src/internal/application/ports';
 import { TranslateLot } from '../src/internal/application/translate-lot';
-import { protectSegments, splitForTranslation, targetLocales, type Locale } from '../src/internal/domain/translation';
+import { introducesNumbers, protectSegments, splitForTranslation, targetLocales, type Locale } from '../src/internal/domain/translation';
 
 /** Traductor falso: marca cada texto con la direccion, y anota las llamadas. */
 class FakeTranslator implements Translator {
@@ -111,6 +111,30 @@ describe('traduccion de una ficha', () => {
     const original = await new TranslateLot(lossy, detector).execute(lot);
     expect(original.translations[0]?.texts.description).toBe(lot.description);
     expect(original.translations[0]?.texts.title).toBe('Plaster copy of the bronze, by Rodin.');
+  });
+
+  it('el idioma se detecta sin lo citado: una descripcion del Met sigue siendo espanol', async () => {
+    // Detector que se deja llevar por el ingles citado, como tinyld con mucho texto en comillas.
+    const swayed: LanguageDetector = { detect: (text) => (/landscape|graphite/i.test(text) ? 'en' : detector.detect(text)) };
+    const translator = new FakeTranslator();
+    const result = await new TranslateLot(translator, swayed).execute({
+      title: 'Arcadian landscape',
+      description: '«Arcadian landscape» entra al catálogo como pintura de George Barret. Material: «Watercolor over graphite».',
+      materials: 'Watercolor over graphite',
+      provenance: null,
+    });
+    expect(result.sourceLocale).toBe('es');
+    expect(result.translations[0]?.texts).toMatchObject({ title: 'Arcadian landscape', materials: 'Watercolor over graphite' });
+    expect(result.translations[0]?.texts.description).toMatch(/^\[es>en\] «Arcadian landscape» entra/);
+  });
+
+  it('una traduccion que inventa numeros se descarta y queda el original', async () => {
+    const inventive: Translator = { name: 'inventive', translate: (texts) => Promise.resolve(texts.map((text) => `${text}, 120 x 36 cm`)) };
+    const lot = { title: 'Retrato de 1887', description: 'Retrato al óleo pintado en 1887.', materials: 'Óleo sobre lienzo', provenance: null };
+    const result = await new TranslateLot(inventive, detector).execute(lot);
+    expect(result.translations[0]?.texts).toEqual(lot);
+    expect(introducesNumbers('Datada en 1820–42', 'Dated 1820-1842')).toBe(true);
+    expect(introducesNumbers('Retrato de 1887', 'Portrait from 1887')).toBe(false);
   });
 
   it('sin traductor responde que la traduccion esta desactivada', async () => {

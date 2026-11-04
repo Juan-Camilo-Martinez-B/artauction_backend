@@ -1,9 +1,11 @@
 import { DomainError } from '@artauction/platform';
 import {
+  introducesNumbers,
   MIN_DETECTABLE_LENGTH,
   protectSegments,
   splitForTranslation,
   targetLocales,
+  withoutProtected,
   type Locale,
   type LotTexts,
   type LotTranslation,
@@ -39,8 +41,11 @@ export class TranslateLot {
     if (!this.translator) {
       throw DomainError.precondition('La traduccion automatica esta desactivada');
     }
+    // Se detecta sin lo citado: en las fichas del Met el titulo y el material
+    // en ingles van entre comillas dentro de una descripcion en espanol.
+    const description = withoutProtected(texts.description);
     const sourceLocale =
-      this.detector.detect(texts.description) ?? this.detector.detect(`${texts.title}. ${texts.description}`) ?? DEFAULT_LOCALE;
+      this.detector.detect(description) ?? this.detector.detect(`${withoutProtected(texts.title)}. ${description}`) ?? DEFAULT_LOCALE;
     const translations: LotTranslation[] = [];
     for (const target of targetLocales(sourceLocale)) {
       translations.push({ locale: target, texts: await this.translateTo(texts, sourceLocale, target, this.translator) });
@@ -49,7 +54,13 @@ export class TranslateLot {
   }
 
   private localeOf(text: string, fallback: Locale): Locale {
-    return text.length >= MIN_DETECTABLE_LENGTH ? (this.detector.detect(text) ?? fallback) : fallback;
+    const detectable = withoutProtected(text);
+    return detectable.length >= MIN_DETECTABLE_LENGTH ? (this.detector.detect(detectable) ?? fallback) : fallback;
+  }
+
+  /** La traduccion vale si conserva lo protegido y no inventa numeros; si no, queda el original. */
+  private static accept(original: string, restored: string | null): string {
+    return restored !== null && !introducesNumbers(original, restored) ? restored : original;
   }
 
   private async translateTo(texts: LotTexts, source: Locale, target: Locale, translator: Translator): Promise<LotTexts> {
@@ -69,7 +80,7 @@ export class TranslateLot {
       const guarded = protectSegments(value);
       const { chunks, join } = splitForTranslation(guarded.masked);
       const group = pending.get(from) ?? [];
-      group.push({ field, chunks, join: (translated) => guarded.restore(join(translated)) ?? value });
+      group.push({ field, chunks, join: (translated) => TranslateLot.accept(value, guarded.restore(join(translated))) });
       pending.set(from, group);
     }
     for (const [from, group] of pending) {

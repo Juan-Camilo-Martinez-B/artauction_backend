@@ -145,6 +145,25 @@ export function protectSegments(text: string): { masked: string; restore: (trans
 }
 
 /**
+ * El texto sin lo protegido, para detectar su idioma: una descripcion en
+ * espanol que cita un titulo y un material en ingles sigue siendo espanol.
+ */
+export function withoutProtected(text: string): string {
+  return text.replace(PROTECTED, ' ').replace(/\s+/g, ' ').trim();
+}
+
+const NUMBER = /\d+/g;
+
+/**
+ * Opus-MT a veces agrega datos que no estaban (medidas, fechas). Una
+ * traduccion solo es aceptable si cada numero que trae ya estaba en el original.
+ */
+export function introducesNumbers(original: string, translated: string): boolean {
+  const known = new Set(original.match(NUMBER) ?? []);
+  return (translated.match(NUMBER) ?? []).some((number) => !known.has(number));
+}
+
+/**
  * Por debajo de este largo un detector de idioma acierta poco (una o dos
  * palabras): esos campos se asumen en el idioma de la ficha.
  */
