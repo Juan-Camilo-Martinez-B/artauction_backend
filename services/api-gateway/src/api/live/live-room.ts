@@ -1,7 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
 import type { auctionV1 } from '@artauction/contracts';
-import { isServiceError, toHttpError, type StructuredLogger, type TokenVerifier } from '@artauction/platform';
+import { isServiceError, isUuid, toHttpError, type StructuredLogger, type TokenVerifier } from '@artauction/platform';
 import { invoke } from '@artauction/service-kit';
 import { closeReasonName } from '../http/auctions/auction.presenter';
 import { RoomStreams, type RoomNotice, type WatchSource } from './room-streams';
@@ -40,8 +40,6 @@ export interface LiveRoomOptions {
   maxBidsPerWindow?: number;
   bidWindowMs?: number;
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function now(): string {
   return new Date().toISOString();
@@ -154,7 +152,7 @@ export class LiveRoom {
 
   private join(socket: Socket, auctionId: unknown): { serverTime: string } {
     const serverTime = now();
-    if (typeof auctionId === 'string' && UUID.test(auctionId)) {
+    if (isUuid(auctionId)) {
       const rooms = state(socket).rooms;
       if (!rooms.has(auctionId)) {
         if (rooms.size >= this.maxRooms) {
@@ -182,7 +180,7 @@ export class LiveRoom {
     const body: PlaceBidMessage = typeof raw === 'object' && raw !== null ? raw : {};
     const auctionId = typeof body.auctionId === 'string' ? body.auctionId : '';
     const { amount, idempotencyKey } = body;
-    if (!UUID.test(auctionId) || typeof amount !== 'string' || typeof idempotencyKey !== 'string' || idempotencyKey.length < 8) {
+    if (!isUuid(auctionId) || typeof amount !== 'string' || typeof idempotencyKey !== 'string' || idempotencyKey.length < 8) {
       return reject(auctionId, 'Puja incompleta');
     }
     if (!this.withinRate(state(socket))) {

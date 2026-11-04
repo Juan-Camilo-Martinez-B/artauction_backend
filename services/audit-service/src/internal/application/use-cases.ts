@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { DomainError, type StructuredLogger } from '@artauction/platform';
+import { DomainError, isUuid, type StructuredLogger } from '@artauction/platform';
 import { buildDossier, MAX_IMAGES, type Dossier, type LotSheet } from '../domain/dossier';
 import {
   auditCompleted,
@@ -14,7 +14,6 @@ import {
 } from '../domain/verdict';
 import type { AiPort, AuditRepository, AuditRequest, AuditSummary, CatalogPort, Clock, ImageAnalyzer, ReportStore, ReviewFinding, ReviewSummary } from './ports';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PENDING_AUDIT = 'PENDIENTE_AUDITORIA';
 const LEASE_MS = 120_000;
 
@@ -23,7 +22,7 @@ export class EnqueueAudit {
   constructor(private readonly audits: AuditRepository) {}
 
   execute(event: { eventId: string; lotId: string }): Promise<boolean> {
-    if (!event.eventId || !UUID.test(event.lotId)) {
+    if (!event.eventId || !isUuid(event.lotId)) {
       throw DomainError.invalid('LotSubmitted sin event_id o con lot_id invalido');
     }
     return this.audits.enqueueOnce(event.eventId, event.lotId);
@@ -135,7 +134,7 @@ export class GetLatestSummaries {
   constructor(private readonly audits: AuditRepository) {}
 
   execute(lotIds: readonly string[]): Promise<AuditSummary[]> {
-    const ids = [...new Set(lotIds)].filter((id) => UUID.test(id)).slice(0, 100);
+    const ids = [...new Set(lotIds)].filter((id) => isUuid(id)).slice(0, 100);
     return ids.length === 0 ? Promise.resolve([]) : this.audits.latestSummaries(ids);
   }
 }
@@ -158,7 +157,7 @@ export class GetReviewReports {
     if (actor.role !== 'ADMIN') {
       throw DomainError.forbidden('Solo un administrador ve los expedientes de auditoria');
     }
-    const ids = [...new Set(lotIds)].filter((id) => UUID.test(id)).slice(0, 100);
+    const ids = [...new Set(lotIds)].filter((id) => isUuid(id)).slice(0, 100);
     if (ids.length === 0) {
       return [];
     }

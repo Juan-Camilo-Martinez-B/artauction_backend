@@ -1,4 +1,4 @@
-import { DomainError } from '@artauction/platform';
+import { DomainError, isRecord } from '@artauction/platform';
 
 // Lectura de un modelo GLB (glTF 2.0 binario, el formato que exporta Blender)
 // sin decodificar su geometria: la cabecera y el bloque JSON bastan para medir
@@ -49,10 +49,6 @@ type Matrix = number[];
 
 function invalid(message: string): DomainError {
   return DomainError.invalid(`El modelo 3D no es valido: ${message}`);
-}
-
-function isRecord(value: unknown): value is Json {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function list(value: unknown): unknown[] {

@@ -1,3 +1,4 @@
+import { isRecord } from '@artauction/platform';
 import type { PrismaClient } from '../../generated/prisma';
 import type { Activity, GalleryItem, PurchasedSheet } from '../domain/gallery';
 import type { SocialStore } from '../application/ports';
@@ -88,10 +89,6 @@ function toItem(row: {
     imageKeys: row.imageKeys,
     acquiredAt: row.acquiredAt,
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Lee el JSONB guardado; un documento que no tiene la forma esperada se ignora y se vuelve a pedir. */
