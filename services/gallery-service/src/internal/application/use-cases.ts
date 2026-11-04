@@ -15,10 +15,12 @@ import {
   initialPlacement,
   itemId,
   placeArtwork,
+  sheetForViewer,
   type Activity,
   type GalleryItem,
   type PersonalGallery,
   type PublicLot,
+  type PurchasedSheet,
   type Visibility,
 } from '../domain/gallery';
 import type { CatalogPort, Clock, GalleryDesigner, GalleryRepository, IdentityPort, SocialStore } from './ports';
@@ -164,7 +166,33 @@ export class SocialUseCases {
     private readonly social: SocialStore,
     private readonly identity: IdentityPort,
     private readonly clock: Clock,
+    private readonly catalog: CatalogPort,
   ) {}
+
+  /**
+   * Ficha guardada de una obra ganada, con la misma visibilidad que la obra en
+   * la galeria de su duena. Una compra anterior a la ficha guardada la recibe
+   * ahora, pedida al catalogo, sin el precio pagado (no se conoce).
+   */
+  async purchasedSheet(ownerId: string, lotId: string, viewerId: string | null): Promise<PurchasedSheet> {
+    assertUuid(ownerId, 'El usuario');
+    assertUuid(lotId, 'La obra');
+    const item = await this.social.itemOf(ownerId, lotId);
+    // Una obra ajena o privada responde igual que una inexistente.
+    if (!item || item.source !== 'GANADA' || !canViewItem(item, viewerId)) {
+      throw DomainError.notFound('Ficha no encontrada');
+    }
+    let sheet = await this.social.sheetOf(ownerId, lotId);
+    if (!sheet) {
+      const lot = await this.catalog.sheet(lotId);
+      if (!lot) {
+        throw DomainError.notFound('Ficha no encontrada');
+      }
+      sheet = { lot, pricePaid: null, buyNow: null, acquiredAt: item.acquiredAt };
+      await this.social.saveSheet(ownerId, lotId, sheet);
+    }
+    return sheetForViewer(sheet, ownerId, viewerId);
+  }
 
   async items(ownerId: string, viewerId: string | null): Promise<GalleryItem[]> {
     assertUuid(ownerId, 'El usuario');
@@ -273,7 +301,15 @@ export class GalleryEventHandlers {
    * AuctionClosed con ganador: la obra cambia de dueno. Sale de la galeria y de
    * la sala del autor, entra en las del ganador y se publica la actividad.
    */
-  async auctionClosed(event: { eventId: string; lotId: string; sellerId: string; winnerId: string | null; buyNow?: boolean }): Promise<void> {
+  async auctionClosed(event: {
+    eventId: string;
+    lotId: string;
+    sellerId: string;
+    winnerId: string | null;
+    buyNow?: boolean;
+    /** Precio pagado, para la ficha guardada. */
+    amount?: string;
+  }): Promise<void> {
     const winnerId = event.winnerId;
     if (!winnerId) {
       return;
@@ -301,6 +337,11 @@ export class GalleryEventHandlers {
         imageKeys: lot.imageKeys,
         acquiredAt: now,
       });
+      // La ficha se guarda ahora: desde la venta, el catalogo ya no la publica.
+      const sheet = await this.catalog.sheet(lot.lotId);
+      if (sheet) {
+        await this.social.saveSheet(winnerId, lot.lotId, { lot: sheet, pricePaid: event.amount ?? null, buyNow: event.buyNow ?? null, acquiredAt: now });
+      }
       await hang(this.galleries, winnerId, lot);
       // Una compra inmediata se cuenta distinto en el feed que una victoria por tiempo.
       await this.social.upsertActivity(`win:${event.eventId}`, {

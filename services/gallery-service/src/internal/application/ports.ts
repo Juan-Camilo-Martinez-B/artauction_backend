@@ -1,5 +1,5 @@
 import type { GalleryConfig, GalleryPreferences } from '../domain/gallery-design';
-import type { Activity, Artwork, GalleryItem, PersonalGallery, PublicLot } from '../domain/gallery';
+import type { Activity, Artwork, GalleryItem, PersonalGallery, PublicLot, PurchasedSheet } from '../domain/gallery';
 
 export interface GalleryPatch {
   preferences?: Record<string, unknown>;
@@ -37,6 +37,9 @@ export interface SocialStore {
   itemsOfLot(lotId: string): Promise<GalleryItem[]>;
   updateItem(ownerId: string, lotId: string, patch: Partial<Pick<GalleryItem, 'source' | 'visibility'>>): Promise<void>;
   removeItem(ownerId: string, lotId: string): Promise<void>;
+  /** Ficha guardada de una obra ganada; null si todavia no se guardo. */
+  sheetOf(ownerId: string, lotId: string): Promise<PurchasedSheet | null>;
+  saveSheet(ownerId: string, lotId: string, sheet: PurchasedSheet): Promise<void>;
   upsertActivity(id: string, activity: Activity): Promise<void>;
   feed(viewerId: string, limit: number): Promise<Activity[]>;
 }
@@ -47,6 +50,8 @@ export interface CatalogPort {
    * asi que se puede colgar una obra privada o vendida que sea de quien llama.
    */
   snapshot(lotId: string): Promise<PublicLot | null>;
+  /** Ficha completa tal como la publica catalog (ignora la visibilidad), codificada para guardarla. */
+  sheet(lotId: string): Promise<string | null>;
 }
 
 export interface IdentityPort {

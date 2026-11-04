@@ -110,3 +110,14 @@ export function notificationJson(notification: notificationV1.Notification) {
     readAt: notification.readAt?.toISOString() ?? null,
   };
 }
+
+/** Ficha guardada: la misma forma de una obra del catalogo, con los datos de la compra. */
+export function purchasedSheetJson(sheet: galleryV1.PurchasedSheet) {
+  return {
+    ownerId: sheet.ownerId,
+    lot: sheet.lot ? lotJson(sheet.lot) : null,
+    pricePaid: sheet.pricePaid ?? null,
+    buyNow: sheet.buyNow ?? null,
+    acquiredAt: sheet.acquiredAt?.toISOString() ?? null,
+  };
+}

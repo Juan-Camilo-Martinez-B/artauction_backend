@@ -1,7 +1,7 @@
-import { type catalogV1, commonV1, galleryHandlersV1, galleryV1 } from '@artauction/contracts';
+import { catalogV1, commonV1, galleryHandlersV1, galleryV1 } from '@artauction/contracts';
 import { DomainError, type StructuredLogger } from '@artauction/platform';
 import { unary, type CallerResolver } from '@artauction/service-kit';
-import type { Activity, GalleryItem, PersonalGallery, Support } from '../../internal/domain/gallery';
+import type { Activity, GalleryItem, PersonalGallery, PurchasedSheet, Support } from '../../internal/domain/gallery';
 import type { GalleryEventHandlers, PersonalGalleryUseCases, SocialUseCases } from '../../internal/application/use-cases';
 
 const STATUS_TO_PROTO: Readonly<Record<PersonalGallery['customizationStatus'], galleryV1.CustomizationStatus>> = {
@@ -80,6 +80,16 @@ function itemToProto(item: GalleryItem): galleryV1.GalleryItem {
   });
 }
 
+function sheetToProto(ownerId: string, sheet: PurchasedSheet): galleryV1.PurchasedSheet {
+  return galleryV1.PurchasedSheet.fromPartial({
+    ownerId,
+    lot: catalogV1.Lot.decode(Buffer.from(sheet.lot, 'base64')),
+    pricePaid: sheet.pricePaid ?? undefined,
+    buyNow: sheet.buyNow ?? undefined,
+    acquiredAt: sheet.acquiredAt,
+  });
+}
+
 function activityToProto(activity: Activity): galleryV1.Activity {
   return galleryV1.Activity.fromPartial({ ...activity, visibility: visibility(activity.visibility) });
 }
@@ -148,6 +158,11 @@ export function galleryGrpcService(
       const viewer = callers.optionalUser(context)?.userId ?? null;
       return galleryV1.ListGalleryItemsResponse.fromPartial({ items: (await social.items(request.ownerId, viewer)).map(itemToProto) });
     }),
+    getPurchasedSheet: unary(logger, 'GetPurchasedSheet', async (request, context) => {
+      const viewer = callers.optionalUser(context)?.userId ?? null;
+      const sheet = await social.purchasedSheet(request.ownerId, request.lotId, viewer);
+      return galleryV1.GetPurchasedSheetResponse.fromPartial({ sheet: sheetToProto(request.ownerId, sheet) });
+    }),
     followUser: unary(logger, 'FollowUser', async (request, context) => {
       await social.follow(owner(context), request.followeeId);
       return galleryV1.FollowUserResponse.fromPartial({});
@@ -212,6 +227,7 @@ export function galleryEventsGrpcService(
           sellerId: event.sellerId,
           winnerId: event.winnerId || null,
           buyNow: event.buyNow,
+          amount: event.amount,
         });
       }
       return galleryHandlersV1.HandleAuctionClosedResponse.fromPartial({});

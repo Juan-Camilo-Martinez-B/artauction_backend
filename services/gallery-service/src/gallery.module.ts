@@ -59,7 +59,7 @@ const providers: Provider[] = [
       galleryGrpcService(
         {
           personal: new PersonalGalleryUseCases(deps.galleries, new AiGalleryDesigner(deps.clients.ai, deps.tokens, logger), deps.catalog, deps.social),
-          social: new SocialUseCases(deps.galleries, deps.social, new GrpcIdentityClient(deps.clients.identity), clock),
+          social: new SocialUseCases(deps.galleries, deps.social, new GrpcIdentityClient(deps.clients.identity), clock, deps.catalog),
         },
         deps.callers,
         logger,

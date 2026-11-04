@@ -136,4 +136,19 @@ describe('compra inmediata', () => {
       return items.body.some((item) => item.lotId === lotId && item.source === 'GANADA');
     });
   });
+
+  test('el comprador conserva la ficha de la obra aunque el catalogo ya no la publique', async () => {
+    type Sheet = { lot: { id: string; title: string; status: string } | null; pricePaid: string | null; buyNow: boolean | null };
+    // La ficha original se vuelve privada al venderse: el comprador no la abre.
+    assert.equal((await call('GET', `/lots/${lotId}`, { token: buyer.token })).status, 404);
+    const sheet = await eventually('la galeria guarda la ficha de la compra', async () => {
+      const response = await call<Sheet>('GET', `/galleries/${buyer.userId}/works/${lotId}`, { token: buyer.token });
+      return response.status === 200 ? response.body : null;
+    });
+    assert.equal(sheet.lot?.id, lotId);
+    assert.deepEqual({ pricePaid: sheet.pricePaid, buyNow: sheet.buyNow }, { pricePaid: '300.00', buyNow: true });
+    // Privada en la galeria del comprador: nadie mas la abre.
+    assert.equal((await call('GET', `/galleries/${buyer.userId}/works/${lotId}`, { token: bidder.token })).status, 404);
+    assert.equal((await call('GET', `/galleries/${buyer.userId}/works/${lotId}`)).status, 404);
+  });
 });

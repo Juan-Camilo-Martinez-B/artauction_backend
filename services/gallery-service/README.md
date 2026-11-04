@@ -30,6 +30,7 @@ La galería registra **lo que es de cada persona** (`gallery.items`, una entrada
 | `GANADA` | Obra ganada en subasta | `AuctionClosed` |
 
 - **Venta:** `AuctionClosed` con ganador traspasa la obra. Sale de la galería y de la sala del autor, entra en las del ganador (con la ficha interna de catalog), se cuelga sola y se publica la actividad `WIN`.
+- **Ficha guardada:** al venderse, el catálogo deja la obra privada y su ficha original ya no se abre. La galería del ganador guarda una copia fija (`gallery.items.sheet`): el mensaje `catalog.v1.Lot` en base64, el precio pagado, la fecha y si fue por compra inmediata. `GetPurchasedSheet` la entrega con la visibilidad de la obra en la galería; el precio solo lo ve la dueña. Una compra anterior a la ficha guardada la recibe la primera vez que se abre, pedida al catálogo y sin precio.
 - **Proyecto propio:** se cuelga solo en la sala del autor. Si es público, aparece en su galería pública; el frontend lo marca como «Proyecto propio, sin auditar».
 - **Seguir:** comprueba que el usuario exista con `GetPublicProfile` de identity y publica la actividad `FOLLOW`. Nadie se sigue a sí mismo y repetir no duplica.
 - **Feed:** las últimas 50 actividades públicas y las propias.

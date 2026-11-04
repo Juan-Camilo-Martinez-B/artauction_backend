@@ -18,6 +18,9 @@ service GalleryService {
   rpc RemoveArtwork(RemoveArtworkRequest) returns (RemoveArtworkResponse);
   rpc PlaceArtwork(PlaceArtworkRequest) returns (PlaceArtworkResponse);
   rpc ListGalleryItems(ListGalleryItemsRequest) returns (ListGalleryItemsResponse);
+  // Ficha guardada de una obra ganada. La ve cualquiera si la obra es publica
+  // en la galeria de su duena; si no, solo ella. El precio pagado, solo ella.
+  rpc GetPurchasedSheet(GetPurchasedSheetRequest) returns (GetPurchasedSheetResponse);
   rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
   rpc GetFeed(GetFeedRequest) returns (GetFeedResponse);
 }
@@ -164,6 +167,27 @@ message PlaceArtworkResponse {
 
 message ListGalleryItemsRequest {
   string owner_id = 1;
+}
+
+message GetPurchasedSheetRequest {
+  string owner_id = 1;
+  string lot_id = 2;
+}
+
+// Copia fija de la ficha de una obra al venderse: el catalogo ya no la publica.
+message PurchasedSheet {
+  string owner_id = 1;
+  // La ficha tal como la publicaba el catalogo al momento de la compra.
+  artauction.catalog.v1.Lot lot = 2;
+  // Solo para la duena; vacio en compras anteriores a la ficha guardada.
+  optional string price_paid = 3;
+  // Verdadero si fue por compra inmediata; vacio si no se sabe.
+  optional bool buy_now = 4;
+  google.protobuf.Timestamp acquired_at = 5;
+}
+
+message GetPurchasedSheetResponse {
+  PurchasedSheet sheet = 1;
 }
 
 message ListGalleryItemsResponse {

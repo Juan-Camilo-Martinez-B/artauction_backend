@@ -69,6 +69,8 @@ model GalleryItem {
   artistName String?  @map("artist_name")
   imageKeys  String[] @default([]) @map("image_keys")
   acquiredAt DateTime @map("acquired_at") @db.Timestamptz(6)
+  // Ficha guardada de una obra ganada (0032).
+  sheet      Json?
 
   // Una entrada por obra y duena: asi se comprueba la propiedad al colgar (0029).
   @@unique([ownerId, lotId], map: "items_owner_lot_uidx")
