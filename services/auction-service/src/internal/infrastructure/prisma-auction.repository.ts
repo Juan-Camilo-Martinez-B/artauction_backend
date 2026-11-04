@@ -1,4 +1,4 @@
-import { appendToOutbox, recordInbox, sqlExecutorFrom, type DomainEvent } from '@artauction/platform';
+import { appendToOutbox, isUuid, recordInbox, sqlExecutorFrom, type DomainEvent } from '@artauction/platform';
 import { Prisma, type PrismaClient } from '../../generated/prisma';
 import type { Auction, AuctionOrigin, Bid, CloseReason } from '../domain/auction';
 import type { AuctionStatus } from '../domain/auction-rules';
@@ -10,7 +10,6 @@ type Tx = Prisma.TransactionClient;
 type AuctionRow = Prisma.AuctionGetPayload<object>;
 type BidRow = Prisma.BidGetPayload<object>;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES: ReadonlySet<string> = new Set(['PROGRAMADA', 'ACTIVA', 'CERRADA']);
 const ORIGINS: ReadonlySet<string> = new Set(['SCHEDULED', 'MANUAL', 'ROTATION']);
 const CLOSE_REASONS: ReadonlySet<string> = new Set(['TIME', 'BUY_NOW']);
@@ -99,7 +98,7 @@ function liveWhere(now: Date, horizonMs: number): Prisma.AuctionWhereInput {
 function unitOfWork(tx: Tx): AuctionUnitOfWork {
   return {
     async lock(auctionId, options = {}) {
-      if (!UUID.test(auctionId)) {
+      if (!isUuid(auctionId)) {
         return null;
       }
       const rows = options.skipLocked
@@ -113,7 +112,7 @@ function unitOfWork(tx: Tx): AuctionUnitOfWork {
       return toAuction(await tx.auction.findUniqueOrThrow({ where: { id: auctionId } }));
     },
     async lockByLot(lotId) {
-      if (!UUID.test(lotId)) {
+      if (!isUuid(lotId)) {
         return null;
       }
       const rows = await tx.$queryRaw<Array<{ id: string }>>`
@@ -188,7 +187,7 @@ export class PrismaAuctionRepository implements AuctionRepository {
   }
 
   async findById(auctionId: string): Promise<Auction | null> {
-    if (!UUID.test(auctionId)) {
+    if (!isUuid(auctionId)) {
       return null;
     }
     const row = await this.prisma.auction.findUnique({ where: { id: auctionId } });
@@ -196,7 +195,7 @@ export class PrismaAuctionRepository implements AuctionRepository {
   }
 
   async findByLotId(lotId: string): Promise<Auction | null> {
-    if (!UUID.test(lotId)) {
+    if (!isUuid(lotId)) {
       return null;
     }
     const row = await this.prisma.auction.findUnique({ where: { lotId } });
@@ -204,7 +203,7 @@ export class PrismaAuctionRepository implements AuctionRepository {
   }
 
   async findByLotIds(lotIds: readonly string[]): Promise<Auction[]> {
-    const ids = lotIds.filter((id) => UUID.test(id));
+    const ids = lotIds.filter((id) => isUuid(id));
     if (ids.length === 0) {
       return [];
     }

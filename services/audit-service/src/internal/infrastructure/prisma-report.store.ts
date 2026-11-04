@@ -1,6 +1,7 @@
+import { isRecord } from '@artauction/platform';
 import type { PrismaClient } from '../../generated/prisma';
 import type { ReportStore, ReviewFinding } from '../application/ports';
-import { isAssessment, isRecord } from './json-documents';
+import { isAssessment } from './json-documents';
 
 /** Valor de cada evidencia del expediente, por codigo. */
 function evidenceValues(dossier: unknown): Map<string, string> {

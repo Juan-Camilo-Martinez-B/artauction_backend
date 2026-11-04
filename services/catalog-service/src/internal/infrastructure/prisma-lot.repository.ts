@@ -1,4 +1,4 @@
-import { appendToOutbox, recordInbox, sqlExecutorFrom, type DomainEvent, type SqlExecutor } from '@artauction/platform';
+import { appendToOutbox, isUuid, recordInbox, sqlExecutorFrom, type DomainEvent, type SqlExecutor } from '@artauction/platform';
 import type { Prisma, PrismaClient } from '../../generated/prisma';
 import type { Category, Lot, LotImage, LotModel, NewLot, RepresentationKind, Visibility } from '../domain/lot';
 import { EDITABLE_STATUSES, isLotStatus, PUBLIC_STATUSES, type LotStatus } from '../domain/lot-status';
@@ -17,8 +17,6 @@ const lotInclude = {
 
 type LotRow = Prisma.LotGetPayload<{ include: typeof lotInclude }>;
 type Tx = Prisma.TransactionClient;
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function sqlExecutor(client: Tx | PrismaClient): SqlExecutor {
   return sqlExecutorFrom(client);
@@ -63,7 +61,7 @@ export class PrismaLotRepository implements LotRepository {
   }
 
   async relatedPublic(lotId: string, limit: number): Promise<Lot[]> {
-    if (!UUID.test(lotId)) {
+    if (!isUuid(lotId)) {
       return [];
     }
     const primary = await this.prisma.lotCategory.findFirst({ where: { lotId, isPrimary: true } });
@@ -85,7 +83,7 @@ export class PrismaLotRepository implements LotRepository {
   }
 
   async findById(lotId: string): Promise<Lot | null> {
-    if (!UUID.test(lotId)) {
+    if (!isUuid(lotId)) {
       return null;
     }
     const row = await this.prisma.lot.findUnique({ where: { id: lotId }, include: lotInclude });
@@ -112,7 +110,7 @@ export class PrismaLotRepository implements LotRepository {
   }
 
   async findByIds(lotIds: readonly string[]): Promise<Lot[]> {
-    const ids = lotIds.filter((id) => UUID.test(id));
+    const ids = lotIds.filter((id) => isUuid(id));
     if (ids.length === 0) {
       return [];
     }
@@ -121,7 +119,7 @@ export class PrismaLotRepository implements LotRepository {
   }
 
   async findSimilarImages(lotId: string, hashes: readonly string[], maxDistance: number): Promise<SimilarImage[]> {
-    if (!UUID.test(lotId)) {
+    if (!isUuid(lotId)) {
       return [];
     }
     // Distancia de Hamming entre dHash de 64 bits. Recorre todas las imagenes
@@ -193,7 +191,7 @@ export class PrismaLotRepository implements LotRepository {
   }
 
   update(lotId: string, lot: NewLot, categoryId: string): Promise<Lot | null> {
-    if (!UUID.test(lotId)) {
+    if (!isUuid(lotId)) {
       return Promise.resolve(null);
     }
     return this.prisma.$transaction(async (tx) => {
@@ -223,7 +221,7 @@ export class PrismaLotRepository implements LotRepository {
   }
 
   async listBySeller(sellerId: string, limit: number): Promise<Lot[]> {
-    if (!UUID.test(sellerId)) {
+    if (!isUuid(sellerId)) {
       return [];
     }
     const rows = await this.prisma.lot.findMany({ where: { sellerId }, orderBy: { updatedAt: 'desc' }, take: limit, include: lotInclude });
@@ -303,14 +301,14 @@ export class PrismaLotRepository implements LotRepository {
 function transitionsIn(tx: Tx): LotTransitions {
   return {
     async findById(lotId: string): Promise<Lot | null> {
-      if (!UUID.test(lotId)) {
+      if (!isUuid(lotId)) {
         return null;
       }
       const row = await tx.lot.findUnique({ where: { id: lotId }, include: lotInclude });
       return row ? toLot(row) : null;
     },
     async update(lotId: string, from: readonly LotStatus[], to: LotStatus, patch: LotPatch): Promise<boolean> {
-      if (!UUID.test(lotId)) {
+      if (!isUuid(lotId)) {
         return false;
       }
       const changed = await tx.lot.updateMany({ where: { id: lotId, status: { in: [...from] } }, data: { ...patch, status: to } });

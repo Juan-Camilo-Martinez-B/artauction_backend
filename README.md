@@ -136,7 +136,7 @@ El script usa la llave de administración de `secrets/storage.env`, nunca la imp
 
 ```
 packages/contracts     contratos .proto versionados (buf) y código generado con ts-proto
-packages/platform      logger, configuración, errores, resiliencia, verificación JWT, outbox
+packages/platform      logger, configuración, errores, resiliencia, verificación JWT, outbox y comprobaciones de forma (isRecord, isUuid)
 packages/service-kit   servidor gRPC con health, handlers y clientes con deadline
 services/<servicio>    un microservicio por contexto: src/api (frontera) y src/internal (dominio)
 e2e/                   prueba de punta a punta por el gateway

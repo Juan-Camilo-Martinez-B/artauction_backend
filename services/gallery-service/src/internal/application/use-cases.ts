@@ -1,4 +1,4 @@
-import { DomainError } from '@artauction/platform';
+import { DomainError, isUuid } from '@artauction/platform';
 import {
   configsDiffer,
   GalleryDesignError,
@@ -26,11 +26,10 @@ import {
 } from '../domain/gallery';
 import type { CatalogPort, Clock, GalleryDesigner, GalleryRepository, IdentityPort, SocialStore } from './ports';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FEED_LIMIT = 50;
 
 function assertUuid(value: string, label: string): void {
-  if (!UUID.test(value)) {
+  if (!isUuid(value)) {
     throw DomainError.invalid(`${label} no es valido`);
   }
 }

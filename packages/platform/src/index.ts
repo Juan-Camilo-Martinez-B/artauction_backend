@@ -12,3 +12,4 @@ export * from './outbox/outbox-relay';
 export * from './resilience/circuit-breaker';
 export * from './resilience/retry';
 export * from './time/duration';
+export * from './validation/guards';

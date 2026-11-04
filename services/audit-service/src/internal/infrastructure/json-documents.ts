@@ -1,12 +1,9 @@
+import { isRecord } from '@artauction/platform';
 import type { Prisma } from '../../generated/prisma';
 import type { Assessment } from '../domain/verdict';
 
 // Evaluaciones y expedientes se guardan como JSONB. Al leerlos llegan sin tipo:
 // estas guardas comprueban la forma antes de confiar en ellos.
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 export function isAssessment(value: unknown): value is Assessment {
   return (

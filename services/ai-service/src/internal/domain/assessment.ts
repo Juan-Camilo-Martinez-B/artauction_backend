@@ -2,6 +2,8 @@
 // nunca ve imagenes: razona sobre datos ya medidos por audit-service, y todo lo
 // que devuelve se sanea aqui antes de salir del servicio.
 
+import { isRecord } from '@artauction/platform';
+
 export type Severity = 'INFO' | 'WARNING' | 'CRITICAL';
 
 export interface Finding {
@@ -60,10 +62,6 @@ export function normalizePriceBand(min: number, max: number): { priceMin: number
   const left = clamp(min);
   const right = clamp(max);
   return { priceMin: Math.min(left, right), priceMax: Math.max(left, right) };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function severityOf(value: unknown): Severity {
