@@ -1,12 +1,22 @@
-import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import { auctionV1, auditV1, catalogV1, commonV1 } from '@artauction/contracts';
 import type { StructuredLogger } from '@artauction/platform';
 import { invoke } from '@artauction/service-kit';
 import { AUCTION_CLIENT, AUDIT_CLIENT, CATALOG_CLIENT } from '../../../clients/grpc-clients';
 import type { GatewayConfig } from '../../../config';
 import { GATEWAY_CONFIG, GATEWAY_LOGGER } from '../tokens';
-import { CreateLotDto, HashImageDto, ListLotsQuery, LotFieldsDto, LotVisibilityDto, RegisterImageDto, SignUploadDto } from './catalog.dto';
-import { auditJson, categoryJson, imageJson, lotJson, REPRESENTATION_FROM_JSON, SORT_FROM_JSON } from './lot.presenter';
+import {
+  CreateLotDto,
+  HashImageDto,
+  ListLotsQuery,
+  LotFieldsDto,
+  LotVisibilityDto,
+  RegisterImageDto,
+  RegisterModelDto,
+  SignModelUploadDto,
+  SignUploadDto,
+} from './catalog.dto';
+import { auditJson, categoryJson, imageJson, lotJson, modelJson, REPRESENTATION_FROM_JSON, SORT_FROM_JSON } from './lot.presenter';
 
 const VISIBILITY_FROM_JSON: Readonly<Record<'PUBLIC' | 'PRIVATE', commonV1.Visibility>> = {
   PUBLIC: commonV1.Visibility.VISIBILITY_PUBLIC,
@@ -163,6 +173,30 @@ export class CatalogController {
       this.options(authorization),
     );
     return { perceptualHash: response.perceptualHash };
+  }
+
+  /** URL firmada para subir el modelo 3D (GLB) de una obra tridimensional. */
+  @Post(':id/model-uploads')
+  async signModel(@Headers('authorization') authorization: string | undefined, @Param('id') id: string, @Body() body: SignModelUploadDto) {
+    const response = await invoke(this.catalog.signModelUpload.bind(this.catalog), { lotId: id, contentType: body.contentType }, this.options(authorization));
+    const upload = response.upload;
+    return { uploadUrl: upload?.uploadUrl ?? '', objectKey: upload?.objectKey ?? '', expiresAt: upload?.expiresAt?.toISOString() ?? null };
+  }
+
+  /** Registra el modelo subido: catalog lo valida y lo mide. */
+  @Post(':id/model')
+  async registerModel(@Headers('authorization') authorization: string | undefined, @Param('id') id: string, @Body() body: RegisterModelDto) {
+    const response = await invoke(this.catalog.registerModel.bind(this.catalog), { lotId: id, objectKey: body.objectKey }, this.options(authorization));
+    if (!response.model) {
+      throw new Error('catalog-service respondio sin modelo');
+    }
+    return modelJson(response.model);
+  }
+
+  @Delete(':id/model')
+  @HttpCode(204)
+  async removeModel(@Headers('authorization') authorization: string | undefined, @Param('id') id: string) {
+    await invoke(this.catalog.removeModel.bind(this.catalog), { lotId: id }, this.options(authorization));
   }
 
   @Post(':id/uploads')

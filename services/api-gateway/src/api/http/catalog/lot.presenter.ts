@@ -92,6 +92,17 @@ export function auditJson(summary: auditV1.AuditSummary) {
   };
 }
 
+/** Modelo 3D validado: la URL para cargarlo y lo medido al registrarlo. */
+export function modelJson(model: catalogV1.LotModel) {
+  return {
+    url: model.url ?? null,
+    bytes: model.bytes,
+    triangleCount: model.triangleCount,
+    vertexCount: model.vertexCount,
+    size: { x: model.sizeX, y: model.sizeY, z: model.sizeZ },
+  };
+}
+
 export function lotJson(lot: catalogV1.Lot, auction: auctionV1.AuctionSummary | undefined | null = null) {
   return {
     id: lot.id,
@@ -120,6 +131,7 @@ export function lotJson(lot: catalogV1.Lot, auction: auctionV1.AuctionSummary | 
         : [],
     ),
     auction: auction ? auctionJson(auction) : null,
+    model: lot.model ? modelJson(lot.model) : null,
     lastReview: lot.lastReview
       ? {
           decision: REVIEW_DECISION.get(lot.lastReview.decision) ?? 'APPROVE',

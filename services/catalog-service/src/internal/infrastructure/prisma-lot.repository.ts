@@ -1,6 +1,6 @@
 import { appendToOutbox, recordInbox, sqlExecutorFrom, type DomainEvent, type SqlExecutor } from '@artauction/platform';
 import type { Prisma, PrismaClient } from '../../generated/prisma';
-import type { Category, Lot, LotImage, NewLot, RepresentationKind, Visibility } from '../domain/lot';
+import type { Category, Lot, LotImage, LotModel, NewLot, RepresentationKind, Visibility } from '../domain/lot';
 import { EDITABLE_STATUSES, isLotStatus, PUBLIC_STATUSES, type LotStatus } from '../domain/lot-status';
 import type { LotPatch, LotRepository, LotTransitions, NewLotReview, PublicLotQuery, SimilarImage } from '../application/ports';
 import type { LotReview, ReviewDecision } from '../domain/review';
@@ -12,6 +12,7 @@ const lotInclude = {
   categories: { include: { category: true } },
   // Solo la ultima decision: el vendedor ve el motivo de la devolucion.
   reviews: { orderBy: { createdAt: 'desc' }, take: 1 },
+  model: true,
 } satisfies Prisma.LotInclude;
 
 type LotRow = Prisma.LotGetPayload<{ include: typeof lotInclude }>;
@@ -229,6 +230,24 @@ export class PrismaLotRepository implements LotRepository {
     return rows.map(toLot);
   }
 
+  async saveModel(lotId: string, model: Omit<LotModel, 'createdAt'>): Promise<LotModel> {
+    const data = {
+      objectKey: model.objectKey,
+      bytes: model.bytes,
+      triangleCount: model.triangleCount,
+      vertexCount: model.vertexCount,
+      sizeX: model.sizeX,
+      sizeY: model.sizeY,
+      sizeZ: model.sizeZ,
+    };
+    const row = await this.prisma.lotModel.upsert({ where: { lotId }, update: { ...data, createdAt: new Date() }, create: { lotId, ...data } });
+    return toModel(row);
+  }
+
+  async removeModel(lotId: string): Promise<void> {
+    await this.prisma.lotModel.deleteMany({ where: { lotId } });
+  }
+
   async upsertImage(lotId: string, image: { objectKey: string; position: number; perceptualHash: string | null }): Promise<LotImage> {
     const row = await this.prisma.lotImage.upsert({
       where: { lotId_position: { lotId, position: image.position } },
@@ -349,6 +368,29 @@ function toLot(row: LotRow): Lot {
     images: row.images.map(toImage),
     categories: row.categories.map((link) => ({ isPrimary: link.isPrimary, category: toCategory(link.category) })),
     lastReview: toReview(row.reviews[0]),
+    model: row.model ? toModel(row.model) : null,
+  };
+}
+
+function toModel(row: {
+  objectKey: string;
+  bytes: number;
+  triangleCount: number;
+  vertexCount: number;
+  sizeX: Prisma.Decimal;
+  sizeY: Prisma.Decimal;
+  sizeZ: Prisma.Decimal;
+  createdAt: Date;
+}): LotModel {
+  return {
+    objectKey: row.objectKey,
+    bytes: row.bytes,
+    triangleCount: row.triangleCount,
+    vertexCount: row.vertexCount,
+    sizeX: row.sizeX.toNumber(),
+    sizeY: row.sizeY.toNumber(),
+    sizeZ: row.sizeZ.toNumber(),
+    createdAt: row.createdAt,
   };
 }
 

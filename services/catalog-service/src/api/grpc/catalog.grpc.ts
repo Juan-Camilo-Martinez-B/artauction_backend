@@ -6,9 +6,12 @@ import type {
   CreateLot,
   HashLotImage,
   RegisterLotImage,
+  RegisterLotModel,
+  RemoveLotModel,
   ResolveManualReview,
   SetLotVisibility,
   SignImageUpload,
+  SignModelUpload,
   SubmitLot,
   UpdateLot,
 } from '../../internal/application/commands';
@@ -30,6 +33,7 @@ import {
   destinationFromProto,
   imageToProto,
   lotToProto,
+  modelToProto,
   representationFromProto,
   sortFromProto,
   visibilityFromProto,
@@ -48,6 +52,9 @@ export interface CatalogUseCases {
   create: CreateLot;
   signUpload: SignImageUpload;
   registerImage: RegisterLotImage;
+  signModelUpload: SignModelUpload;
+  registerModel: RegisterLotModel;
+  removeModel: RemoveLotModel;
   hashImage: HashLotImage;
   submit: SubmitLot;
   update: UpdateLot;
@@ -168,6 +175,21 @@ export function catalogGrpcService(
         perceptualHash: request.perceptualHash,
       });
       return catalogV1.RegisterImageResponse.fromPartial({ image: imageToProto(image, mediaBaseUrl) });
+    }),
+
+    signModelUpload: unary(logger, 'SignModelUpload', async (request, context) => {
+      const upload = await useCases.signModelUpload.execute(callers.user(context), { lotId: request.lotId, contentType: request.contentType });
+      return catalogV1.SignModelUploadResponse.fromPartial({ upload });
+    }),
+
+    registerModel: unary(logger, 'RegisterModel', async (request, context) => {
+      const model = await useCases.registerModel.execute(callers.user(context), { lotId: request.lotId, objectKey: request.objectKey });
+      return catalogV1.RegisterModelResponse.fromPartial({ model: modelToProto(model, mediaBaseUrl) });
+    }),
+
+    removeModel: unary(logger, 'RemoveModel', async (request, context) => {
+      await useCases.removeModel.execute(callers.user(context), request.lotId);
+      return catalogV1.RemoveModelResponse.fromPartial({});
     }),
 
     updateLot: unary(logger, 'UpdateLot', async (request, context) => {

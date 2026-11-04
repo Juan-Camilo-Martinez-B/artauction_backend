@@ -17,6 +17,7 @@ No contiene reglas de negocio. Hace cinco cosas:
 | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `GET/PATCH /auth/me` | identity-service |
 | `GET /lots`, `GET /lots/categories`, `GET /lots/:id`, `GET /lots/:id/related` | catalog-service, compuesto con el resumen de subasta y el último informe de auditoría |
 | `POST /lots`, `/lots/:id/hash`, `/lots/:id/uploads`, `/lots/:id/images`, `/lots/:id/submit` | catalog-service |
+| `POST /lots/:id/model-uploads`, `POST /lots/:id/model`, `DELETE /lots/:id/model` | catalog-service: modelo 3D (GLB) opcional de una obra tridimensional: subida firmada, registro (lo valida y lo mide) y retiro. La obra trae `model` con `url`, `triangleCount`, `vertexCount` y `size` |
 | `GET /galleries/:ownerId/works/:lotId` | gallery-service: ficha guardada de una obra comprada, con la forma de una obra del catálogo más `pricePaid`, `buyNow` y `acquiredAt` |
 | `GET /lots/mine`, `PATCH /lots/:id`, `PATCH /lots/:id/visibility` | catalog-service: las obras de quien llama (con su última revisión, también los proyectos propios), la edición de una obra en borrador o de un proyecto propio, y mostrar u ocultar un proyecto propio. `POST /lots` acepta `destination` (`CATALOG` o `PERSONAL`) y `visibility` |
 | `GET /admin/reviews` | cola de revisión manual: `ListReviewQueue` de catalog compuesto con `BatchGetReviewReports` de audit (hallazgos con el valor de sus evidencias). Si audit no responde, cada obra sale con `audit: null`. Solo ADMIN |

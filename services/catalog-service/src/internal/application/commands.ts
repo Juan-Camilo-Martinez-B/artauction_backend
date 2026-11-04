@@ -1,24 +1,28 @@
 import { DomainError } from '@artauction/platform';
 import { lotCreated, lotPublished, lotReturnedToDraft, lotSubmitted, lotVisibilityChanged } from '../domain/events';
+import { inspectGlb, MODEL_LIMITS } from '../domain/glb';
 import {
+  assertAcceptsModel,
   assertCanCreate,
   assertCanSell,
   assertEditable,
   assertOwnedAndOpen,
   assertPersonal,
   initialState,
+  modelKeyPattern,
   parseNewLot,
   publicImageUrl,
   type Actor,
   type Lot,
   type LotDestination,
   type LotImage,
+  type LotModel,
   type RepresentationKind,
   type Visibility,
 } from '../domain/lot';
 import { assertTransition } from '../domain/lot-status';
 import { planReview, type ReviewDecision } from '../domain/review';
-import type { ImageHasher, LotRepository, SignedUpload, TokenSource, UploadSigner } from './ports';
+import type { ImageHasher, LotRepository, ModelReader, SignedUpload, TokenSource, UploadSigner } from './ports';
 
 const ALLOWED_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -127,6 +131,73 @@ export class RegisterLotImage {
       throw DomainError.invalid('El hash perceptual no es valido.');
     }
     return this.lots.upsertImage(input.lotId, { objectKey, position: input.position, perceptualHash: hash });
+  }
+}
+
+const MODEL_CONTENT_TYPE = 'model/gltf-binary';
+
+/**
+ * URL firmada para que el navegador suba el modelo 3D (GLB) directo al bucket.
+ * Como la ficha y la imagen, solo en borrador o en un proyecto propio: una obra
+ * auditada no cambia de modelo sin volver a auditarse.
+ */
+export class SignModelUpload {
+  constructor(
+    private readonly lots: LotRepository,
+    private readonly signer: UploadSigner,
+    private readonly tokens: TokenSource,
+  ) {}
+
+  async execute(actor: Actor, input: { lotId: string; contentType: string }): Promise<SignedUpload> {
+    const lot = assertEditable(await this.lots.findById(input.lotId), actor);
+    assertAcceptsModel(lot);
+    if (input.contentType !== MODEL_CONTENT_TYPE) {
+      throw DomainError.invalid('El modelo 3D debe ser un archivo .glb.');
+    }
+    return this.signer.sign(`${lotKeyPrefix(lot.id)}model-${this.tokens.next()}.glb`, MODEL_CONTENT_TYPE);
+  }
+}
+
+/**
+ * Registra el modelo ya subido: lo lee del bucket, lo valida y lo mide (formato,
+ * archivos externos, triangulos y caja). Solo se guarda lo que paso la
+ * validacion; los triangulos son evidencia para la auditoria, no precio.
+ */
+export class RegisterLotModel {
+  constructor(
+    private readonly lots: LotRepository,
+    private readonly reader: ModelReader,
+  ) {}
+
+  async execute(actor: Actor, input: { lotId: string; objectKey: string }): Promise<LotModel> {
+    const lot = assertEditable(await this.lots.findById(input.lotId), actor);
+    assertAcceptsModel(lot);
+    const objectKey = input.objectKey.trim();
+    // Solo una clave firmada para esta obra: una obra no se apropia del modelo de otra.
+    if (!modelKeyPattern(lot.id).test(objectKey)) {
+      throw DomainError.invalid('La clave del modelo no es valida.');
+    }
+    const file = await this.reader.read(objectKey, MODEL_LIMITS.maxBytes);
+    const report = inspectGlb(file);
+    return this.lots.saveModel(lot.id, {
+      objectKey,
+      bytes: file.byteLength,
+      triangleCount: report.triangles,
+      vertexCount: report.vertices,
+      sizeX: report.size.x,
+      sizeY: report.size.y,
+      sizeZ: report.size.z,
+    });
+  }
+}
+
+/** El autor quita el modelo de su obra en borrador o proyecto propio. */
+export class RemoveLotModel {
+  constructor(private readonly lots: LotRepository) {}
+
+  async execute(actor: Actor, lotId: string): Promise<void> {
+    const lot = assertEditable(await this.lots.findById(lotId), actor);
+    await this.lots.removeModel(lot.id);
   }
 }
 
