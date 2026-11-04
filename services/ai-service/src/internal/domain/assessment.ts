@@ -40,12 +40,15 @@ export interface Assessment {
   findings: Finding[];
 }
 
-export const PROMPT_VERSION = 'v2';
+// v3: el modelo debe proponer un precio mayor que 0 (F17).
+export const PROMPT_VERSION = 'v3';
 export const LOCAL_MODEL = 'local-rules';
 
 const MAX_FINDINGS = 8;
 const MAX_MESSAGE_LENGTH = 280;
 const MAX_PRICE = 10_000_000;
+/** Precio minimo de un rango util, en artacoins: con 0 la subasta abriria sin valor. */
+const MIN_PRICE = 1;
 const FINDING_CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
 
 export function clampScore(score: number): number {
@@ -100,7 +103,11 @@ export function sanitizeAssessment(raw: unknown, dossier: ArtworkDossier, model:
   }
   const ruleCritical = dossier.ruleFindings.some((finding) => finding.severity === 'CRITICAL');
   const modelCritical = raw['critical'] === true || findings.some((finding) => finding.severity === 'CRITICAL');
-  const band = normalizePriceBand(Number(raw['priceMin']), Number(raw['priceMax']));
+  // Un rango que empieza en 0 no sirve para abrir una subasta: si el modelo no
+  // da un precio, la evaluacion conserva su score y sus hallazgos y toma el
+  // rango de la evaluacion local.
+  const proposed = normalizePriceBand(Number(raw['priceMin']), Number(raw['priceMax']));
+  const band = proposed.priceMin >= MIN_PRICE ? proposed : localPriceBand(dossier);
   return {
     model,
     promptVersion: PROMPT_VERSION,
@@ -112,6 +119,21 @@ export function sanitizeAssessment(raw: unknown, dossier: ArtworkDossier, model:
   };
 }
 
+/** Precio mas bajo que propone la evaluacion local, en artacoins. */
+const LOCAL_PRICE_FLOOR = 50;
+
+/**
+ * Rango de precio de la evaluacion local: 400 artacoins menos 60 por cada
+ * advertencia de las reglas (50 si hay una critica), y el doble como maximo.
+ * Nunca baja de LOCAL_PRICE_FLOOR, aunque haya muchas advertencias.
+ */
+export function localPriceBand(dossier: ArtworkDossier): { priceMin: number; priceMax: number } {
+  const warnings = dossier.ruleFindings.filter((finding) => finding.severity === 'WARNING').length;
+  const critical = dossier.ruleFindings.some((finding) => finding.severity === 'CRITICAL');
+  const base = Math.max(LOCAL_PRICE_FLOOR, critical ? LOCAL_PRICE_FLOOR : 400 - warnings * 60);
+  return normalizePriceBand(base, base * 2);
+}
+
 /**
  * Evaluacion determinista sin modelo: parte de 85 y descuenta por cada
  * hallazgo de las reglas. Sirve en local y en pruebas; con las mismas
@@ -121,8 +143,7 @@ export function localAssessment(dossier: ArtworkDossier): Assessment {
   const warnings = dossier.ruleFindings.filter((finding) => finding.severity === 'WARNING').length;
   const critical = dossier.ruleFindings.some((finding) => finding.severity === 'CRITICAL');
   const score = clampScore(critical ? 28 : 85 - warnings * 12);
-  const base = critical ? 50 : 400 - warnings * 60;
-  const band = normalizePriceBand(base, base * 2);
+  const band = localPriceBand(dossier);
   return {
     model: LOCAL_MODEL,
     promptVersion: PROMPT_VERSION,

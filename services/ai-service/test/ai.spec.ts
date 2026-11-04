@@ -1,5 +1,5 @@
 import { DomainError } from '@artauction/platform';
-import { localAssessment, sanitizeAssessment, type ArtworkDossier } from '../src/internal/domain/assessment';
+import { localAssessment, localPriceBand, sanitizeAssessment, type ArtworkDossier } from '../src/internal/domain/assessment';
 import type { JsonGenerationRequest, LanguageModel } from '../src/internal/application/ports';
 import { auditPayload, AuditArtwork, DesignGallery } from '../src/internal/application/use-cases';
 import { GroqModel, readContent, readUsage, strictSchema, type TokenUsage } from '../src/internal/infrastructure/groq-model';
@@ -70,6 +70,25 @@ describe('saneo de la evaluacion del modelo', () => {
       'modelo-x',
     );
     expect(assessment.critical).toBe(true);
+  });
+
+  it('si el modelo no da un precio util, toma el rango de la evaluacion local y conserva su juicio', () => {
+    for (const price of [
+      { priceMin: 0, priceMax: 0 },
+      { priceMin: 0, priceMax: 500 },
+      { priceMin: Number.NaN, priceMax: 900 },
+    ]) {
+      const assessment = sanitizeAssessment({ score: 90, critical: false, ...price, findings: [] }, DOSSIER, 'modelo-x');
+      expect(assessment).toMatchObject({ model: 'modelo-x', score: 90, priceMin: 400, priceMax: 800 });
+    }
+    expect(sanitizeAssessment({ score: 90, critical: false, priceMin: 1, priceMax: 3, findings: [] }, DOSSIER, 'modelo-x')).toMatchObject({ priceMin: 1, priceMax: 3 });
+  });
+
+  it('el precio local nunca baja de 50 artacoins, aunque haya muchas advertencias', () => {
+    const warning = { ...CRITICAL_RULE, severity: 'WARNING' as const };
+    const crowded = { ...DOSSIER, ruleFindings: Array.from({ length: 9 }, () => warning) };
+    expect(localPriceBand(crowded)).toEqual({ priceMin: 50, priceMax: 100 });
+    expect(localAssessment(crowded)).toMatchObject({ priceMin: 50, priceMax: 100 });
   });
 
   it('la evaluacion local es determinista y descuenta por cada hallazgo', () => {

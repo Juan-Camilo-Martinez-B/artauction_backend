@@ -38,13 +38,14 @@ audit-service mide las imágenes (resolución, nitidez, metadatos, duplicados en
 - Cada hallazgo del modelo debe citar códigos de evidencia que existan en el expediente, como `img1.exif.software`. Los que no citan nada, o citan códigos inventados, se descartan (`sanitizeAssessment`).
 - Un hallazgo **crítico de las reglas** marca la evaluación como crítica aunque el modelo diga lo contrario.
 - Score, precios, códigos y longitud de los mensajes se acotan antes de responder.
+- Un rango de precio que empieza en 0 no sirve para abrir una subasta. Las instrucciones piden al modelo un precio mayor que 0 y, si aun así no lo da, la evaluación conserva su score y sus hallazgos pero toma el rango de la evaluación local.
 
 ## Respaldo local
 
 La evaluación local determinista (`local-rules`):
 
 - parte de 85 y descuenta 12 puntos por cada advertencia de las reglas; con una regla crítica da 28;
-- propone un precio mínimo de 400 artacoins menos 60 por advertencia, y el doble como máximo.
+- propone un precio mínimo de 400 artacoins menos 60 por advertencia (nunca menos de 50), y el doble como máximo (`localPriceBand`).
 
 `AuditArtwork` la usa:
 

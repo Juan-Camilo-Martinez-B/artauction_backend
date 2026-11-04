@@ -15,6 +15,7 @@ const AUDIT_SYSTEM = [
   'Cada hallazgo debe citar en "evidence" uno o mas codigos que existan en "evidence" del expediente. Sin cita valida el hallazgo se descarta.',
   'Un hallazgo CRITICAL de las reglas no se puede contradecir.',
   'score 0-100 es la confianza en la autenticidad. priceMin y priceMax son artacoins enteras (1 artacoin = 1 USD).',
+  'priceMin y priceMax son siempre mayores que 0: estima el valor de mercado de la obra aunque la informacion sea escasa.',
   'Responde solo el JSON del esquema, en espanol, con mensajes breves.',
 ].join('\n');
 
