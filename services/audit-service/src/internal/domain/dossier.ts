@@ -30,8 +30,36 @@ export interface LotSheet {
   materials: string;
   widthCm: number | null;
   heightCm: number | null;
+  depthCm: number | null;
   provenance: string;
   images: Array<{ url: string | null; perceptualHash: string | null }>;
+  /** Modelo 3D validado por catalog, si la obra tridimensional lo tiene. */
+  model: { triangles: number; sizeX: number; sizeY: number; sizeZ: number } | null;
+}
+
+/** Diferencia de proporciones entre el modelo 3D y las medidas declaradas que se tolera. */
+const MODEL_PROPORTION_TOLERANCE = 0.2;
+
+/**
+ * Proporciones de una pieza: alto sobre su lado horizontal mayor y, si hay
+ * fondo, lado menor sobre lado mayor. Los lados se ordenan para que no importe
+ * hacia donde mira la pieza; el alto es el eje Y, el de glTF y Blender.
+ */
+function proportions(height: number, sideA: number, sideB: number | null): number[] {
+  const longer = sideB === null ? sideA : Math.max(sideA, sideB);
+  const shorter = sideB === null ? null : Math.min(sideA, sideB);
+  return shorter === null ? [height / longer] : [height / longer, shorter / longer];
+}
+
+/** Mayor diferencia relativa entre las proporciones del modelo y las declaradas; null si no se puede comparar. */
+export function modelProportionDeviation(lot: Pick<LotSheet, 'widthCm' | 'heightCm' | 'depthCm' | 'model'>): number | null {
+  const { model } = lot;
+  if (!model || lot.widthCm === null || lot.heightCm === null || lot.widthCm <= 0 || lot.heightCm <= 0) {
+    return null;
+  }
+  const declared = proportions(lot.heightCm, lot.widthCm, lot.depthCm !== null && lot.depthCm > 0 ? lot.depthCm : null);
+  const measured = proportions(model.sizeY, model.sizeX, declared.length > 1 ? model.sizeZ : null);
+  return Math.max(...declared.map((value, index) => Math.abs((measured[index] as number) - value) / value));
 }
 
 /** Medidas de una imagen descargada; null si no se pudo analizar. */
@@ -115,6 +143,16 @@ export function buildEvidence(lot: LotSheet, images: ReadonlyArray<ImageMetrics 
   ];
   if (lot.widthCm !== null && lot.heightCm !== null && lot.heightCm > 0) {
     evidence.push({ code: 'lot.declared_aspect', value: round(lot.widthCm / lot.heightCm, 3) });
+  }
+  if (lot.model) {
+    const { model } = lot;
+    evidence.push(
+      { code: 'model.triangles', value: String(model.triangles) },
+      { code: 'model.size', value: `${round(model.sizeX, 3)} x ${round(model.sizeY, 3)} x ${round(model.sizeZ, 3)} (ancho x alto x fondo)` },
+    );
+    if (lot.widthCm !== null && lot.heightCm !== null) {
+      evidence.push({ code: 'lot.declared_size', value: `${String(lot.widthCm)} x ${String(lot.heightCm)} x ${lot.depthCm === null ? 'sin dato' : String(lot.depthCm)} cm` });
+    }
   }
   images.slice(0, MAX_IMAGES).forEach((image, index) => {
     const prefix = `img${String(index + 1)}`;
@@ -200,6 +238,15 @@ export function applyRules(lot: LotSheet, images: ReadonlyArray<ImageMetrics | n
       }
     }
   });
+  const deviation = modelProportionDeviation(lot);
+  if (deviation !== null && deviation > MODEL_PROPORTION_TOLERANCE) {
+    findings.push({
+      code: 'MODEL_PROPORTIONS_MISMATCH',
+      severity: 'WARNING',
+      message: `Las proporciones del modelo 3D no coinciden con las medidas declaradas (difieren un ${String(Math.round(deviation * 100))} %).`,
+      evidence: ['model.size', 'lot.declared_size'],
+    });
+  }
   if (lot.images.length === 0 || images.every((image) => image === null)) {
     findings.push({ code: 'NO_ANALYZABLE_IMAGES', severity: 'WARNING', message: 'No hay imagenes que se pudieran analizar.', evidence: ['lot.analyzed_images'] });
   }
@@ -209,7 +256,7 @@ export function applyRules(lot: LotSheet, images: ReadonlyArray<ImageMetrics | n
 /** Huella estable del expediente: misma obra sin cambios, misma huella. */
 export function dossierHash(lot: LotSheet, evidence: readonly EvidenceItem[], findings: readonly Finding[]): string {
   const canonical = JSON.stringify({
-    declared: [lot.title, lot.description, lot.artistName, lot.creationYear, lot.materials, lot.widthCm, lot.heightCm, lot.provenance],
+    declared: [lot.title, lot.description, lot.artistName, lot.creationYear, lot.materials, lot.widthCm, lot.heightCm, lot.depthCm, lot.provenance],
     evidence: [...evidence].sort((left, right) => left.code.localeCompare(right.code)).map((item) => [item.code, item.value]),
     findings: findings.map((finding) => [finding.code, finding.severity, finding.evidence]),
   });

@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { StructuredLogger, type DomainEvent } from '@artauction/platform';
-import { applyRules, buildDossier, generatorMarker, type Dossier, type ImageMetrics, type LotSheet } from '../src/internal/domain/dossier';
+import { applyRules, buildDossier, generatorMarker, modelProportionDeviation, type Dossier, type ImageMetrics, type LotSheet } from '../src/internal/domain/dossier';
 import { decideVerdict, nextAttemptAt, verdictFor, type Assessment } from '../src/internal/domain/verdict';
 import type { AiPort, AuditRepository, AuditRequest, CatalogPort, CompletedAudit, ImageAnalyzer, ReportStore, ReviewSummary } from '../src/internal/application/ports';
 import { EnqueueAudit, GetReviewReports, RunAuditWorker } from '../src/internal/application/use-cases';
@@ -22,8 +22,10 @@ const LOT: LotSheet = {
   materials: 'Oleo sobre lienzo',
   widthCm: 60,
   heightCm: 80,
+  depthCm: null,
   provenance: 'Coleccion privada',
   images: [{ url: 'http://artauction-media.web.garage.localhost:3902/lots/x/1.jpg', perceptualHash: 'ffffffffffffff00' }],
+  model: null,
 };
 
 const GOOD_IMAGE: ImageMetrics = {
@@ -82,6 +84,31 @@ describe('expediente y reglas', () => {
     expect(buildDossier(LOT, [GOOD_IMAGE], []).hash).toBe(first.hash);
     expect(buildDossier({ ...LOT, title: 'Otro titulo' }, [GOOD_IMAGE], []).hash).not.toBe(first.hash);
     expect(first.evidence.map((item) => item.code)).toEqual(expect.arrayContaining(['img1.aspect', 'img1.exif.camera', 'lot.declared_aspect']));
+  });
+
+  it('el modelo 3D es evidencia: sus triangulos y su caja entran al expediente', () => {
+    const model = { triangles: 42_000, sizeX: 0.3, sizeY: 1.8, sizeZ: 0.4 };
+    const statue: LotSheet = { ...LOT, widthCm: 40, heightCm: 180, depthCm: 30, model };
+    const dossier = buildDossier(statue, [GOOD_IMAGE], []);
+    expect(dossier.evidence).toEqual(expect.arrayContaining([
+      { code: 'model.triangles', value: '42000' },
+      { code: 'lot.declared_size', value: '40 x 180 x 30 cm' },
+    ]));
+    // Girada 90 grados en el plano: los lados se ordenan y las proporciones coinciden.
+    expect(modelProportionDeviation(statue)).toBeCloseTo(0);
+    expect(dossier.ruleFindings.some((finding) => finding.code === 'MODEL_PROPORTIONS_MISMATCH')).toBe(false);
+    // Un cambio en el modelo cambia la huella: la cache no reutiliza una evaluacion vieja.
+    expect(buildDossier({ ...statue, model: { ...model, triangles: 50_000 } }, [GOOD_IMAGE], []).hash).not.toBe(dossier.hash);
+  });
+
+  it('advierte si las proporciones del modelo no coinciden con las medidas declaradas', () => {
+    // Declara una estatua alta, pero el modelo es un cubo.
+    const cube: LotSheet = { ...LOT, widthCm: 40, heightCm: 180, depthCm: 30, model: { triangles: 12_000, sizeX: 1, sizeY: 1, sizeZ: 1 } };
+    expect(applyRules(cube, [GOOD_IMAGE], [])).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'MODEL_PROPORTIONS_MISMATCH', severity: 'WARNING', evidence: ['model.size', 'lot.declared_size'] }),
+    ]));
+    // Sin medidas declaradas no hay con que comparar.
+    expect(modelProportionDeviation({ ...cube, widthCm: null })).toBeNull();
   });
 
   it('decide el veredicto y espacia los reintentos', () => {
