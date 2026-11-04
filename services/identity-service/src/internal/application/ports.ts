@@ -1,4 +1,4 @@
-import type { Account, Role } from '../domain/account';
+import type { Account, Locale, Role } from '../domain/account';
 import type { RefreshSession } from '../domain/refresh-session';
 
 // Puertos que necesitan los casos de uso. Las implementaciones viven en
@@ -8,8 +8,15 @@ export interface AccountRepository {
   findByEmail(email: string): Promise<Account | null>;
   findById(id: string): Promise<Account | null>;
   /** Devuelve null si el correo ya existe. */
-  create(input: { email: string; passwordHash: string; displayName: string; role: Role }): Promise<Account | null>;
-  updateProfile(id: string, patch: { displayName: string; avatarUrl?: string | null }): Promise<Account | null>;
+  create(input: { email: string; passwordHash: string; displayName: string; role: Role; locale: Locale }): Promise<Account | null>;
+  /** Cambia solo los campos presentes. Devuelve null si la cuenta no existe. */
+  update(id: string, patch: AccountPatch): Promise<Account | null>;
+}
+
+export interface AccountPatch {
+  displayName?: string;
+  avatarUrl?: string | null;
+  locale?: Locale;
 }
 
 export interface PasswordHasher {

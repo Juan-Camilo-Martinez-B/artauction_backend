@@ -14,7 +14,7 @@ No contiene reglas de negocio. Hace cinco cosas:
 
 | Ruta | Destino |
 |---|---|
-| `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `GET/PATCH /auth/me` | identity-service |
+| `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `GET/PATCH /auth/me`, `PATCH /auth/me/preferences` | identity-service. La cuenta trae `locale` (`es` o `en`); el registro acepta `locale` y `PATCH /auth/me/preferences` lo cambia |
 | `GET /lots`, `GET /lots/categories`, `GET /lots/:id`, `GET /lots/:id/related` | catalog-service, compuesto con el resumen de subasta y el último informe de auditoría |
 | `POST /lots`, `/lots/:id/hash`, `/lots/:id/uploads`, `/lots/:id/images`, `/lots/:id/submit` | catalog-service |
 | `POST /lots/:id/model-uploads`, `POST /lots/:id/model`, `DELETE /lots/:id/model` | catalog-service: modelo 3D (GLB) de una obra tridimensional, obligatorio para enviarla o hacerla pública: subida firmada, registro (lo valida y lo mide) y retiro. La obra trae `model` con `url`, `triangleCount`, `vertexCount` y `size` |

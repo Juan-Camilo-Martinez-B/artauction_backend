@@ -4,11 +4,13 @@ import {
   normalizeDisplayName,
   normalizeEmail,
   parseAvatarUrl,
+  parseLocale,
   registrationRole,
   type Role,
 } from '../domain/account';
 import { assessRefresh } from '../domain/refresh-session';
 import type {
+  AccountPatch,
   AccountRepository,
   Clock,
   PasswordHasher,
@@ -30,16 +32,19 @@ export class RegisterAccount {
     private readonly hasher: PasswordHasher,
   ) {}
 
-  async execute(input: { email: string; password: string; displayName: string; role?: Role }): Promise<AccountView> {
+  /** locale: el idioma en que la persona veia la plataforma al registrarse. */
+  async execute(input: { email: string; password: string; displayName: string; role?: Role; locale?: string }): Promise<AccountView> {
     const email = normalizeEmail(input.email);
     assertPasswordPolicy(input.password);
     const displayName = normalizeDisplayName(input.displayName);
     const role = registrationRole(input.role);
+    const locale = parseLocale(input.locale);
     const created = await this.accounts.create({
       email,
       passwordHash: await this.hasher.hash(input.password),
       displayName,
       role,
+      locale,
     });
     if (!created) {
       throw DomainError.conflict('El correo ya esta registrado', { code: 'EMAIL_TAKEN' });
@@ -131,13 +136,24 @@ export class UpdateProfile {
   constructor(private readonly accounts: AccountRepository) {}
 
   async execute(input: { userId: string; displayName: string; avatarUrl?: string }): Promise<AccountView> {
-    const patch: { displayName: string; avatarUrl?: string | null } = {
-      displayName: normalizeDisplayName(input.displayName),
-    };
+    const patch: AccountPatch = { displayName: normalizeDisplayName(input.displayName) };
     if (input.avatarUrl !== undefined) {
       patch.avatarUrl = parseAvatarUrl(input.avatarUrl);
     }
-    const updated = await this.accounts.updateProfile(input.userId, patch);
+    const updated = await this.accounts.update(input.userId, patch);
+    if (!updated) {
+      throw DomainError.notFound('La cuenta no existe', { code: 'ACCOUNT_NOT_FOUND' });
+    }
+    return toAccountView(updated);
+  }
+}
+
+/** Preferencias de la cuenta: por ahora, el idioma en que ve la plataforma. */
+export class UpdatePreferences {
+  constructor(private readonly accounts: AccountRepository) {}
+
+  async execute(input: { userId: string; locale: string }): Promise<AccountView> {
+    const updated = await this.accounts.update(input.userId, { locale: parseLocale(input.locale) });
     if (!updated) {
       throw DomainError.notFound('La cuenta no existe', { code: 'ACCOUNT_NOT_FOUND' });
     }

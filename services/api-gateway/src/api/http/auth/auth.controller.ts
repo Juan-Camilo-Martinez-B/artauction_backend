@@ -5,7 +5,8 @@ import { invoke } from '@artauction/service-kit';
 import { IDENTITY_CLIENT } from '../../../clients/grpc-clients';
 import { GATEWAY_CONFIG } from '../tokens';
 import type { GatewayConfig } from '../../../config';
-import { LoginDto, RefreshDto, RegisterDto, UpdateProfileDto } from './auth.dto';
+import { DEFAULT_LOCALE, type Locale } from '../locale';
+import { LoginDto, RefreshDto, RegisterDto, UpdatePreferencesDto, UpdateProfileDto } from './auth.dto';
 
 export interface AccountJson {
   userId: string;
@@ -13,6 +14,7 @@ export interface AccountJson {
   role: string;
   displayName: string;
   avatarUrl: string | null;
+  locale: Locale;
 }
 
 export interface TokenPairJson {
@@ -49,6 +51,7 @@ export class AuthController {
         password: body.password,
         displayName: body.displayName,
         role: body.role ? ROLE_VALUES[body.role] : identityV1.Role.ROLE_UNSPECIFIED,
+        locale: body.locale,
       }),
       this.options(),
     );
@@ -102,6 +105,20 @@ export class AuthController {
     return toAccountJson(response.account);
   }
 
+  /** El idioma de la interfaz queda en la cuenta: sigue a la persona en cualquier dispositivo. */
+  @Patch('me/preferences')
+  async preferences(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: UpdatePreferencesDto,
+  ): Promise<AccountJson> {
+    const response = await invoke(
+      this.identity.updatePreferences.bind(this.identity),
+      identityV1.UpdatePreferencesRequest.fromPartial({ locale: body.locale }),
+      this.options(authorization),
+    );
+    return toAccountJson(response.account);
+  }
+
   private options(authorization?: string) {
     return { deadlineMs: this.config.GRPC_DEADLINE_MS, authorization };
   }
@@ -117,6 +134,7 @@ function toAccountJson(account: identityV1.Account | undefined): AccountJson {
     role: ROLE_NAMES.get(account.role) ?? 'USER',
     displayName: account.displayName,
     avatarUrl: account.avatarUrl ?? null,
+    locale: account.locale === 'en' ? 'en' : DEFAULT_LOCALE,
   };
 }
 

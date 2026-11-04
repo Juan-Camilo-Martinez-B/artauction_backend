@@ -8,6 +8,11 @@ export const SELF_ASSIGNABLE_ROLES: readonly Role[] = ['USER', 'SELLER'];
 
 export type ProfileVisibility = 'PUBLIC' | 'PRIVATE';
 
+/** Idiomas en que una cuenta puede ver la plataforma. */
+export const LOCALES = ['es', 'en'] as const;
+export type Locale = (typeof LOCALES)[number];
+export const DEFAULT_LOCALE: Locale = 'es';
+
 export interface Account {
   id: string;
   email: string;
@@ -16,6 +21,7 @@ export interface Account {
   role: Role;
   profileVisibility: ProfileVisibility;
   avatarUrl: string | null;
+  locale: Locale;
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,6 +59,21 @@ export function registrationRole(requested: Role | undefined): Role {
     throw DomainError.forbidden('Ese rol no se puede elegir al registrarse.', { code: 'ROLE_NOT_ALLOWED' });
   }
   return role;
+}
+
+/** Idioma pedido; sin valor, el de omision. Uno que la plataforma no ofrece se rechaza. */
+export function parseLocale(raw: string | undefined): Locale {
+  if (raw === undefined || raw === '') {
+    return DEFAULT_LOCALE;
+  }
+  if (!isLocale(raw)) {
+    throw DomainError.invalid('Ese idioma no esta disponible.');
+  }
+  return raw;
+}
+
+export function isLocale(value: string): value is Locale {
+  return (LOCALES as readonly string[]).includes(value);
 }
 
 export function isRole(value: string): value is Role {

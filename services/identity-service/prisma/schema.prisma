@@ -21,6 +21,8 @@ model User {
   profileVisibility String   @default("PUBLIC") @map("profile_visibility")
   bio               String?
   avatarUrl         String?  @map("avatar_url")
+  /// Idioma en que la cuenta ve la plataforma: es o en.
+  locale            String   @default("es")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 

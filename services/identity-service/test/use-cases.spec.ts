@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 import { DomainError } from '@artauction/platform';
-import type { Account, Role } from '../src/internal/domain/account';
+import type { Account, Locale, Role } from '../src/internal/domain/account';
 import type { RefreshSession } from '../src/internal/domain/refresh-session';
 import type {
   AccessClaims,
+  AccountPatch,
   AccountRepository,
   PasswordHasher,
   RefreshTokenCodec,
@@ -19,6 +20,7 @@ import {
   RegisterAccount,
   RotateRefreshSession,
   SESSION_RETENTION_MS,
+  UpdatePreferences,
   UpdateProfile,
 } from '../src/internal/application/use-cases';
 import { EnvServiceClientRegistry } from '../src/internal/infrastructure/crypto-adapters';
@@ -35,7 +37,7 @@ class MemoryAccounts implements AccountRepository {
     return Promise.resolve(this.rows.get(id) ?? null);
   }
 
-  async create(input: { email: string; passwordHash: string; displayName: string; role: Role }): Promise<Account | null> {
+  async create(input: { email: string; passwordHash: string; displayName: string; role: Role; locale: Locale }): Promise<Account | null> {
     if (await this.findByEmail(input.email)) {
       return null;
     }
@@ -45,7 +47,7 @@ class MemoryAccounts implements AccountRepository {
     return account;
   }
 
-  updateProfile(id: string, patch: { displayName: string; avatarUrl?: string | null }): Promise<Account | null> {
+  update(id: string, patch: AccountPatch): Promise<Account | null> {
     const row = this.rows.get(id);
     if (!row) {
       return Promise.resolve(null);
@@ -270,6 +272,27 @@ describe('perfil', () => {
     const profile = await new GetPublicProfile(accounts).execute(account.userId);
     expect(profile.avatarUrl).toBeNull();
     expect(profile.visibility).toBe('PRIVATE');
+  });
+});
+
+describe('idioma de la cuenta', () => {
+  it('se registra con el idioma de quien llega y por omision en espanol', async () => {
+    const { register } = setup();
+    const english = await register.execute({ email: 'ann@artauction.local', password: 'DevPassword!234', displayName: 'Ann', locale: 'en' });
+    const plain = await register.execute({ email: 'leo@artauction.local', password: 'DevPassword!234', displayName: 'Leo' });
+    expect(english.locale).toBe('en');
+    expect(plain.locale).toBe('es');
+    await expectKind(register.execute({ email: 'fr@artauction.local', password: 'DevPassword!234', displayName: 'Fr', locale: 'fr' }), 'INVALID_ARGUMENT');
+  });
+
+  it('cambia solo el idioma y rechaza uno que la plataforma no ofrece', async () => {
+    const { register, accounts } = setup();
+    const account = await register.execute({ email: 'leo@artauction.local', password: 'DevPassword!234', displayName: 'Leo' });
+    const preferences = new UpdatePreferences(accounts);
+    const updated = await preferences.execute({ userId: account.userId, locale: 'en' });
+    expect(updated).toMatchObject({ locale: 'en', displayName: 'Leo' });
+    await expectKind(preferences.execute({ userId: account.userId, locale: 'xx' }), 'INVALID_ARGUMENT');
+    await expectKind(preferences.execute({ userId: 'no-existe', locale: 'es' }), 'NOT_FOUND');
   });
 });
 

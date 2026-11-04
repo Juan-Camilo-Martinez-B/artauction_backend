@@ -9,6 +9,7 @@ import type {
   Login,
   RegisterAccount,
   RotateRefreshSession,
+  UpdatePreferences,
   UpdateProfile,
 } from '../../internal/application/use-cases';
 import { accountToProto, profileToProto, roleFromProto, tokensToProto } from './mappers';
@@ -19,6 +20,7 @@ export interface IdentityUseCases {
   rotate: RotateRefreshSession;
   getAccount: GetAccount;
   updateProfile: UpdateProfile;
+  updatePreferences: UpdatePreferences;
   getPublicProfile: GetPublicProfile;
   issueServiceToken: IssueServiceToken;
   getSigningKeys: GetSigningKeys;
@@ -48,6 +50,7 @@ export function identityGrpcService(
         password: request.password,
         displayName: request.displayName,
         role: roleFromProto(request.role),
+        locale: request.locale,
       });
       return identityV1.RegisterResponse.fromPartial({ account: accountToProto(account) });
     }),
@@ -77,6 +80,11 @@ export function identityGrpcService(
         avatarUrl: request.avatarUrl,
       });
       return identityV1.UpdateProfileResponse.fromPartial({ account: accountToProto(account) });
+    }),
+
+    updatePreferences: unary(logger, 'UpdatePreferences', async (request, context) => {
+      const account = await useCases.updatePreferences.execute({ userId: currentUserId(context), locale: request.locale });
+      return identityV1.UpdatePreferencesResponse.fromPartial({ account: accountToProto(account) });
     }),
 
     getPublicProfile: unary(logger, 'GetPublicProfile', async (request) => {

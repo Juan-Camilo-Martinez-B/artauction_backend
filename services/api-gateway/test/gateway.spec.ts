@@ -19,6 +19,7 @@ describe('gateway sobre identity', () => {
       email: 'leo@artauction.local',
       role: identityV1.Role.ROLE_SELLER,
       displayName: 'Leo',
+      locale: 'es',
     });
     const implementation: identityV1.IdentityServiceServer = {
       register: unary(logger, 'Register', (request) =>
@@ -37,6 +38,9 @@ describe('gateway sobre identity', () => {
         return Promise.resolve(identityV1.GetAccountResponse.fromPartial({ account }));
       }),
       updateProfile: unary(logger, 'UpdateProfile', () => Promise.resolve(identityV1.UpdateProfileResponse.fromPartial({ account }))),
+      updatePreferences: unary(logger, 'UpdatePreferences', (request) =>
+        Promise.resolve(identityV1.UpdatePreferencesResponse.fromPartial({ account: { ...account, locale: request.locale } })),
+      ),
       getPublicProfile: unary(logger, 'GetPublicProfile', () => Promise.resolve(identityV1.GetPublicProfileResponse.fromPartial({}))),
       getSigningKeys: unary(logger, 'GetSigningKeys', () => Promise.resolve(identityV1.GetSigningKeysResponse.fromPartial({}))),
       issueServiceToken: unary(logger, 'IssueServiceToken', () =>
@@ -89,8 +93,22 @@ describe('gateway sobre identity', () => {
       role: 'SELLER',
       displayName: 'Leo',
       avatarUrl: null,
+      locale: 'es',
     });
     expect(seenAuthorization).toBe('Bearer token-de-prueba');
+  });
+
+  it('guarda el idioma de la cuenta y rechaza uno no ofrecido sin llamar al servicio', async () => {
+    const patch = (locale: string) =>
+      fetch(`${base}/auth/me/preferences`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer token-de-prueba' },
+        body: JSON.stringify({ locale }),
+      });
+    expect(await (await patch('en')).json()).toMatchObject({ userId: 'u1', locale: 'en' });
+    const rejected = await patch('fr');
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 
   it('valida la forma de la peticion antes de llamar al servicio', async () => {
