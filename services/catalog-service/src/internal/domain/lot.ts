@@ -1,6 +1,7 @@
 import { DomainError } from '@artauction/platform';
 import { CLOSED_STATUSES, EDITABLE_STATUSES, PUBLIC_STATUSES, type LotStatus } from './lot-status';
 import type { LotReview } from './review';
+import type { Locale, LotTranslation } from './translation';
 
 export type Visibility = 'PUBLIC' | 'PRIVATE';
 export type RepresentationKind = 'TWO_D' | 'THREE_D' | 'OTHER';
@@ -72,6 +73,10 @@ export interface Lot {
   lastReview: LotReview | null;
   /** Modelo 3D opcional de una obra tridimensional. */
   model: LotModel | null;
+  /** Idioma en que se escribio la ficha; null hasta que se traduce por primera vez. */
+  sourceLocale: Locale | null;
+  /** Traducciones automaticas vigentes (de la version actual del texto). */
+  translations: LotTranslation[];
 }
 
 /** Clave del modelo 3D de una obra en el bucket: siempre bajo su prefijo. */

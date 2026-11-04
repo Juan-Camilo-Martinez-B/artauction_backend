@@ -33,6 +33,29 @@ export class CatalogConfig {
   @MinLength(20)
   SERVICE_CLIENT_SECRET!: string;
 
+  /**
+   * Traduccion automatica de las fichas publicas con ai-service (Opus-MT). En
+   * CI va apagada: las fichas se muestran en su idioma original.
+   */
+  @IsBoolean()
+  TRANSLATION_ENABLED = true;
+
+  @IsString()
+  @MinLength(1)
+  AI_GRPC_URL = '127.0.0.1:50055';
+
+  /** Cada cuanto el reconciliador busca fichas sin traducir y traduce algunas. */
+  @IsInt()
+  @Min(1_000)
+  @Max(600_000)
+  TRANSLATION_INTERVAL_MS = 5_000;
+
+  /** Fichas que traduce por pasada, de a una: el modelo usa la CPU de ai-service. */
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  TRANSLATION_BATCH = 3;
+
   // Consumidores de los eventos del catalogo. Mientras dura la migracion apuntan
   // al servidor gRPC legado del monolito.
   @IsString()

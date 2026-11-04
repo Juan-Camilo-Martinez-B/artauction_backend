@@ -4,6 +4,7 @@ import type { Category, Lot, LotImage, LotModel, NewLot, RepresentationKind, Vis
 import { EDITABLE_STATUSES, isLotStatus, PUBLIC_STATUSES, type LotStatus } from '../domain/lot-status';
 import type { LotPatch, LotRepository, LotTransitions, NewLotReview, PublicLotQuery, SimilarImage } from '../application/ports';
 import type { LotReview, ReviewDecision } from '../domain/review';
+import { isLocale, textHash, type LotTranslation } from '../domain/translation';
 
 export const CATALOG_SCHEMA = 'catalog';
 
@@ -13,6 +14,7 @@ const lotInclude = {
   // Solo la ultima decision: el vendedor ve el motivo de la devolucion.
   reviews: { orderBy: { createdAt: 'desc' }, take: 1 },
   model: true,
+  translations: true,
 } satisfies Prisma.LotInclude;
 
 type LotRow = Prisma.LotGetPayload<{ include: typeof lotInclude }>;
@@ -33,6 +35,20 @@ export class PrismaLotRepository implements LotRepository {
         { artistName: { contains: query.text, mode: 'insensitive' } },
         { materials: { contains: query.text, mode: 'insensitive' } },
         { description: { contains: query.text, mode: 'insensitive' } },
+        // Tambien en las traducciones: "statue" encuentra una obra escrita en
+        // espanol. Una traduccion de un texto ya editado puede coincidir hasta
+        // que el worker la reemplace; la ficha se muestra igual con el texto vigente.
+        {
+          translations: {
+            some: {
+              OR: [
+                { title: { contains: query.text, mode: 'insensitive' } },
+                { materials: { contains: query.text, mode: 'insensitive' } },
+                { description: { contains: query.text, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
       ];
     }
     if (query.representation) {
@@ -367,7 +383,28 @@ function toLot(row: LotRow): Lot {
     categories: row.categories.map((link) => ({ isPrimary: link.isPrimary, category: toCategory(link.category) })),
     lastReview: toReview(row.reviews[0]),
     model: row.model ? toModel(row.model) : null,
+    sourceLocale: isLocale(row.sourceLocale) ? row.sourceLocale : null,
+    translations: currentTranslations(row),
   };
+}
+
+/** Solo las traducciones del texto actual: si la ficha cambio, las viejas no se muestran. */
+function currentTranslations(row: LotRow): LotTranslation[] {
+  const hash = textHash({ title: row.title, description: row.description, materials: row.materials, provenance: row.provenance });
+  return row.translations.flatMap((translation) =>
+    translation.sourceHash === hash && isLocale(translation.locale)
+      ? [
+          {
+            locale: translation.locale,
+            title: translation.title,
+            description: translation.description,
+            materials: translation.materials,
+            provenance: translation.provenance,
+            model: translation.model,
+          },
+        ]
+      : [],
+  );
 }
 
 function toModel(row: {

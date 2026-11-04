@@ -146,6 +146,21 @@ message Lot {
   google.protobuf.Timestamp created_at = 21;
   optional LotReview last_review = 22;
   optional LotModel model = 23;
+  // Idioma en que se escribio la ficha, detectado al traducirla ("es" o "en").
+  optional string source_locale = 24;
+  // Traducciones automaticas vigentes: solo las de la version actual del texto.
+  repeated LotTextTranslation translations = 25;
+}
+
+// Textos de una ficha traducidos automaticamente a otro idioma.
+message LotTextTranslation {
+  string locale = 1;
+  string title = 2;
+  string description = 3;
+  string materials = 4;
+  optional string provenance = 5;
+  // Modelo que tradujo (por ejemplo opus-mt).
+  string model = 6;
 }
 
 // Modelo 3D validado: lo medido sirve para escalarlo y como evidencia de la auditoria.

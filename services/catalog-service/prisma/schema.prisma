@@ -26,6 +26,7 @@ model Lot {
   depthCm            Decimal? @map("depth_cm") @db.Decimal(8, 2)
   provenance         String?
   representationKind String?  @map("representation_kind")
+  sourceLocale       String?  @map("source_locale")
   status             String   @default("BORRADOR")
   visibility         String   @default("PRIVATE")
   authenticityScore  Int?     @map("authenticity_score") @db.SmallInt
@@ -35,14 +36,54 @@ model Lot {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  images     LotImage[]
-  categories LotCategory[]
-  reviews    LotReview[]
-  model      LotModel?
+  images              LotImage[]
+  categories          LotCategory[]
+  reviews             LotReview[]
+  model               LotModel?
+  translations        LotTranslation[]
+  translationRequests TranslationRequest[]
 
   @@index([sellerId], map: "lots_seller_id_idx")
   @@index([status], map: "lots_status_idx")
   @@map("lots")
+}
+
+/// Traduccion automatica de los textos de una ficha a otro idioma (0036). sourceHash es la
+/// huella del original traducido: si la ficha cambia, deja de coincidir y no se usa.
+model LotTranslation {
+  lotId       String   @map("lot_id") @db.Uuid
+  locale      String
+  title       String
+  description String
+  materials   String
+  provenance  String?
+  sourceHash  String   @map("source_hash")
+  model       String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  lot Lot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@id([lotId, locale])
+  @@map("lot_translations")
+}
+
+/// Cola de traduccion (0036): una sola pendiente por obra, con lease y reintentos.
+model TranslationRequest {
+  id          String    @id @default(uuid()) @db.Uuid
+  lotId       String    @map("lot_id") @db.Uuid
+  sourceHash  String    @map("source_hash")
+  status      String    @default("PENDIENTE")
+  attempts    Int       @default(0)
+  availableAt DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  leaseUntil  DateTime? @map("lease_until") @db.Timestamptz(6)
+  lastError   String?   @map("last_error")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  lot Lot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@index([availableAt], map: "translation_requests_due_idx")
+  @@map("translation_requests")
 }
 
 // Decisiones de un administrador en la revision manual (desde 0026).

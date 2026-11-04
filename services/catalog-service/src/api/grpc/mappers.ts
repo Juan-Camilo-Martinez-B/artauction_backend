@@ -129,6 +129,8 @@ export function lotToProto(lot: Lot, mediaBaseUrl: string): catalogV1.Lot {
     categories: lot.categories.map((link) => ({ isPrimary: link.isPrimary, category: categoryToProto(link.category) })),
     createdAt: lot.createdAt,
     model: lot.model ? modelToProto(lot.model, mediaBaseUrl) : undefined,
+    sourceLocale: lot.sourceLocale ?? undefined,
+    translations: lot.translations.map((translation) => ({ ...translation, provenance: translation.provenance ?? undefined })),
     lastReview: lot.lastReview
       ? {
           decision: DECISION_TO_PROTO[lot.lastReview.decision],

@@ -144,6 +144,9 @@ services:
       AUDIT_EVENTS_GRPC_URL: audit-service:50056
       AUCTION_EVENTS_GRPC_URL: auction-service:50054
       NOTIFICATION_EVENTS_GRPC_URL: notification-service:50058
+      # Traduccion de fichas con Opus-MT en ai-service (en CI va apagada).
+      AI_GRPC_URL: ai-service:50055
+      TRANSLATION_ENABLED: ${TRANSLATION_ENABLED:-true}
       # Las subidas las hace el navegador: el host firmado es el que ve el navegador.
       S3_ENDPOINT: http://localhost:${S3_PORT:-3900}
       # catalog lee lo subido (el modelo 3D) por la red interna de compose.

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { Inject, Module, type DynamicModule, type OnApplicationBootstrap, type OnApplicationShutdown, type Provider } from '@nestjs/common';
-import { identityV1, type catalogHandlersV1, type catalogV1 } from '@artauction/contracts';
+import { aiV1, identityV1, type catalogHandlersV1, type catalogV1 } from '@artauction/contracts';
 import {
   channelCredentials,
   DEFAULT_RELAY_OPTIONS,
@@ -12,6 +12,7 @@ import {
 } from '@artauction/platform';
 import { CallerResolver, ServiceTokenProvider } from '@artauction/service-kit';
 import { PrismaClient } from './generated/prisma';
+import { GrpcLotTranslator } from './api/clients/translator-client';
 import { catalogOutboxRoutes } from './api/events/outbox-routes';
 import { catalogEventsGrpcService } from './api/grpc/catalog-events.grpc';
 import { catalogGrpcService } from './api/grpc/catalog.grpc';
@@ -41,8 +42,10 @@ import {
   ListCategories,
   ListPublicLots,
 } from './internal/application/queries';
+import { TranslationWorker } from './internal/application/translation-worker';
 import { ImageHashPool } from './internal/infrastructure/image-hash.pool';
 import { CATALOG_SCHEMA, PrismaLotRepository, sqlExecutor } from './internal/infrastructure/prisma-lot.repository';
+import { PrismaTranslationStore } from './internal/infrastructure/prisma-translation.store';
 import { S3ObjectReader } from './internal/infrastructure/s3-object-reader';
 import { S3UploadSigner } from './internal/infrastructure/s3-upload-signer';
 import type { CatalogConfig } from './config';
@@ -59,6 +62,14 @@ const IDENTITY = Symbol('IDENTITY');
 const RELAY = Symbol('RELAY');
 const CALLERS = Symbol('CALLERS');
 const REPOSITORY = Symbol('REPOSITORY');
+const TOKENS = Symbol('TOKENS');
+const AI = Symbol('AI');
+const TRANSLATION = Symbol('TRANSLATION');
+
+/** Fichas que el reconciliador encola por pasada. */
+const TRANSLATION_ENQUEUE_BATCH = 50;
+/** Lease de una solicitud: la primera traduccion carga el modelo en ai-service. */
+const TRANSLATION_LEASE_MS = 5 * 60_000;
 
 const providers: Provider[] = [
   { provide: LOGGER, useValue: new StructuredLogger('catalog-service') },
@@ -87,6 +98,28 @@ const providers: Provider[] = [
     inject: [CONFIG],
     useFactory: (config: CatalogConfig) =>
       new identityV1.IdentityServiceClient(config.IDENTITY_GRPC_URL, channelCredentials(config.tls)),
+  },
+  {
+    provide: TOKENS,
+    inject: [CONFIG, IDENTITY],
+    useFactory: (config: CatalogConfig, identity: identityV1.IdentityServiceClient) =>
+      new ServiceTokenProvider(identity, config.SERVICE_CLIENT_ID, config.SERVICE_CLIENT_SECRET),
+  },
+  {
+    provide: AI,
+    inject: [CONFIG],
+    useFactory: (config: CatalogConfig) => new aiV1.AiServiceClient(config.AI_GRPC_URL, channelCredentials(config.tls)),
+  },
+  {
+    provide: TRANSLATION,
+    inject: [PRISMA, AI, TOKENS, CONFIG, LOGGER],
+    useFactory: (prisma: PrismaClient, ai: aiV1.AiServiceClient, tokens: ServiceTokenProvider, config: CatalogConfig, logger: StructuredLogger) =>
+      new TranslationWorker(
+        new PrismaTranslationStore(prisma),
+        new GrpcLotTranslator(ai, tokens),
+        { enqueueBatch: TRANSLATION_ENQUEUE_BATCH, translateBatch: config.TRANSLATION_BATCH, leaseMs: TRANSLATION_LEASE_MS },
+        logger,
+      ),
   },
   {
     provide: CATALOG_GRPC,
@@ -167,14 +200,13 @@ const providers: Provider[] = [
   },
   {
     provide: RELAY,
-    inject: [CONFIG, PRISMA, IDENTITY, LOGGER],
+    inject: [CONFIG, PRISMA, TOKENS, LOGGER],
     useFactory: (
       config: CatalogConfig,
       prisma: PrismaClient,
-      identity: identityV1.IdentityServiceClient,
+      tokens: ServiceTokenProvider,
       logger: StructuredLogger,
     ) => {
-      const tokens = new ServiceTokenProvider(identity, config.SERVICE_CLIENT_ID, config.SERVICE_CLIENT_SECRET);
       const delivery = catalogOutboxRoutes(
         {
           gallery: config.GALLERY_EVENTS_GRPC_URL,
@@ -193,12 +225,18 @@ const providers: Provider[] = [
 
 @Module({})
 export class CatalogModule implements OnApplicationBootstrap, OnApplicationShutdown {
+  private translationTimer: NodeJS.Timeout | null = null;
+  private translating = false;
+
   constructor(
     @Inject(CONFIG) private readonly config: CatalogConfig,
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(HASH_POOL) private readonly hashes: ImageHashPool,
     @Inject(IDENTITY) private readonly identity: identityV1.IdentityServiceClient,
     @Inject(RELAY) private readonly relay: { relay: OutboxRelay; close: () => void },
+    @Inject(AI) private readonly ai: aiV1.AiServiceClient,
+    @Inject(TRANSLATION) private readonly translation: TranslationWorker,
+    @Inject(LOGGER) private readonly logger: StructuredLogger,
   ) {}
 
   static register(config: CatalogConfig): DynamicModule {
@@ -213,12 +251,39 @@ export class CatalogModule implements OnApplicationBootstrap, OnApplicationShutd
     if (this.config.OUTBOX_RELAY_ENABLED) {
       this.relay.relay.start();
     }
+    if (this.config.TRANSLATION_ENABLED) {
+      this.translationTimer = setInterval(() => {
+        void this.translate();
+      }, this.config.TRANSLATION_INTERVAL_MS);
+    }
   }
 
   async onApplicationShutdown(): Promise<void> {
+    if (this.translationTimer) {
+      clearInterval(this.translationTimer);
+    }
     this.relay.relay.stop();
     this.relay.close();
     this.identity.close();
+    this.ai.close();
     await Promise.allSettled([this.hashes.close(), this.prisma.$disconnect()]);
+  }
+
+  /** Una pasada de traduccion a la vez; un fallo se registra y la siguiente reintenta. */
+  private async translate(): Promise<void> {
+    if (this.translating) {
+      return;
+    }
+    this.translating = true;
+    try {
+      const { enqueued, processed } = await this.translation.tick();
+      if (enqueued > 0 || processed > 0) {
+        this.logger.log(`traducciones: ${String(enqueued)} encoladas, ${String(processed)} procesadas`, 'translation');
+      }
+    } catch (error) {
+      this.logger.error(error instanceof Error ? error.message : String(error), undefined, 'translation');
+    } finally {
+      this.translating = false;
+    }
   }
 }
