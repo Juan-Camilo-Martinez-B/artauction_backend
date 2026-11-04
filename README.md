@@ -2,7 +2,7 @@
 
 Backend de **ArtAuction AI**, una casa de subastas de arte en línea con auditoría de autenticidad asistida por IA. Los vendedores publican obras, la plataforma las audita antes de mostrarlas, y los coleccionistas pujan en salas en vivo con artacoins, la moneda interna. Cada usuario tiene además una galería 3D y una galería social.
 
-El backend es un monorepo de **nueve microservicios** NestJS que se comunican por **gRPC sobre HTTP/2**. Un api-gateway le ofrece al frontend REST y Socket.IO. La única llamada REST hacia fuera es la de Gemini, encapsulada en ai-service. Todo es funcional salvo la pasarela de pago, que se simula.
+El backend es un monorepo de **nueve microservicios** NestJS que se comunican por **gRPC sobre HTTP/2**. Un api-gateway le ofrece al frontend REST y Socket.IO. La única llamada REST hacia fuera es la del proveedor de IA (Groq), encapsulada en ai-service. Todo es funcional salvo la pasarela de pago, que se simula.
 
 ## Arquitectura
 
@@ -20,7 +20,7 @@ flowchart LR
   AUD --> CAT
   AUD --> AI[ai]
   GAL --> AI
-  AI -- REST --> GEM[(Gemini)]
+  AI -- REST --> GEM[(Groq)]
   CAT -. eventos .-> AUD
   AUD -. eventos .-> CAT
   AUD -. eventos .-> AUC
@@ -39,7 +39,7 @@ Flechas sólidas: gRPC síncrono. Punteadas: eventos por outbox transaccional, c
 | [catalog-service](services/catalog-service) | 50052 | obras, imágenes en S3, hash perceptual, ciclo de vida, revisión manual |
 | [wallet-service](services/wallet-service) | 50053 | saldo, retenciones TCC, ledger, recargas idempotentes, comisión |
 | [auction-service](services/auction-service) | 50054 | salas, pujas, anti-sniping, programador, stream en vivo |
-| [ai-service](services/ai-service) | 50055 | única dueña de la clave de Gemini, con circuit breaker y evaluación local de respaldo |
+| [ai-service](services/ai-service) | 50055 | única dueña de la clave de Groq, con circuit breaker y evaluación local de respaldo |
 | [audit-service](services/audit-service) | 50056 | cola de auditoría, expediente de evidencias, reglas deterministas, informes |
 | [gallery-service](services/gallery-service) | 50057 | galería 3D, galería social, follows y feed |
 | [notification-service](services/notification-service) | 50058 | avisos |
@@ -95,7 +95,7 @@ Cuentas de la semilla, todas con la contraseña `DevPassword!234`: `admin@artauc
 
 **Linux y macOS.** Los contenedores corren como el usuario `node` (uid 1000) y montan `secrets/jwt/private.pem`, que se genera con modo 600. Si tu uid no es 1000 (`id -u`), entrégale la clave: `sudo chown 1000 secrets/jwt/private.pem`. En Windows y en Docker Desktop no hace falta.
 
-**Gemini es opcional.** Con `GEMINI_API_KEY` en `services/ai-service/.env`, la auditoría y el asistente de galería usan el modelo. Sin clave, ai-service usa una evaluación local determinista y todo sigue funcionando.
+**La IA es opcional.** Con `GROQ_API_KEY` en `services/ai-service/.env` (se crea gratis en console.groq.com), la auditoría y el asistente de galería usan el modelo `openai/gpt-oss-120b`. Sin clave, ai-service usa una evaluación local determinista y todo sigue funcionando.
 
 **Puertos.** Se cambian con `FRONTEND_PORT`, `GATEWAY_PORT`, `S3_PORT` y `MEDIA_PORT`. El proyecto de compose se llama `artauction-platform`, así no toca los contenedores de desarrollo de la carpeta raíz. Eso sí, los dos usan los puertos 3900 y 3902 de Garage: detén la infraestructura de desarrollo antes, o cambia esos puertos.
 
@@ -171,7 +171,7 @@ El ref de los repos hermanos sale de las variables del repositorio `ARTAUCTION_B
 
 - Argon2 para contraseñas. Access token RS256 corto y refresh rotativo; reusar un refresh revocado revoca toda la familia.
 - Zero trust: cada servicio verifica el JWT de cada llamada gRPC, y las RPC internas comprueban qué servicio llama.
-- Mínimo privilegio: un login de Postgres por servicio; la clave de Gemini solo en ai-service.
+- Mínimo privilegio: un login de Postgres por servicio; la clave de Groq solo en ai-service.
 - Idempotencia en pujas, recargas (`Idempotency-Key`) y consumidores de eventos.
 - Los secretos viven en `secrets/` y en los `.env`, fuera de git y de las imágenes.
 

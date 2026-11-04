@@ -15,6 +15,7 @@ const AUDIT_SYSTEM = [
   'Cada hallazgo debe citar en "evidence" uno o mas codigos que existan en "evidence" del expediente. Sin cita valida el hallazgo se descarta.',
   'Un hallazgo CRITICAL de las reglas no se puede contradecir.',
   'score 0-100 es la confianza en la autenticidad. priceMin y priceMax son artacoins enteras (1 artacoin = 1 USD).',
+  'priceMin y priceMax son siempre mayores que 0: estima el valor de mercado de la obra aunque la informacion sea escasa.',
   'Responde solo el JSON del esquema, en espanol, con mensajes breves.',
 ].join('\n');
 
@@ -108,7 +109,7 @@ export class AuditArtwork {
 
 const GALLERY_SYSTEM = [
   'Convierte preferencias de una galeria 3D en una configuracion del esquema 1.',
-  'Responde solo JSON compacto en una linea, sin espacios ni texto extra. schemaVersion debe ser 1 y source debe ser "gemini".',
+  'Responde solo JSON compacto en una linea, sin espacios ni texto extra. schemaVersion debe ser 1 y source debe ser "ai".',
   'spaceType: MINIMAL, CLASSIC, INDUSTRIAL, CONCRETE, WOOD, FUTURIST o EXPERIMENTAL.',
   'roomWidth 8-20, roomDepth 6-16, roomHeight 3-6, zones 1-4.',
   'Colores #rrggbb. wall material: plaster, marble, concrete, wood o metal.',
@@ -150,7 +151,7 @@ export class DesignGallery {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
       throw DomainError.unavailable('El modelo no devolvio una configuracion');
     }
-    return { config: { ...(raw as Record<string, unknown>), source: 'gemini' }, source: 'gemini' };
+    return { config: { ...(raw as Record<string, unknown>), source: 'ai' }, source: 'ai' };
   }
 }
 

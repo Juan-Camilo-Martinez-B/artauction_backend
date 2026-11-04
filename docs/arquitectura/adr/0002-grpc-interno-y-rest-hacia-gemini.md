@@ -1,6 +1,6 @@
 # ADR 0002: gRPC sobre HTTP/2 entre servicios y REST hacia Gemini
 
-Estado: aceptado.
+Estado: aceptado. El proveedor de IA cambió a Groq en el ADR 0011; el principio (REST hacia el proveedor, encapsulado en `ai-service`) sigue vigente.
 
 ## Contexto
 

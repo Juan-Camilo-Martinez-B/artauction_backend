@@ -79,9 +79,12 @@ describe('proyectos propios', () => {
   });
 
   test('una vendedora pasa su proyecto al catalogo: se oculta y se audita', async () => {
+    // El acrilico en 1910 es un anacronismo: una regla critica la manda a
+    // revision manual sin consultar al modelo de IA. Esta prueba no mira el
+    // veredicto, asi que no gasta la cuota gratuita del proveedor.
     const own = await createLotWithImage(
       seller,
-      { title: 'E2E Marina propia', description: 'Marina al oleo pintada en el taller de la autora.', materials: 'Oleo sobre lienzo', creationYear: 2020, destination: 'PERSONAL', visibility: 'PUBLIC' },
+      { title: 'E2E Marina propia', description: 'Marina pintada en el taller de la autora.', materials: 'Acrilico sobre lienzo', creationYear: 1910, destination: 'PERSONAL', visibility: 'PUBLIC' },
       42,
     );
     await eventually('el proyecto publico llega a su galeria', async () => {

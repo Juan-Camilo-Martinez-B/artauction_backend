@@ -193,7 +193,7 @@ services:
   ai-service:
     <<: *service
     build: { context: ., args: { SERVICE: ai-service } }
-    # La clave de Gemini, si existe, sigue en el .env propio de ai-service (no versionado).
+    # La clave de Groq, si existe, sigue en el .env propio de ai-service (no versionado).
     env_file:
       - path: ./services/ai-service/.env
         required: false

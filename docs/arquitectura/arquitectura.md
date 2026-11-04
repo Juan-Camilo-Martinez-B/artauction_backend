@@ -13,7 +13,7 @@ ArtAuction AI es una casa de subastas de arte con auditoría de autenticidad asi
 | `catalog-service` | gRPC 50052 | obras, imágenes, hash perceptual, ciclo de vida del lote, revisión manual | PG `catalog`, bucket S3 |
 | `wallet-service` | gRPC 50053 | saldo en artacoins, retenciones TCC, ledger, recargas con pasarela simulada | PG `wallet` |
 | `auction-service` | gRPC 50054 | salas, pujas, anti-sniping, programador, stream en vivo | PG `auction` |
-| `ai-service` | gRPC 50055 | única dueña de la clave de Gemini; REST hacia el modelo con circuit breaker | ninguno |
+| `ai-service` | gRPC 50055 | única dueña de la clave de Groq; REST hacia el modelo con circuit breaker (ADR 0011) | ninguno |
 | `audit-service` | gRPC 50056 | cola de auditoría, expediente de evidencias, reglas, informes | PG `audit` (informes en JSONB) |
 | `gallery-service` | gRPC 50057 | galería 3D personal, galería social, follows y feed | PG `gallery` |
 | `notification-service` | gRPC 50058 | avisos al usuario | PG `notification` |
@@ -53,7 +53,7 @@ flowchart TB
     stsetup[[storage-setup<br/>bucket, llaves, CORS]]
   end
 
-  gem[(Gemini API)]
+  gem[(Groq API)]
 
   browser -- ":3000" --> fe
   browser -- ":3001 REST y Socket.IO" --> gw
@@ -210,7 +210,7 @@ sequenceDiagram
   AUD-->>NOT: AuditCompleted: aviso al vendedor
 ```
 
-La IA nunca ve imágenes: razona sobre evidencias ya medidas, cada hallazgo debe citar códigos del expediente y una regla crítica no se puede anular (ADR 0009). Sin `GEMINI_API_KEY`, ai-service usa una evaluación local determinista, y la plataforma sigue funcionando.
+La IA nunca ve imágenes: razona sobre evidencias ya medidas, cada hallazgo debe citar códigos del expediente y una regla crítica no se puede anular (ADR 0009). Sin `GROQ_API_KEY`, ai-service usa una evaluación local determinista, y la plataforma sigue funcionando.
 
 ## Pujar: Try-Confirm-Cancel
 
@@ -271,7 +271,7 @@ wallet bloquea los bolsillos en orden de id, así que dos cierres no se esperan 
 
 - **Identidad.** Argon2 para contraseñas. Access token RS256 corto y refresh rotativo con detección de reutilización. Solo identity tiene la clave privada.
 - **Zero trust.** Cada servicio verifica el JWT de cada llamada. Los servicios se autentican con tokens de servicio (client credentials), y cada RPC interna comprueba qué cliente llama. Por ejemplo, `GetBidByReservation` solo acepta a wallet.
-- **Mínimo privilegio.** Un login de Postgres por servicio, limitado a su esquema. La clave de Gemini solo existe en ai-service. La llave S3 de catalog no puede administrar el bucket.
+- **Mínimo privilegio.** Un login de Postgres por servicio, limitado a su esquema. La clave de Groq solo existe en ai-service. La llave S3 de catalog no puede administrar el bucket.
 - **Entradas.** El gateway valida la forma y los servicios validan las reglas. Los cuerpos tienen límite (1 MB, 12 MB en `/lots`). Hay rate limit por ruta y CORS limitado a `CORS_ORIGINS`.
 - **Imágenes.** Solo se sube con una URL prefirmada de corta duración que emite catalog para una obra propia. El Content-Type va firmado (un `text/html` se rechaza con 403). CORS limita desde qué orígenes puede subir un navegador; el control de acceso es la firma.
 - **Idempotencia.** Las pujas llevan `idempotencyKey`. Las recargas exigen `Idempotency-Key` (la misma clave con otro cuerpo responde 409). Los consumidores de eventos usan su inbox.

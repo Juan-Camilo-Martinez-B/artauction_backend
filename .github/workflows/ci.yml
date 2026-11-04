@@ -101,7 +101,7 @@ jobs:
           cache-dependency-path: artauction_backend/package-lock.json
 
       # Secretos efimeros del runner: los mismos scripts que en local, sin
-      # imprimir nada. Sin GEMINI_API_KEY, ai-service usa la evaluacion local
+      # imprimir nada. Sin GROQ_API_KEY, ai-service usa la evaluacion local
       # determinista.
       - name: Generate secrets
         # La clave privada queda con modo 600; se le entrega al uid 1000 (node en
@@ -110,6 +110,18 @@ jobs:
           node scripts/generate-keys.mjs > /dev/null
           node scripts/compose-secrets.mjs > /dev/null
           sudo chown 1000:1000 secrets/jwt/private.pem
+
+      # La CI nunca consulta al proveedor de IA: no gasta la cuota gratuita de
+      # Groq y su resultado no depende de un servicio externo. Si alguien agrega
+      # una clave (un secreto del repositorio o el .env de ai-service), falla.
+      - name: No AI key in CI
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          if [ -n "${GROQ_API_KEY}" ] || { [ -f services/ai-service/.env ] && grep -Eq '^GROQ_API_KEY=.+' services/ai-service/.env; }; then
+            echo "La CI no debe usar una clave de IA: ai-service debe responder con la evaluacion local." >&2
+            exit 1
+          fi
 
       - name: Start the platform
         run: npm run compose:up
