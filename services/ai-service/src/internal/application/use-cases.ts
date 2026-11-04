@@ -108,7 +108,7 @@ export class AuditArtwork {
 
 const GALLERY_SYSTEM = [
   'Convierte preferencias de una galeria 3D en una configuracion del esquema 1.',
-  'Responde solo JSON compacto en una linea, sin espacios ni texto extra. schemaVersion debe ser 1 y source debe ser "gemini".',
+  'Responde solo JSON compacto en una linea, sin espacios ni texto extra. schemaVersion debe ser 1 y source debe ser "ai".',
   'spaceType: MINIMAL, CLASSIC, INDUSTRIAL, CONCRETE, WOOD, FUTURIST o EXPERIMENTAL.',
   'roomWidth 8-20, roomDepth 6-16, roomHeight 3-6, zones 1-4.',
   'Colores #rrggbb. wall material: plaster, marble, concrete, wood o metal.',
@@ -150,7 +150,7 @@ export class DesignGallery {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
       throw DomainError.unavailable('El modelo no devolvio una configuracion');
     }
-    return { config: { ...(raw as Record<string, unknown>), source: 'gemini' }, source: 'gemini' };
+    return { config: { ...(raw as Record<string, unknown>), source: 'ai' }, source: 'ai' };
   }
 }
 

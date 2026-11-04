@@ -61,7 +61,7 @@ export interface GalleryPreferences {
 
 export interface GalleryConfig {
   schemaVersion: 1;
-  source: 'ai-local' | 'gemini' | 'manual' | 'random';
+  source: 'ai-local' | 'ai' | 'manual' | 'random';
   identity: { styleName: string; summary: string; artStyles: string[] };
   architecture: {
     spaceType: 'MINIMAL' | 'CLASSIC' | 'INDUSTRIAL' | 'CONCRETE' | 'WOOD' | 'FUTURIST' | 'EXPERIMENTAL';
@@ -254,7 +254,7 @@ export function validateGalleryConfig(input: unknown): GalleryConfig {
   if (raw['schemaVersion'] !== 1) {
     throw new GalleryDesignError('La configuración no usa el esquema 1.');
   }
-  const source = oneOf(raw['source'], ['ai-local', 'gemini', 'manual', 'random'] as const, 'origen');
+  const source = oneOf(raw['source'], ['ai-local', 'ai', 'manual', 'random'] as const, 'origen');
   const identity = asRecord(raw['identity']);
   const architecture = asRecord(raw['architecture']);
   const palette = asRecord(raw['palette']);
@@ -330,7 +330,7 @@ export const GALLERY_CONFIG_JSON_SCHEMA: Record<string, unknown> = {
   type: 'object',
   properties: {
     schemaVersion: { type: 'integer', enum: [1] },
-    source: enumOf(['gemini']),
+    source: enumOf(['ai']),
     identity: {
       type: 'object',
       properties: {

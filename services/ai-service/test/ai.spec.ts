@@ -95,6 +95,13 @@ describe('casos de uso', () => {
     await expect(new DesignGallery(null).execute({})).rejects.toMatchObject({ kind: 'FAILED_PRECONDITION' });
   });
 
+  it('marca el diseno de sala con el origen neutro "ai", sea cual sea lo que diga el modelo', async () => {
+    const model = new FakeModel(() => Promise.resolve({ schemaVersion: 1, source: 'otro' }));
+    const design = await new DesignGallery(model).execute({ tone: 'calido' });
+    expect(design.source).toBe('ai');
+    expect(design.config['source']).toBe('ai');
+  });
+
   it('pide JSON con esquema, temperatura 0 y tope de tokens', async () => {
     const model = new FakeModel(() => Promise.resolve({ score: 80, critical: false, priceMin: 1, priceMax: 2, findings: [] }));
     const result = await new AuditArtwork(model).execute(DOSSIER);
