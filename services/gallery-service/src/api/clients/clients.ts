@@ -47,6 +47,12 @@ export class GrpcCatalogClient implements CatalogPort {
     return lot ? toPublicLot(lot) : null;
   }
 
+  /** La ficha en el lenguaje publicado de catalog, codificada en base64 para guardarla tal cual. */
+  async sheet(lotId: string): Promise<string | null> {
+    const [lot] = await this.sheets([lotId]);
+    return lot ? Buffer.from(catalogV1.Lot.encode(lot).finish()).toString('base64') : null;
+  }
+
   /** Fichas completas de las obras colgadas en una sala, para que el gateway la muestre. */
   async sheets(lotIds: readonly string[]): Promise<catalogV1.Lot[]> {
     if (lotIds.length === 0) {

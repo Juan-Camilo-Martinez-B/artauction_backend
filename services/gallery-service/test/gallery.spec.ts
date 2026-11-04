@@ -1,6 +1,6 @@
 import { DomainError } from '@artauction/platform';
 import { designFromPreferences, GALLERY_CONFIG_JSON_SCHEMA, randomPreferences } from '../src/internal/domain/gallery-design';
-import { initialPlacement, placeArtwork, type Activity, type Artwork, type GalleryItem, type PersonalGallery, type PublicLot } from '../src/internal/domain/gallery';
+import { initialPlacement, placeArtwork, type Activity, type Artwork, type GalleryItem, type PersonalGallery, type PublicLot, type PurchasedSheet } from '../src/internal/domain/gallery';
 import type { CatalogPort, GalleryPatch, GalleryRepository, IdentityPort, SocialStore } from '../src/internal/application/ports';
 import { GalleryEventHandlers, PersonalGalleryUseCases, SocialUseCases } from '../src/internal/application/use-cases';
 
@@ -84,6 +84,14 @@ class MemoryGalleries implements GalleryRepository {
 
 class MemorySocial implements SocialStore {
   items = new Map<string, GalleryItem>();
+  sheets = new Map<string, PurchasedSheet>();
+  sheetOf(ownerId: string, lotId: string) {
+    return Promise.resolve(this.sheets.get(`${ownerId}:${lotId}`) ?? null);
+  }
+  saveSheet(ownerId: string, lotId: string, sheet: PurchasedSheet) {
+    this.sheets.set(`${ownerId}:${lotId}`, sheet);
+    return Promise.resolve();
+  }
   activity = new Map<string, Activity>();
   upsertItem(id: string, item: GalleryItem) {
     if (!this.items.has(id)) this.items.set(id, item);
@@ -125,6 +133,7 @@ const LOTS: Record<string, PublicLot> = {
 };
 const catalog: CatalogPort = {
   snapshot: (lotId) => Promise.resolve(LOTS[lotId] ?? null),
+  sheet: (lotId) => Promise.resolve(LOTS[lotId] ? `ficha:${lotId}` : null),
 };
 
 /** La obra es de `ownerId`, como la deja LotCreated o AuctionClosed. */
@@ -243,7 +252,7 @@ describe('galeria social y eventos', () => {
   it('sigue a otro usuario una sola vez y registra la actividad', async () => {
     const galleries = new MemoryGalleries();
     const social = new MemorySocial();
-    const useCases = new SocialUseCases(galleries, social, identity, clock);
+    const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
     await useCases.follow(OWNER, OTHER);
     await useCases.follow(OWNER, OTHER);
     expect([...social.activity.values()]).toEqual([expect.objectContaining({ verb: 'FOLLOW', summary: 'Siguió a Nora' })]);
@@ -263,7 +272,7 @@ describe('galeria social y eventos', () => {
     // Vendida: ya no es del autor, solo del ganador.
     expect(social.items.size).toBe(1);
     expect(social.activity.size).toBe(1);
-    const useCases = new SocialUseCases(galleries, social, identity, clock);
+    const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
     expect(await useCases.items(OTHER, OTHER)).toEqual([expect.objectContaining({ source: 'GANADA', imageKeys: ['lots/x/1.jpg'] })]);
     expect(await useCases.items(OTHER, OWNER)).toEqual([]);
     expect(await useCases.feed(OWNER)).toEqual([expect.objectContaining({ verb: 'WIN', summary: 'Ganó Study in Black and Green' })]);
@@ -296,7 +305,7 @@ describe('propiedad de las obras', () => {
     expect(await social.itemOf(OWNER, SCULPTURE)).toMatchObject({ source: 'PROYECTO', visibility: 'PUBLIC' });
     expect((await galleries.mine(OWNER)).artworks).toEqual([expect.objectContaining({ lotId: SCULPTURE, support: 'PEDESTAL' })]);
     // Se ve en la galeria publica del autor.
-    expect(await new SocialUseCases(galleries, social, identity, clock).items(OWNER, null)).toHaveLength(1);
+    expect(await new SocialUseCases(galleries, social, identity, clock, catalog).items(OWNER, null)).toHaveLength(1);
   });
 
   it('el autor oculta su proyecto y, al pasarlo al catalogo, deja de ser PROYECTO y se oculta', async () => {
@@ -321,5 +330,38 @@ describe('propiedad de las obras', () => {
     await handlers.auctionClosed({ eventId: 'e7', lotId: LOT, sellerId: OWNER, winnerId: OTHER, buyNow: true });
     expect([...social.activity.values()]).toEqual([expect.objectContaining({ verb: 'BUY_NOW', summary: 'Compró Study in Black and Green al instante' })]);
     expect(await social.itemOf(OTHER, LOT)).toMatchObject({ source: 'GANADA' });
+  });
+});
+
+describe('ficha guardada de una obra comprada', () => {
+  it('al venderse guarda la ficha con el precio y la compra inmediata, y solo la duena ve el precio', async () => {
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial();
+    await new GalleryEventHandlers(galleries, social, catalog, clock).auctionClosed({ eventId: 'e1', lotId: LOT, sellerId: OWNER, winnerId: OTHER, buyNow: true, amount: '1800.00' });
+    const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
+    expect(await useCases.purchasedSheet(OTHER, LOT, OTHER)).toEqual({ lot: `ficha:${LOT}`, pricePaid: '1800.00', buyNow: true, acquiredAt: clock.now() });
+    // Privada en la galeria de su duena: nadie mas abre la ficha.
+    await expectKind(useCases.purchasedSheet(OTHER, LOT, OWNER), 'NOT_FOUND');
+    await expectKind(useCases.purchasedSheet(OTHER, LOT, null), 'NOT_FOUND');
+    await social.updateItem(OTHER, LOT, { visibility: 'PUBLIC' });
+    expect(await useCases.purchasedSheet(OTHER, LOT, null)).toMatchObject({ lot: `ficha:${LOT}`, pricePaid: null });
+  });
+
+  it('una compra anterior recibe su ficha la primera vez que se abre, sin precio', async () => {
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial();
+    await own(social, OTHER, LOT, 'GANADA');
+    const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
+    expect(await useCases.purchasedSheet(OTHER, LOT, OTHER)).toMatchObject({ lot: `ficha:${LOT}`, pricePaid: null, buyNow: null });
+    expect(social.sheets.size).toBe(1);
+  });
+
+  it('solo las obras ganadas tienen ficha guardada', async () => {
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial();
+    await own(social, OWNER, LOT, 'PROYECTO');
+    const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
+    await expectKind(useCases.purchasedSheet(OWNER, LOT, OWNER), 'NOT_FOUND');
+    await expectKind(useCases.purchasedSheet(OWNER, 'no-uuid', OWNER), 'INVALID_ARGUMENT');
   });
 });

@@ -69,6 +69,28 @@ export function itemId(source: ItemSource, lotId: string, ownerId: string): stri
   return `${source === 'GANADA' ? 'GANADA' : 'PROPIA'}:${lotId}:${ownerId}`;
 }
 
+/**
+ * Copia fija de la ficha de una obra ganada. Al venderse, el catalogo deja de
+ * publicarla; la galeria de quien la compro la conserva como certificado.
+ */
+export interface PurchasedSheet {
+  /**
+   * La ficha tal como la publicaba catalog al comprarse: su mensaje protobuf
+   * (artauction.catalog.v1.Lot) en base64. Copia exacta que la galeria no interpreta.
+   */
+  lot: string;
+  /** Precio pagado; null en compras anteriores a la ficha guardada. */
+  pricePaid: string | null;
+  /** Si fue por compra inmediata; null si no se sabe. */
+  buyNow: boolean | null;
+  acquiredAt: Date;
+}
+
+/** El precio pagado solo lo ve la duena de la obra. */
+export function sheetForViewer(sheet: PurchasedSheet, ownerId: string, viewerId: string | null): PurchasedSheet {
+  return viewerId === ownerId ? sheet : { ...sheet, pricePaid: null };
+}
+
 /** Ficha minima de una obra, la que hace falta para colgarla. */
 export interface PublicLot {
   lotId: string;

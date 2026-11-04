@@ -1,5 +1,5 @@
 import type { PrismaClient } from '../../generated/prisma';
-import type { Activity, GalleryItem } from '../domain/gallery';
+import type { Activity, GalleryItem, PurchasedSheet } from '../domain/gallery';
 import type { SocialStore } from '../application/ports';
 
 /**
@@ -34,6 +34,16 @@ export class PrismaSocialStore implements SocialStore {
 
   async removeItem(ownerId: string, lotId: string): Promise<void> {
     await this.prisma.galleryItem.deleteMany({ where: { ownerId, lotId } });
+  }
+
+  async sheetOf(ownerId: string, lotId: string): Promise<PurchasedSheet | null> {
+    const row = await this.prisma.galleryItem.findUnique({ where: { ownerId_lotId: { ownerId, lotId } }, select: { sheet: true } });
+    return toSheet(row?.sheet ?? null);
+  }
+
+  async saveSheet(ownerId: string, lotId: string, sheet: PurchasedSheet): Promise<void> {
+    const document = { lot: sheet.lot, pricePaid: sheet.pricePaid, buyNow: sheet.buyNow, acquiredAt: sheet.acquiredAt.toISOString() };
+    await this.prisma.galleryItem.updateMany({ where: { ownerId, lotId }, data: { sheet: document } });
   }
 
   async upsertActivity(id: string, activity: Activity): Promise<void> {
@@ -77,5 +87,22 @@ function toItem(row: {
     artistName: row.artistName,
     imageKeys: row.imageKeys,
     acquiredAt: row.acquiredAt,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Lee el JSONB guardado; un documento que no tiene la forma esperada se ignora y se vuelve a pedir. */
+function toSheet(value: unknown): PurchasedSheet | null {
+  if (!isRecord(value) || typeof value['lot'] !== 'string' || typeof value['acquiredAt'] !== 'string') {
+    return null;
+  }
+  return {
+    lot: value['lot'],
+    pricePaid: typeof value['pricePaid'] === 'string' ? value['pricePaid'] : null,
+    buyNow: typeof value['buyNow'] === 'boolean' ? value['buyNow'] : null,
+    acquiredAt: new Date(value['acquiredAt']),
   };
 }

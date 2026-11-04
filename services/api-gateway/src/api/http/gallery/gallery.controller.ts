@@ -7,7 +7,7 @@ import { invoke } from '@artauction/service-kit';
 import { CATALOG_CLIENT, GALLERY_CLIENT, NOTIFICATION_CLIENT } from '../../../clients/grpc-clients';
 import type { GatewayConfig } from '../../../config';
 import { GATEWAY_CONFIG, GATEWAY_LOGGER } from '../tokens';
-import { activityJson, galleryItemJson, galleryJson, notificationJson, SUPPORT_FROM_JSON } from './gallery.presenter';
+import { activityJson, galleryItemJson, galleryJson, notificationJson, purchasedSheetJson, SUPPORT_FROM_JSON } from './gallery.presenter';
 
 export class GenerateGalleryDto {
   @IsOptional()
@@ -193,6 +193,20 @@ export class SocialController {
   async list(@Headers('authorization') authorization: string | undefined, @Param('ownerId', ParseUUIDPipe) ownerId: string) {
     const response = await invoke(this.gallery.listGalleryItems.bind(this.gallery), { ownerId }, this.options(authorization));
     return response.items.map(galleryItemJson);
+  }
+
+  /** Ficha guardada de una obra comprada: el catalogo ya no publica la original. */
+  @Get('galleries/:ownerId/works/:lotId')
+  async sheet(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('ownerId', ParseUUIDPipe) ownerId: string,
+    @Param('lotId', ParseUUIDPipe) lotId: string,
+  ) {
+    const response = await invoke(this.gallery.getPurchasedSheet.bind(this.gallery), { ownerId, lotId }, this.options(authorization));
+    if (!response.sheet) {
+      throw new Error('gallery-service respondio sin ficha');
+    }
+    return purchasedSheetJson(response.sheet);
   }
 
   @Post('users/:id/follow')
