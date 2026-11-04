@@ -45,3 +45,6 @@ Thumbs.db
 
 # Código generado: Prisma y contratos gRPC (se regenera en el build)
 **/src/generated/
+
+# Modelos de traduccion descargados por ai-service (Opus-MT)
+.cache/

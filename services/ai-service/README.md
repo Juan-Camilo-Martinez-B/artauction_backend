@@ -6,6 +6,7 @@ Fachada de modelos generativos de ArtAuction AI. Es el **único** servicio del s
 |---|---|---|
 | `AuditArtwork` | audit-service | Evalúa el **expediente de evidencias** de una obra y devuelve score, precio sugerido y hallazgos |
 | `DesignGallery` | gallery-service | Propone una configuración de galería 3D a partir de preferencias |
+| `TranslateLot` | catalog-service | Traduce título, descripción, materiales y procedencia de una ficha al otro idioma de la plataforma, con un modelo local |
 
 Solo acepta tokens de servicio emitidos por identity-service, y cada RPC comprueba el `client_id` de quien llama.
 
@@ -70,6 +71,19 @@ grep ai-usage ai.log
 
 Los límites de la cuenta se consultan en la consola de Groq (*Settings › Limits*).
 
+## Traducción de fichas
+
+La plataforma está en español e inglés. `TranslateLot` traduce los textos de la ficha de una obra al otro idioma con **Opus-MT** (Helsinki-NLP, licencia Apache 2.0), un modelo que corre **dentro del servicio**: sin clave, sin cuota y sin que los textos salgan del servidor.
+
+- **Motor:** Transformers.js (`@huggingface/transformers`) con los modelos `Xenova/opus-mt-es-en` y `Xenova/opus-mt-en-es` en su variante cuantizada (`q8`, unos 113 MB por dirección). Se descargan la primera vez a `TRANSLATION_CACHE_DIR` y se quedan en memoria.
+- **Hilo aparte:** la inferencia ocupa la CPU uno o dos segundos por texto, así que corre en un *worker thread* (`opus-mt.worker`) y no frena las llamadas de la auditoría ni del diseño de salas. La primera traducción de cada dirección tarda unos 8 s porque carga el modelo; las siguientes, menos de 1 s.
+- **Idioma de origen:** `tinyld` lo detecta en la descripción, el texto más largo. Cada campo de al menos 12 caracteres se detecta aparte: un campo que ya está en el idioma destino se copia, no se traduce. Así una ficha con el título en inglés y la descripción en español (como las del Met) queda bien.
+- **Lo que no se traduce:** direcciones web, correos y texto entre comillas (`«…»`, `"…"`, `“…”`) viajan como marcadores (`ZXQ0`, `ZXQ1`…) y vuelven intactos. Opus-MT inventa contenido cuando una oración mezcla idiomas y desfigura nombres y dominios; los marcadores, en cambio, pasan sin cambios. Si el modelo pierde o repite un marcador, el campo conserva su texto original.
+- **Textos largos:** se trocean por párrafos y oraciones hasta 400 caracteres, por debajo del límite del modelo, y se vuelven a unir.
+- **Límites conocidos:** algún nombre propio sin comillas o término de arte puede salir mal (por ejemplo «pátina» como *plate*). Por eso la ficha traducida dice que es automática, deja ver el original y, si hay diferencias, vale el original.
+- **Docker:** el runtime ONNX solo tiene binarios para glibc, así que la imagen de ai-service usa `node:24-bookworm-slim` (Debian) y no Alpine. Los modelos viven en el volumen `translation-models`.
+- **CI:** `TRANSLATION_ENABLED=false`, para no descargar los modelos en cada corrida. Sin traductor, `TranslateLot` responde `FAILED_PRECONDITION` y las fichas se muestran en su idioma original.
+
 ## Estructura
 
 ```
@@ -77,8 +91,8 @@ src/
   api/grpc/            AiService: traduce mensajes y comprueba quién llama
   internal/
     domain/            expediente, saneo de la respuesta y evaluación local
-    application/       AuditArtwork, DesignGallery, prompts y el puerto LanguageModel
-    infrastructure/    GroqModel (REST, esquema estricto, reintentos, circuit breaker)
+    application/       AuditArtwork, DesignGallery, TranslateLot, prompts y los puertos LanguageModel, Translator y LanguageDetector
+    infrastructure/    GroqModel (REST, esquema estricto, reintentos, circuit breaker), OpusMtTranslator y su hilo, TinyLdDetector
   ai.module.ts         raíz de composición
 ```
 
@@ -106,4 +120,5 @@ npm start -w @artauction/ai-service
   - lectura de `usage`;
   - rechazo de respuestas vacías o cortadas;
 - origen neutro `"ai"` del diseño de sala;
-- respaldo local cuando el modelo falla o responde algo que no se puede sanear.
+- respaldo local cuando el modelo falla o responde algo que no se puede sanear;
+- traducción con un traductor y un detector falsos: trozos por párrafo y oración, marcadores que vuelven a su lugar (o el original si se pierden), campos que ya están en el idioma destino, fichas en inglés y en español, y el servicio sin traductor.

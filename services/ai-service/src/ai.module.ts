@@ -4,8 +4,11 @@ import { StructuredLogger, TokenVerifier } from '@artauction/platform';
 import { CallerResolver } from '@artauction/service-kit';
 import { aiGrpcService } from './api/grpc/ai.grpc';
 import type { LanguageModel } from './internal/application/ports';
+import { TranslateLot } from './internal/application/translate-lot';
 import { AuditArtwork, DesignGallery } from './internal/application/use-cases';
 import { GroqModel } from './internal/infrastructure/groq-model';
+import { OpusMtTranslator } from './internal/infrastructure/opus-mt-translator';
+import { TinyLdDetector } from './internal/infrastructure/tinyld-detector';
 import type { AiConfig } from './config';
 
 // Raiz de composicion de ai-service: sin base de datos ni clientes de otros
@@ -15,6 +18,7 @@ export const LOGGER = Symbol('LOGGER');
 export const AI_GRPC = Symbol('AI_GRPC');
 const CONFIG = Symbol('CONFIG');
 const MODEL = Symbol('MODEL');
+const TRANSLATOR = Symbol('TRANSLATOR');
 
 const providers: Provider[] = [
   { provide: LOGGER, useValue: new StructuredLogger('ai-service') },
@@ -41,11 +45,22 @@ const providers: Provider[] = [
     },
   },
   {
+    provide: TRANSLATOR,
+    inject: [CONFIG, LOGGER],
+    useFactory: (config: AiConfig, logger: StructuredLogger): OpusMtTranslator | null => {
+      if (!config.TRANSLATION_ENABLED) {
+        logger.warn('TRANSLATION_ENABLED=false: TranslateLot no esta disponible y las fichas se muestran en su idioma original', 'ai');
+        return null;
+      }
+      return new OpusMtTranslator({ cacheDir: config.TRANSLATION_CACHE_DIR, timeoutMs: config.TRANSLATION_TIMEOUT_MS });
+    },
+  },
+  {
     provide: AI_GRPC,
-    inject: [CONFIG, MODEL, LOGGER],
-    useFactory: (config: AiConfig, model: LanguageModel | null, logger: StructuredLogger): aiV1.AiServiceServer =>
+    inject: [CONFIG, MODEL, TRANSLATOR, LOGGER],
+    useFactory: (config: AiConfig, model: LanguageModel | null, translator: OpusMtTranslator | null, logger: StructuredLogger): aiV1.AiServiceServer =>
       aiGrpcService(
-        { audit: new AuditArtwork(model, logger), design: new DesignGallery(model) },
+        { audit: new AuditArtwork(model, logger), design: new DesignGallery(model), translate: new TranslateLot(translator, new TinyLdDetector()) },
         new CallerResolver(TokenVerifier.fromFile(config.JWT_PUBLIC_KEY_PATH)),
         logger,
       ),
