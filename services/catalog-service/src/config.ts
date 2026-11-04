@@ -57,6 +57,22 @@ export class CatalogConfig {
   @MinLength(1)
   S3_ENDPOINT!: string;
 
+  /**
+   * Direccion de S3 desde el propio servicio, para leer lo que subio el
+   * navegador (el modelo 3D). S3_ENDPOINT es el host que firma, el que ve el
+   * navegador; dentro de un contenedor ese host no llega a Garage. Sin valor,
+   * se usa S3_ENDPOINT, que sirve cuando el servicio corre en la misma maquina.
+   */
+  @IsOptional()
+  @IsString()
+  @Matches(/^https?:\/\//)
+  S3_INTERNAL_ENDPOINT?: string;
+
+  /** Host con el que el servicio lee el bucket (ver S3_INTERNAL_ENDPOINT). */
+  get s3ReadEndpoint(): string {
+    return this.S3_INTERNAL_ENDPOINT ?? this.S3_ENDPOINT;
+  }
+
   @IsString()
   S3_REGION = 'garage';
 

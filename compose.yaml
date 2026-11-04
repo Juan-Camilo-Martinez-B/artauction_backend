@@ -144,8 +144,10 @@ services:
       AUDIT_EVENTS_GRPC_URL: audit-service:50056
       AUCTION_EVENTS_GRPC_URL: auction-service:50054
       NOTIFICATION_EVENTS_GRPC_URL: notification-service:50058
-      # catalog solo firma subidas que hace el navegador: el host firmado es el que ve el navegador.
+      # Las subidas las hace el navegador: el host firmado es el que ve el navegador.
       S3_ENDPOINT: http://localhost:${S3_PORT:-3900}
+      # catalog lee lo subido (el modelo 3D) por la red interna de compose.
+      S3_INTERNAL_ENDPOINT: http://garage:3900
       S3_REGION: garage
       S3_BUCKET: artauction-media
       MEDIA_PUBLIC_BASE_URL: http://artauction-media.web.garage.localhost:${MEDIA_PORT:-3902}

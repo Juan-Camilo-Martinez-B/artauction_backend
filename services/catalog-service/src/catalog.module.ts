@@ -107,9 +107,10 @@ const providers: Provider[] = [
         expiresInSeconds: config.S3_UPLOAD_TTL_SECONDS,
       });
       const tokens = { next: () => randomBytes(6).toString('hex') };
-      // Lee los modelos subidos para validarlos, con la misma llave del catalogo.
+      // Lee los modelos subidos para validarlos, con la misma llave del catalogo
+      // pero por la direccion interna: la firmada es la del navegador.
       const reader = new S3ObjectReader({
-        endpoint: config.S3_ENDPOINT,
+        endpoint: config.s3ReadEndpoint,
         region: config.S3_REGION,
         bucket: config.S3_BUCKET,
         accessKeyId: config.S3_ACCESS_KEY_ID,
