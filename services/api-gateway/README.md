@@ -6,7 +6,7 @@ No contiene reglas de negocio. Hace cinco cosas:
 
 1. **Valida la forma** de cada petición con class-validator, antes de gastar una llamada gRPC.
 2. **Traduce REST a gRPC** hacia el servicio dueño y reenvía el access token en la metadata `authorization`. El servicio lo verifica por su cuenta (zero trust): el gateway no es una frontera de confianza.
-3. **Traduce errores a HTTP** con una sola forma JSON, `{ statusCode, error, message }`. Los códigos gRPC se mapean a su estado HTTP, los errores de cuerpo (JSON mal formado, cuerpo demasiado grande) salen como 400 o 413, y un error inesperado sale como 500 sin detalles.
+3. **Traduce errores a HTTP** con una sola forma JSON, `{ statusCode, error, message, code, params? }`. Los códigos gRPC se mapean a su estado HTTP, los errores de cuerpo (JSON mal formado, cuerpo demasiado grande) salen como 400 o 413, y un error inesperado sale como 500 sin detalles. `code` es estable y el frontend lo traduce al idioma de quien mira (ver abajo).
 4. **Compone lecturas** de varios servicios, con degradación cuando un vecino no responde.
 5. **Sirve la sala en vivo** por Socket.IO sobre los streams `WatchAuction` de auction-service.
 
@@ -34,6 +34,18 @@ No contiene reglas de negocio. Hace cinco cosas:
 Cualquier otra ruta responde 404.
 
 **Composición con degradación.** Las tarjetas y la ficha combinan el catálogo con `AuctionService.BatchGetAuctionSummaries` y `AuditService.BatchGetLatestSummaries`. Si alguno no responde, la obra sale con `auction: null` o `auditSummaries: []` en lugar de fallar: el catálogo no se cae por un servicio vecino.
+
+## Idioma
+
+**Fichas.** El gateway lee `Accept-Language` (el idioma ofrecido de mayor peso; español si no hay ninguno) y devuelve título, descripción, materiales y procedencia en ese idioma cuando catalog tiene la traducción vigente. Cada obra trae `sourceLocale`, `translated` y, si se tradujo, `original` con los textos del autor, que son los que valen. Lo hacen el catálogo, la ficha, las relacionadas, la cartelera, la sala personal y las fichas compradas. Las rutas de edición (`/lots/mine`, `POST/PATCH /lots`) y las de administración devuelven siempre el original.
+
+**Errores.** `message` sigue en español (logs y respaldo). `code` es el que se muestra:
+
+- Un código propio del servicio, como `EMAIL_TAKEN`, `INSUFFICIENT_FUNDS` o `BID_TAKEN`. La lista está en `packages/platform/src/errors/error-codes.ts`. `params` trae los valores que el texto intercala (por ejemplo `{ "missing": "40" }`).
+- Si el error no trae código propio, el genérico de su categoría: `INVALID_ARGUMENT`, `NOT_FOUND`, `CONFLICT`, `PERMISSION_DENIED`, `UNAUTHENTICATED`, `FAILED_PRECONDITION`, `UNAVAILABLE`, `TIMEOUT` o `INTERNAL`.
+- Los del propio HTTP: `VALIDATION_FAILED` (DTO), `RATE_LIMITED`, `INVALID_JSON` y `PAYLOAD_TOO_LARGE`.
+
+El código viaja de servicio a servicio en los trailers gRPC `x-error-code` y `x-error-params`. El gateway solo reenvía códigos de la lista y parámetros de texto. `bid:rejected` en Socket.IO trae los mismos `code` y `params`.
 
 ## OpenAPI
 

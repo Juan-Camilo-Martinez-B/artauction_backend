@@ -6,6 +6,9 @@ export const METADATA_KEYS = {
   correlationId: 'x-correlation-id',
   authorization: 'authorization',
   idempotencyKey: 'idempotency-key',
+  // Codigo estable y parametros de un error de dominio (trailers de la respuesta).
+  errorCode: 'x-error-code',
+  errorParams: 'x-error-params',
 } as const;
 
 export interface RequestContext {

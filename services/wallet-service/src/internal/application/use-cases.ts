@@ -74,17 +74,17 @@ export class TopUp {
       return this.replay(record, fingerprint);
     }
     if (!record.approved) {
-      throw DomainError.invalid(REJECTED);
+      throw DomainError.invalid(REJECTED, { code: 'PAYMENT_REJECTED' });
     }
     return { balance, credited: record.coins, last4: record.last4, orderId: record.orderId };
   }
 
   private async replay(record: TopUpRecord, fingerprint: string): Promise<TopUpResult> {
     if (record.requestHash !== fingerprint) {
-      throw DomainError.conflict(KEY_REUSED);
+      throw DomainError.conflict(KEY_REUSED, { code: 'IDEMPOTENCY_KEY_REUSED' });
     }
     if (!record.approved) {
-      throw DomainError.invalid(REJECTED);
+      throw DomainError.invalid(REJECTED, { code: 'PAYMENT_REJECTED' });
     }
     return {
       balance: await this.wallets.balance(record.userId),
@@ -109,9 +109,11 @@ export class TryHold {
     return this.wallets.reserve(input, (state) => {
       const reservedCoins = holdIncrease(state.previousCoins, input.nextCoins);
       if (state.balance < reservedCoins) {
-        throw DomainError.precondition(
-          `No tienes artacoins suficientes. Faltan ${String(reservedCoins - state.balance)} en el bolsillo.`,
-        );
+        const missing = String(reservedCoins - state.balance);
+        throw DomainError.precondition(`No tienes artacoins suficientes. Faltan ${missing} en el bolsillo.`, {
+          code: 'INSUFFICIENT_FUNDS',
+          params: { missing },
+        });
       }
       return {
         previousCoins: state.previousCoins,

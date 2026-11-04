@@ -134,7 +134,7 @@ export class DesignGallery {
     responseSchema: Record<string, unknown> | null = null,
   ): Promise<{ config: Record<string, unknown>; source: string }> {
     if (!this.model) {
-      throw DomainError.precondition('No hay un modelo generativo configurado');
+      throw DomainError.precondition('No hay un modelo generativo configurado', { code: 'AI_NOT_CONFIGURED' });
     }
     let raw: unknown;
     try {
@@ -149,7 +149,7 @@ export class DesignGallery {
       throw toUnavailable(error);
     }
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-      throw DomainError.unavailable('El modelo no devolvio una configuracion');
+      throw DomainError.unavailable('El modelo no devolvio una configuracion', { code: 'AI_UNAVAILABLE' });
     }
     return { config: { ...(raw as Record<string, unknown>), source: 'ai' }, source: 'ai' };
   }
@@ -159,5 +159,5 @@ function toUnavailable(error: unknown): DomainError {
   if (error instanceof DomainError) {
     return error;
   }
-  return DomainError.unavailable(error instanceof Error ? error.message : 'El modelo no respondio');
+  return DomainError.unavailable(error instanceof Error ? error.message : 'El modelo no respondio', { code: 'AI_UNAVAILABLE' });
 }

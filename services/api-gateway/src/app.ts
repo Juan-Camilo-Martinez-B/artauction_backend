@@ -4,6 +4,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json } from 'express';
 import type { StructuredLogger } from '@artauction/platform';
+import { bodyErrors } from './api/http/body-errors';
 import { GrpcExceptionFilter } from './api/http/grpc-exception.filter';
 import { LIVE_ROOM } from './api/http/tokens';
 import type { LiveRoom } from './api/live/live-room';
@@ -30,6 +31,7 @@ export async function createGateway(config: GatewayConfig, logger: StructuredLog
   // El primer parser que lee el cuerpo gana; el general ya no lo vuelve a leer.
   app.use(LARGE_BODY_PREFIX, json({ limit: LARGE_BODY_LIMIT }));
   app.use(json({ limit: DEFAULT_BODY_LIMIT }));
+  app.use(bodyErrors);
   // Socket.IO se monta sobre el servidor HTTP y atiende /socket.io antes que Express.
   app.get<LiveRoom | null>(LIVE_ROOM)?.attach(app.getHttpServer());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));

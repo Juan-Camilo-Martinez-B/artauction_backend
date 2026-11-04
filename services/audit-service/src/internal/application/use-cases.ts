@@ -155,7 +155,7 @@ export class GetReviewReports {
 
   async execute(actor: { role: string }, lotIds: readonly string[]): Promise<ReviewReport[]> {
     if (actor.role !== 'ADMIN') {
-      throw DomainError.forbidden('Solo un administrador ve los expedientes de auditoria');
+      throw DomainError.forbidden('Solo un administrador ve los expedientes de auditoria', { code: 'ADMIN_ONLY' });
     }
     const ids = [...new Set(lotIds)].filter((id) => isUuid(id)).slice(0, 100);
     if (ids.length === 0) {

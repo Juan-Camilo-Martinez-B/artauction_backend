@@ -42,7 +42,7 @@ export class RegisterAccount {
       role,
     });
     if (!created) {
-      throw DomainError.conflict('El correo ya esta registrado');
+      throw DomainError.conflict('El correo ya esta registrado', { code: 'EMAIL_TAKEN' });
     }
     return toAccountView(created);
   }
@@ -60,14 +60,14 @@ export class Login {
     try {
       email = normalizeEmail(input.email);
     } catch {
-      throw DomainError.unauthenticated(INVALID_CREDENTIALS);
+      throw DomainError.unauthenticated(INVALID_CREDENTIALS, { code: 'INVALID_CREDENTIALS' });
     }
     const account = await this.accounts.findByEmail(email);
     // Sin cuenta se verifica contra un hash señuelo: la respuesta tarda lo mismo
     // y no revela que correos existen.
     const valid = await this.hasher.verify(account?.passwordHash ?? (await this.hasher.decoyHash), input.password);
     if (!account || !valid) {
-      throw DomainError.unauthenticated(INVALID_CREDENTIALS);
+      throw DomainError.unauthenticated(INVALID_CREDENTIALS, { code: 'INVALID_CREDENTIALS' });
     }
     const { pair } = await this.sessions.issue({ userId: account.id, email: account.email, role: account.role });
     return pair;
@@ -87,19 +87,19 @@ export class RotateRefreshSession {
     const now = this.clock.now();
     const current = await this.store.findByHash(this.codec.hash(refreshToken));
     if (!current) {
-      throw DomainError.unauthenticated(INVALID_REFRESH);
+      throw DomainError.unauthenticated(INVALID_REFRESH, { code: 'SESSION_INVALID' });
     }
     const assessment = assessRefresh(current, now);
     if (assessment === 'REUSED') {
       await this.store.revokeFamily(current.familyId, now);
-      throw DomainError.unauthenticated('Refresh token reutilizado');
+      throw DomainError.unauthenticated('Refresh token reutilizado', { code: 'SESSION_INVALID' });
     }
     if (assessment === 'EXPIRED') {
-      throw DomainError.unauthenticated(INVALID_REFRESH);
+      throw DomainError.unauthenticated(INVALID_REFRESH, { code: 'SESSION_INVALID' });
     }
     const account = await this.accounts.findById(current.userId);
     if (!account) {
-      throw DomainError.unauthenticated(INVALID_REFRESH);
+      throw DomainError.unauthenticated(INVALID_REFRESH, { code: 'SESSION_INVALID' });
     }
     const { pair, refreshHash } = await this.sessions.issue(
       { userId: account.id, email: account.email, role: account.role },
@@ -109,7 +109,7 @@ export class RotateRefreshSession {
     if (!won) {
       // Otra peticion uso el mismo token a la vez: se trata como reuso.
       await this.store.revokeFamily(current.familyId, now);
-      throw DomainError.unauthenticated('Refresh token reutilizado');
+      throw DomainError.unauthenticated('Refresh token reutilizado', { code: 'SESSION_INVALID' });
     }
     return pair;
   }
@@ -121,7 +121,7 @@ export class GetAccount {
   async execute(userId: string): Promise<AccountView> {
     const account = await this.accounts.findById(userId);
     if (!account) {
-      throw DomainError.unauthenticated('La sesion no es valida');
+      throw DomainError.unauthenticated('La sesion no es valida', { code: 'SESSION_INVALID' });
     }
     return toAccountView(account);
   }
@@ -139,7 +139,7 @@ export class UpdateProfile {
     }
     const updated = await this.accounts.updateProfile(input.userId, patch);
     if (!updated) {
-      throw DomainError.notFound('La cuenta no existe');
+      throw DomainError.notFound('La cuenta no existe', { code: 'ACCOUNT_NOT_FOUND' });
     }
     return toAccountView(updated);
   }
@@ -151,7 +151,7 @@ export class GetPublicProfile {
   async execute(userId: string): Promise<PublicProfileView> {
     const account = await this.accounts.findById(userId);
     if (!account) {
-      throw DomainError.notFound('Usuario no encontrado');
+      throw DomainError.notFound('Usuario no encontrado', { code: 'USER_NOT_FOUND' });
     }
     return {
       userId: account.id,

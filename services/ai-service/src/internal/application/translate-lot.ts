@@ -39,7 +39,7 @@ export class TranslateLot {
 
   async execute(texts: LotTexts): Promise<TranslatedLot> {
     if (!this.translator) {
-      throw DomainError.precondition('La traduccion automatica esta desactivada');
+      throw DomainError.precondition('La traduccion automatica esta desactivada', { code: 'TRANSLATION_DISABLED' });
     }
     // Se detecta sin lo citado: en las fichas del Met el titulo y el material
     // en ingles van entre comillas dentro de una descripcion en espanol.

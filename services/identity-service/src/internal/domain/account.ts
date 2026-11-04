@@ -50,7 +50,7 @@ export function normalizeDisplayName(raw: string): string {
 export function registrationRole(requested: Role | undefined): Role {
   const role = requested ?? 'USER';
   if (!SELF_ASSIGNABLE_ROLES.includes(role)) {
-    throw DomainError.forbidden('Ese rol no se puede elegir al registrarse.');
+    throw DomainError.forbidden('Ese rol no se puede elegir al registrarse.', { code: 'ROLE_NOT_ALLOWED' });
   }
   return role;
 }

@@ -10,7 +10,7 @@ export class GetAuction {
   async execute(auctionId: string): Promise<{ auction: Auction; bids: Bid[] }> {
     const auction = await this.auctions.findById(auctionId);
     if (!auction) {
-      throw DomainError.notFound('Subasta no encontrada');
+      throw DomainError.notFound('Subasta no encontrada', { code: 'AUCTION_NOT_FOUND' });
     }
     return { auction, bids: await this.auctions.recentBids(auctionId, 20) };
   }

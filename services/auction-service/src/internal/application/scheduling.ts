@@ -39,7 +39,7 @@ export class OpenAuction {
     input: { lotId: string; startPrice: string; minIncrement: string; startsAt: Date; endsAt: Date },
   ): Promise<Auction> {
     if (actor.role !== 'SELLER' && actor.role !== 'ADMIN') {
-      throw DomainError.forbidden('Solo un vendedor abre subastas');
+      throw DomainError.forbidden('Solo un vendedor abre subastas', { code: 'SELLER_ONLY' });
     }
     const now = this.clock.now();
     if (Number.isNaN(input.startsAt.getTime()) || Number.isNaN(input.endsAt.getTime()) || input.endsAt <= input.startsAt) {
@@ -54,10 +54,10 @@ export class OpenAuction {
     assertWholeCoins(incrementCents);
     const lot = await this.catalog.lot(input.lotId);
     if (!lot || lot.sellerId !== actor.userId) {
-      throw DomainError.notFound('Obra no encontrada');
+      throw DomainError.notFound('Obra no encontrada', { code: 'LOT_NOT_FOUND' });
     }
     if (!SCHEDULABLE_LOT_STATUSES.has(lot.status)) {
-      throw DomainError.precondition('La obra no esta lista para subastarse');
+      throw DomainError.precondition('La obra no esta lista para subastarse', { code: 'LOT_NOT_READY_FOR_AUCTION' });
     }
     const terms = {
       startPrice: fromCents(startCents),
@@ -95,7 +95,7 @@ export class OpenAuction {
       return uow.lock(existing.id);
     });
     if (!opened) {
-      throw DomainError.conflict('Esa obra ya tiene una subasta abierta o cerrada');
+      throw DomainError.conflict('Esa obra ya tiene una subasta abierta o cerrada', { code: 'AUCTION_ALREADY_EXISTS' });
     }
     return opened;
   }

@@ -59,7 +59,7 @@ export function identityGrpcService(
 
     refreshSession: unary(logger, 'RefreshSession', async (request) => {
       if (request.refreshToken.length < 20) {
-        throw DomainError.unauthenticated('Refresh token invalido');
+        throw DomainError.unauthenticated('Refresh token invalido', { code: 'SESSION_INVALID' });
       }
       const tokens = await useCases.rotate.execute(request.refreshToken);
       return identityV1.RefreshSessionResponse.fromPartial({ tokens: tokensToProto(tokens) });
