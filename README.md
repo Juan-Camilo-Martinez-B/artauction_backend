@@ -114,6 +114,22 @@ Para iterar sobre un servicio sin reconstruir imágenes, se puede correr cada pr
 | `npm run lint:proto -w @artauction/contracts` | `buf lint` de los contratos |
 | `npm run e2e` | prueba de punta a punta contra la plataforma levantada ([e2e/](e2e)) |
 | `npm run compose:up` / `compose:down` | levantar y detener la plataforma |
+| `npm run storage:prune -- <ids-vivos.txt> [--delete]` | imágenes huérfanas del bucket: archivos bajo `lots/<id>/` cuya obra ya no existe. Sin `--delete` solo informa. Ver «Limpiar los datos de la e2e» |
+
+### Limpiar los datos de la e2e
+
+Cada corrida de `npm run e2e` contra la plataforma de trabajo deja obras «E2E …» con sus salas, auditorías, avisos e imágenes. Para quitarlas:
+
+1. Borra las obras y lo que depende de ellas con `npm run cleanup:e2e` en `artauction_bd` (una transacción; se aborta si alguna tiene pujas o ventas).
+2. Exporta los ids de las obras que quedan y borra las imágenes huérfanas:
+
+   ```bash
+   psql "$DATABASE_URL" -Atc "SELECT id FROM catalog.lots" > ids-vivos.txt
+   npm run storage:prune -- ids-vivos.txt            # informa
+   npm run storage:prune -- ids-vivos.txt --delete   # borra
+   ```
+
+El script usa la llave de administración de `secrets/storage.env`, nunca la imprime, y se niega a comparar contra una lista vacía. Las cuentas `e2e-*` no se borran: cada corrida crea las suyas con un sufijo distinto. Para no ensuciar la plataforma de trabajo, corre la e2e contra una copia aislada (ver [e2e/](e2e)).
 
 ## Estructura
 

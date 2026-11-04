@@ -19,6 +19,7 @@
     "e2e": "npm run e2e -w @artauction/e2e",
     "compose:up": "docker compose --env-file secrets/service-clients.env --env-file secrets/compose.env up -d --build",
     "compose:down": "docker compose --env-file secrets/service-clients.env --env-file secrets/compose.env down",
+    "storage:prune": "node scripts/storage/prune-orphan-images.mjs",
     "prepare": "husky"
   },
   "devDependencies": {
