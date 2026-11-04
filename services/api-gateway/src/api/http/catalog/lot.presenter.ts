@@ -1,5 +1,6 @@
 import { auditEventsV1, catalogV1, commonV1, type auctionV1, type auditV1 } from '@artauction/contracts';
 import { auctionStatusName } from '../auctions/auction.presenter';
+import type { Locale } from '../locale';
 
 // Convierte los mensajes de los servicios a la forma JSON que el frontend ya
 // consume (la misma que devolvia el monolito con Prisma).
@@ -103,19 +104,62 @@ export function modelJson(model: catalogV1.LotModel) {
   };
 }
 
-export function lotJson(lot: catalogV1.Lot, auction: auctionV1.AuctionSummary | undefined | null = null) {
+interface LotTextsJson {
+  title: string;
+  description: string;
+  materials: string;
+  provenance: string | null;
+}
+
+function originalTexts(lot: catalogV1.Lot): LotTextsJson {
+  return { title: lot.title, description: lot.description, materials: lot.materials, provenance: lot.provenance ?? null };
+}
+
+/**
+ * Textos de la ficha en el idioma pedido. catalog solo manda traducciones de
+ * la version vigente del texto; si no hay (aun no se tradujo, la obra es
+ * privada o ya esta en ese idioma) se muestra el original. Cuando se traduce,
+ * el original va aparte: es el que vale y el que se edita.
+ */
+function localizedTexts(lot: catalogV1.Lot, locale: Locale | undefined) {
+  const original = originalTexts(lot);
+  const translation = locale && lot.sourceLocale !== locale ? lot.translations.find((entry) => entry.locale === locale) : undefined;
+  if (!translation) {
+    return { texts: original, translated: false, original: null };
+  }
+  return {
+    texts: {
+      title: translation.title,
+      description: translation.description,
+      materials: translation.materials,
+      provenance: translation.provenance ?? original.provenance,
+    },
+    translated: true,
+    original,
+  };
+}
+
+/**
+ * Obra en JSON. Con locale, los textos salen en ese idioma si hay traduccion;
+ * sin locale (el autor editando, el administrador revisando) van en el original.
+ */
+export function lotJson(lot: catalogV1.Lot, auction: auctionV1.AuctionSummary | undefined | null = null, locale?: Locale) {
+  const { texts, translated, original } = localizedTexts(lot, locale);
   return {
     id: lot.id,
     sellerId: lot.sellerId,
-    title: lot.title,
-    description: lot.description,
+    title: texts.title,
+    description: texts.description,
     artistName: lot.artistName ?? null,
     creationYear: lot.creationYear ?? null,
-    materials: lot.materials,
+    materials: texts.materials,
     widthCm: lot.widthCm ?? null,
     heightCm: lot.heightCm ?? null,
     depthCm: lot.depthCm ?? null,
-    provenance: lot.provenance ?? null,
+    provenance: texts.provenance,
+    sourceLocale: lot.sourceLocale ?? null,
+    translated,
+    original,
     representationKind: REPRESENTATION.get(lot.representationKind) ?? null,
     status: LOT_STATUS.get(lot.status) ?? 'BORRADOR',
     visibility: lot.visibility === commonV1.Visibility.VISIBILITY_PUBLIC ? 'PUBLIC' : 'PRIVATE',

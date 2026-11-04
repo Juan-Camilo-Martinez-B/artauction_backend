@@ -1,5 +1,6 @@
 import { commonV1, galleryV1, type catalogV1, type notificationV1 } from '@artauction/contracts';
 import { lotJson } from '../catalog/lot.presenter';
+import type { Locale } from '../locale';
 
 // Forma JSON de la galeria, el feed y los avisos que el frontend ya consume.
 
@@ -40,7 +41,7 @@ function visibility(value: commonV1.Visibility): 'PUBLIC' | 'PRIVATE' {
  * todo lo colgado es de la duena aunque sea privado o vendido. Una obra sin
  * ficha (catalog no respondio) no se muestra; su posicion queda guardada.
  */
-export function galleryJson(gallery: galleryV1.PersonalGallery, lots: ReadonlyMap<string, catalogV1.Lot>) {
+export function galleryJson(gallery: galleryV1.PersonalGallery, lots: ReadonlyMap<string, catalogV1.Lot>, locale: Locale) {
   return {
     id: gallery.id,
     ownerId: gallery.ownerId,
@@ -62,7 +63,7 @@ export function galleryJson(gallery: galleryV1.PersonalGallery, lots: ReadonlyMa
               rotY: artwork.rotY,
               scale: artwork.scale,
               support: SUPPORT.get(artwork.support) ?? 'WALL',
-              lot: lotJson(lot),
+              lot: lotJson(lot, null, locale),
             },
           ]
         : [];
@@ -112,10 +113,10 @@ export function notificationJson(notification: notificationV1.Notification) {
 }
 
 /** Ficha guardada: la misma forma de una obra del catalogo, con los datos de la compra. */
-export function purchasedSheetJson(sheet: galleryV1.PurchasedSheet) {
+export function purchasedSheetJson(sheet: galleryV1.PurchasedSheet, locale: Locale) {
   return {
     ownerId: sheet.ownerId,
-    lot: sheet.lot ? lotJson(sheet.lot) : null,
+    lot: sheet.lot ? lotJson(sheet.lot, null, locale) : null,
     pricePaid: sheet.pricePaid ?? null,
     buyNow: sheet.buyNow ?? null,
     acquiredAt: sheet.acquiredAt?.toISOString() ?? null,

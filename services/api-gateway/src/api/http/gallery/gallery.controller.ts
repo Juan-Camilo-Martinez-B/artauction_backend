@@ -6,6 +6,7 @@ import type { StructuredLogger } from '@artauction/platform';
 import { invoke } from '@artauction/service-kit';
 import { CATALOG_CLIENT, GALLERY_CLIENT, NOTIFICATION_CLIENT } from '../../../clients/grpc-clients';
 import type { GatewayConfig } from '../../../config';
+import { RequestLocale, type Locale } from '../locale';
 import { GATEWAY_CONFIG, GATEWAY_LOGGER } from '../tokens';
 import { activityJson, galleryItemJson, galleryJson, notificationJson, purchasedSheetJson, SUPPORT_FROM_JSON } from './gallery.presenter';
 
@@ -79,56 +80,56 @@ export class PersonalGalleryController {
   ) {}
 
   @Get()
-  async mine(@Headers('authorization') authorization: string | undefined) {
+  async mine(@Headers('authorization') authorization: string | undefined, @RequestLocale() locale: Locale) {
     const response = await invoke(this.gallery.getMyGallery.bind(this.gallery), {}, this.options(authorization));
-    return this.compose(response.gallery);
+    return this.compose(response.gallery, locale);
   }
 
   @Post('preferences')
-  async preferences(@Headers('authorization') authorization: string | undefined, @Body() body: GenerateGalleryDto) {
+  async preferences(@Headers('authorization') authorization: string | undefined, @Body() body: GenerateGalleryDto, @RequestLocale() locale: Locale) {
     const response = await invoke(
       this.gallery.saveGalleryPreferences.bind(this.gallery),
       { preferences: asStruct(body.preferences), random: body.random === true },
       this.options(authorization),
     );
-    return this.compose(response.gallery);
+    return this.compose(response.gallery, locale);
   }
 
   @Post('generate')
-  async generate(@Headers('authorization') authorization: string | undefined, @Body() body: GenerateGalleryDto) {
+  async generate(@Headers('authorization') authorization: string | undefined, @Body() body: GenerateGalleryDto, @RequestLocale() locale: Locale) {
     const response = await invoke(
       this.gallery.generateGallery.bind(this.gallery),
       { preferences: asStruct(body.preferences), random: body.random === true, replaceApplied: body.replaceApplied === true },
       { ...this.options(authorization), deadlineMs: Math.max(this.config.GRPC_DEADLINE_MS, 35_000) },
     );
-    return this.compose(response.gallery);
+    return this.compose(response.gallery, locale);
   }
 
   @Patch('config')
-  async applyConfig(@Headers('authorization') authorization: string | undefined, @Body() body: Record<string, unknown>) {
+  async applyConfig(@Headers('authorization') authorization: string | undefined, @Body() body: Record<string, unknown>, @RequestLocale() locale: Locale) {
     const response = await invoke(this.gallery.applyGalleryConfig.bind(this.gallery), { config: asStruct(body) }, this.options(authorization));
-    return this.compose(response.gallery);
+    return this.compose(response.gallery, locale);
   }
 
   @Post('restore')
-  async restore(@Headers('authorization') authorization: string | undefined) {
+  async restore(@Headers('authorization') authorization: string | undefined, @RequestLocale() locale: Locale) {
     const response = await invoke(this.gallery.restoreSuggestedConfig.bind(this.gallery), {}, this.options(authorization));
-    return this.compose(response.gallery);
+    return this.compose(response.gallery, locale);
   }
 
   @Post('artworks')
-  async add(@Headers('authorization') authorization: string | undefined, @Body() body: PlaceArtworkDto) {
+  async add(@Headers('authorization') authorization: string | undefined, @Body() body: PlaceArtworkDto, @RequestLocale() locale: Locale) {
     if (!body.lotId) {
       throw new BadRequestException('Falta la obra.');
     }
     const response = await invoke(this.gallery.addArtwork.bind(this.gallery), { lotId: body.lotId }, this.options(authorization));
-    return this.compose(response.gallery);
+    return this.compose(response.gallery, locale);
   }
 
   @Delete('artworks/:lotId')
-  async remove(@Headers('authorization') authorization: string | undefined, @Param('lotId', ParseUUIDPipe) lotId: string) {
+  async remove(@Headers('authorization') authorization: string | undefined, @Param('lotId', ParseUUIDPipe) lotId: string, @RequestLocale() locale: Locale) {
     const response = await invoke(this.gallery.removeArtwork.bind(this.gallery), { lotId }, this.options(authorization));
-    return this.compose(response.gallery);
+    return this.compose(response.gallery, locale);
   }
 
   @Patch('artworks/:lotId')
@@ -136,6 +137,7 @@ export class PersonalGalleryController {
     @Headers('authorization') authorization: string | undefined,
     @Param('lotId', ParseUUIDPipe) lotId: string,
     @Body() body: PlaceArtworkDto,
+    @RequestLocale() locale: Locale,
   ) {
     const response = await invoke(
       this.gallery.placeArtwork.bind(this.gallery),
@@ -150,10 +152,10 @@ export class PersonalGalleryController {
       }),
       this.options(authorization),
     );
-    return this.compose(response.gallery);
+    return this.compose(response.gallery, locale);
   }
 
-  private async compose(gallery: galleryV1.PersonalGallery | undefined) {
+  private async compose(gallery: galleryV1.PersonalGallery | undefined, locale: Locale) {
     if (!gallery) {
       throw new Error('gallery-service respondio sin galeria');
     }
@@ -173,7 +175,7 @@ export class PersonalGalleryController {
         this.logger.warn(`sala sin fichas de catalog: ${error instanceof Error ? error.message : String(error)}`, 'gallery');
       }
     }
-    return galleryJson(gallery, lots);
+    return galleryJson(gallery, lots, locale);
   }
 
   private options(authorization?: string) {
@@ -201,12 +203,13 @@ export class SocialController {
     @Headers('authorization') authorization: string | undefined,
     @Param('ownerId', ParseUUIDPipe) ownerId: string,
     @Param('lotId', ParseUUIDPipe) lotId: string,
+    @RequestLocale() locale: Locale,
   ) {
     const response = await invoke(this.gallery.getPurchasedSheet.bind(this.gallery), { ownerId, lotId }, this.options(authorization));
     if (!response.sheet) {
       throw new Error('gallery-service respondio sin ficha');
     }
-    return purchasedSheetJson(response.sheet);
+    return purchasedSheetJson(response.sheet, locale);
   }
 
   @Post('users/:id/follow')

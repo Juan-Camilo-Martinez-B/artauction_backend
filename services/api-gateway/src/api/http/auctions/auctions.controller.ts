@@ -4,6 +4,7 @@ import { auctionV1, catalogV1 } from '@artauction/contracts';
 import { invoke } from '@artauction/service-kit';
 import { AUCTION_CLIENT, CATALOG_CLIENT } from '../../../clients/grpc-clients';
 import type { GatewayConfig } from '../../../config';
+import { RequestLocale, type Locale } from '../locale';
 import { GATEWAY_CONFIG } from '../tokens';
 import { auctionDetailJson, boughtNowJson, placedBidJson } from './auction.presenter';
 import { lotJson } from '../catalog/lot.presenter';
@@ -27,7 +28,7 @@ export class AuctionsController {
    * cuentas regresivas. Va antes de ':id' para que "live" no se tome como un id.
    */
   @Get('live')
-  async live(@Query() query: LiveAuctionsQuery) {
+  async live(@Query() query: LiveAuctionsQuery, @RequestLocale() locale: Locale) {
     const response = await invoke(
       this.auctions.listLiveAuctions.bind(this.auctions),
       { limit: query.limit ?? 12, horizonMinutes: query.horizonMinutes ?? 360 },
@@ -47,7 +48,7 @@ export class AuctionsController {
     return {
       items: response.summaries.flatMap((summary) => {
         const lot = byId.get(summary.lotId);
-        return lot ? [lotJson(lot, summary)] : [];
+        return lot ? [lotJson(lot, summary, locale)] : [];
       }),
       serverTime,
     };
