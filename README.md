@@ -92,7 +92,7 @@ npm run compose:down     # detiene; con "-- -v" borra también los datos
 | http://localhost:3001/docs | OpenAPI (Swagger UI) |
 | http://localhost:3902 | lectura pública de imágenes |
 
-Cuentas de la semilla, todas con la contraseña `DevPassword!234`: `admin@artauction.local` (ADMIN), `seller@artauction.local` (SELLER), `leo@artauction.local` y `nora@artauction.local` (USER).
+Cuentas de la semilla, todas con la contraseña `DevPassword!234`: `admin@artauction.local` (ADMIN), `seller@artauction.local`, `leo@artauction.local` y `nora@artauction.local` (SELLER).
 
 **Linux y macOS.** Los contenedores corren como el usuario `node` (uid 1000) y montan `secrets/jwt/private.pem`, que se genera con modo 600. Si tu uid no es 1000 (`id -u`), entrégale la clave: `sudo chown 1000 secrets/jwt/private.pem`. En Windows y en Docker Desktop no hace falta.
 

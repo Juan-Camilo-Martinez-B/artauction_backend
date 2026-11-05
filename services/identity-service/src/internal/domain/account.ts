@@ -53,8 +53,9 @@ export function normalizeDisplayName(raw: string): string {
   return name;
 }
 
+/** Sin rol pedido, la cuenta nace como SELLER: toda cuenta puede publicar. */
 export function registrationRole(requested: Role | undefined): Role {
-  const role = requested ?? 'USER';
+  const role = requested ?? 'SELLER';
   if (!SELF_ASSIGNABLE_ROLES.includes(role)) {
     throw DomainError.forbidden('Ese rol no se puede elegir al registrarse.', { code: 'ROLE_NOT_ALLOWED' });
   }
