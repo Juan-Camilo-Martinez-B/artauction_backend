@@ -39,9 +39,14 @@ export function decideVerdict(score: number, critical: boolean): Verdict {
  * Veredicto segun quien decidio. La evaluacion local solo resta puntos por
  * hallazgo: no sabe pesar una advertencia como lo haria el modelo, asi que
  * solo aprueba una obra sin advertencias y lo demas lo mira un administrador.
+ * Con `localAutoApprove` en false no aprueba ninguna: el rango de precio local
+ * es generico, y una carga curada necesita que el administrador fije el suyo.
  */
-export function verdictFor(assessment: Pick<Assessment, 'score' | 'critical' | 'findings'>, decidedBy: DecidedBy): Verdict {
+export function verdictFor(assessment: Pick<Assessment, 'score' | 'critical' | 'findings'>, decidedBy: DecidedBy, localAutoApprove = true): Verdict {
   if (decidedBy === 'FALLBACK') {
+    return 'REVISION_MANUAL';
+  }
+  if (decidedBy === 'LOCAL' && !localAutoApprove) {
     return 'REVISION_MANUAL';
   }
   if (decidedBy === 'LOCAL' && assessment.findings.some((finding) => finding.severity !== 'INFO')) {

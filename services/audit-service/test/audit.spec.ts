@@ -120,6 +120,9 @@ describe('expediente y reglas', () => {
     expect(verdictFor({ score: 73, critical: false, findings: [warning] }, 'LOCAL')).toBe('REVISION_MANUAL');
     expect(verdictFor({ score: 73, critical: false, findings: [warning] }, 'AI')).toBe('APROBADO');
     expect(verdictFor({ score: 90, critical: false, findings: [] }, 'FALLBACK')).toBe('REVISION_MANUAL');
+    // Sin aprobacion local, la obra limpia tambien la mira un administrador; la IA no cambia.
+    expect(verdictFor({ score: 85, critical: false, findings: [] }, 'LOCAL', false)).toBe('REVISION_MANUAL');
+    expect(verdictFor({ score: 85, critical: false, findings: [] }, 'AI', false)).toBe('APROBADO');
     expect(nextAttemptAt(NOW, 1).getTime() - NOW.getTime()).toBe(10_000);
     expect(nextAttemptAt(NOW, 3).getTime() - NOW.getTime()).toBe(40_000);
     expect(nextAttemptAt(NOW, 20).getTime() - NOW.getTime()).toBe(300_000);

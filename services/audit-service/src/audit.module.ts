@@ -100,6 +100,7 @@ const providers: Provider[] = [
         ai: new GrpcAiClient(clients.ai, clients.tokens),
         clock,
         logger,
+        localAutoApprove: config.AUDIT_LOCAL_AUTO_APPROVE,
       }),
   },
   {
