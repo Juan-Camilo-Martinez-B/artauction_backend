@@ -19,11 +19,12 @@ describe('gateway sobre identity', () => {
       email: 'leo@artauction.local',
       role: identityV1.Role.ROLE_SELLER,
       displayName: 'Leo',
+      locale: 'es',
     });
     const implementation: identityV1.IdentityServiceServer = {
       register: unary(logger, 'Register', (request) =>
         request.email === 'dup@artauction.local'
-          ? Promise.reject(DomainError.conflict('El correo ya esta registrado'))
+          ? Promise.reject(DomainError.conflict('El correo ya esta registrado', { code: 'EMAIL_TAKEN' }))
           : Promise.resolve(identityV1.RegisterResponse.fromPartial({ account })),
       ),
       login: unary(logger, 'Login', () =>
@@ -37,6 +38,9 @@ describe('gateway sobre identity', () => {
         return Promise.resolve(identityV1.GetAccountResponse.fromPartial({ account }));
       }),
       updateProfile: unary(logger, 'UpdateProfile', () => Promise.resolve(identityV1.UpdateProfileResponse.fromPartial({ account }))),
+      updatePreferences: unary(logger, 'UpdatePreferences', (request) =>
+        Promise.resolve(identityV1.UpdatePreferencesResponse.fromPartial({ account: { ...account, locale: request.locale } })),
+      ),
       getPublicProfile: unary(logger, 'GetPublicProfile', () => Promise.resolve(identityV1.GetPublicProfileResponse.fromPartial({}))),
       getSigningKeys: unary(logger, 'GetSigningKeys', () => Promise.resolve(identityV1.GetSigningKeysResponse.fromPartial({}))),
       issueServiceToken: unary(logger, 'IssueServiceToken', () =>
@@ -75,10 +79,10 @@ describe('gateway sobre identity', () => {
     expect(await response.json()).toEqual({ accessToken: 'a', refreshToken: 'r', expiresIn: '15m' });
   });
 
-  it('traduce el conflicto de registro a 409', async () => {
+  it('traduce el conflicto de registro a 409 con su codigo estable', async () => {
     const response = await post('/auth/register', { email: 'dup@artauction.local', password: 'DevPassword!234', displayName: 'Dup' });
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ statusCode: 409, error: 'Conflict', message: 'El correo ya esta registrado' });
+    expect(await response.json()).toEqual({ statusCode: 409, error: 'Conflict', message: 'El correo ya esta registrado', code: 'EMAIL_TAKEN' });
   });
 
   it('devuelve la cuenta con el rol en texto y reenvia el token', async () => {
@@ -89,13 +93,28 @@ describe('gateway sobre identity', () => {
       role: 'SELLER',
       displayName: 'Leo',
       avatarUrl: null,
+      locale: 'es',
     });
     expect(seenAuthorization).toBe('Bearer token-de-prueba');
+  });
+
+  it('guarda el idioma de la cuenta y rechaza uno no ofrecido sin llamar al servicio', async () => {
+    const patch = (locale: string) =>
+      fetch(`${base}/auth/me/preferences`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer token-de-prueba' },
+        body: JSON.stringify({ locale }),
+      });
+    expect(await (await patch('en')).json()).toMatchObject({ userId: 'u1', locale: 'en' });
+    const rejected = await patch('fr');
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 
   it('valida la forma de la peticion antes de llamar al servicio', async () => {
     const response = await post('/auth/login', { email: 'no-es-correo', password: 'x', extra: true });
     expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 
   it('sin monolito, una ruta desconocida responde 404', async () => {
@@ -113,8 +132,9 @@ describe('gateway sobre identity', () => {
   it('limita el cuerpo a 1 MB fuera de /lots', async () => {
     const response = await post('/auth/login', { email: 'leo@artauction.local', password: 'x'.repeat(1_100_000) });
     expect(response.status).toBe(413);
-    expect(await response.json()).toMatchObject({ statusCode: 413, error: 'Payload Too Large' });
+    expect(await response.json()).toMatchObject({ statusCode: 413, error: 'Payload Too Large', code: 'PAYLOAD_TOO_LARGE' });
     const malformed = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"email":' });
     expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toEqual({ statusCode: 400, error: 'Bad Request', message: 'El cuerpo de la peticion no es JSON valido', code: 'INVALID_JSON' });
   });
 });

@@ -144,6 +144,9 @@ services:
       AUDIT_EVENTS_GRPC_URL: audit-service:50056
       AUCTION_EVENTS_GRPC_URL: auction-service:50054
       NOTIFICATION_EVENTS_GRPC_URL: notification-service:50058
+      # Traduccion de fichas con Opus-MT en ai-service (en CI va apagada).
+      AI_GRPC_URL: ai-service:50055
+      TRANSLATION_ENABLED: ${TRANSLATION_ENABLED:-true}
       # Las subidas las hace el navegador: el host firmado es el que ve el navegador.
       S3_ENDPOINT: http://localhost:${S3_PORT:-3900}
       # catalog lee lo subido (el modelo 3D) por la red interna de compose.
@@ -192,7 +195,8 @@ services:
 
   ai-service:
     <<: *service
-    build: { context: ., args: { SERVICE: ai-service } }
+    # Debian (glibc): el runtime ONNX del traductor no corre en Alpine (musl).
+    build: { context: ., args: { SERVICE: ai-service, NODE_IMAGE: "node:24-bookworm-slim" } }
     # La clave de Groq, si existe, sigue en el .env propio de ai-service (no versionado).
     env_file:
       - path: ./services/ai-service/.env
@@ -200,8 +204,13 @@ services:
     environment:
       <<: *grpc-env
       GRPC_PORT: 50055
+      # Traduccion de fichas con Opus-MT local. La CI la apaga para no descargar ~230 MB de modelos.
+      TRANSLATION_ENABLED: ${TRANSLATION_ENABLED:-true}
+      TRANSLATION_CACHE_DIR: /models
     volumes:
       - *public-key
+      # Los modelos se descargan una vez y sobreviven a los reinicios.
+      - translation-models:/models
 
   audit-service:
     <<: *service
@@ -301,6 +310,7 @@ services:
 
 volumes:
   postgres:
+  translation-models:
   garage-meta:
   garage-data:
   storage-bootstrap:

@@ -32,6 +32,21 @@ describe('diseño de galería', () => {
     expect(config.lighting.colorTemperature).toBe(5600);
   });
 
+  it('escribe el estilo, el resumen y el clima en el idioma de quien genera la sala', () => {
+    const preferences = parsePreferences(answers);
+    const spanish = designFromPreferences(preferences, 'ai-local', 'es');
+    const english = designFromPreferences(preferences, 'ai-local', 'en');
+    expect(spanish.identity).toMatchObject({ styleName: 'Impresionismo', summary: 'Sala serena con acento en impresionismo.' });
+    expect(english.identity).toMatchObject({ styleName: 'Impressionism', summary: 'Serene room with an accent on Impressionism.' });
+    expect([spanish.lighting.mood, english.lighting.mood]).toEqual(['Serenidad', 'Serenity']);
+    // Lo que no es texto no cambia con el idioma.
+    expect({ ...english, identity: null, lighting: { ...english.lighting, mood: '' } }).toEqual({
+      ...spanish,
+      identity: null,
+      lighting: { ...spanish.lighting, mood: '' },
+    });
+  });
+
   it('cambia la sala cuando cambian arquitectura e iluminación', () => {
     const calm = designFromPreferences(parsePreferences(answers), 'ai-local');
     const dark = designFromPreferences(

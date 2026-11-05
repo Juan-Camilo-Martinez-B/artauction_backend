@@ -8,6 +8,7 @@ import {
   type GalleryConfig,
   type GalleryPreferences,
 } from '../domain/gallery-design';
+import type { Locale } from '../domain/gallery-labels';
 import {
   asConfigRecord,
   canExhibit,
@@ -88,13 +89,13 @@ export class PersonalGalleryUseCases {
     return this.galleries.mine(ownerId);
   }
 
-  async generate(ownerId: string, body: unknown, random: boolean, replaceApplied: boolean): Promise<PersonalGallery> {
+  async generate(ownerId: string, body: unknown, random: boolean, replaceApplied: boolean, locale: Locale): Promise<PersonalGallery> {
     const preferences = readPreferences(body, random);
     const gallery = await this.galleries.mine(ownerId);
-    const designed = await this.designer.design(preferences);
+    const designed = await this.designer.design(preferences, locale);
     const config = validConfig(random ? { ...designed, source: 'random' } : designed);
     if (hasManualChanges(gallery, configsDiffer) && !replaceApplied) {
-      throw DomainError.conflict('Hay cambios manuales. Confirma si quieres reemplazar la sala actual.');
+      throw DomainError.conflict('Hay cambios manuales. Confirma si quieres reemplazar la sala actual.', { code: 'GALLERY_MANUAL_CHANGES' });
     }
     await this.galleries.update(gallery.id, {
       preferences: { ...preferences },
@@ -126,14 +127,14 @@ export class PersonalGalleryUseCases {
   async addArtwork(ownerId: string, lotId: string): Promise<PersonalGallery> {
     assertUuid(lotId, 'La obra');
     if (!(await this.social.itemOf(ownerId, lotId))) {
-      throw DomainError.forbidden('Solo puedes colgar obras tuyas: tus proyectos, lo que publicaste sin vender y lo que ganaste.');
+      throw DomainError.forbidden('Solo puedes colgar obras tuyas: tus proyectos, lo que publicaste sin vender y lo que ganaste.', { code: 'ARTWORK_NOT_OWNED' });
     }
     const lot = await this.catalog.snapshot(lotId);
     if (!lot) {
-      throw DomainError.notFound('Obra no encontrada');
+      throw DomainError.notFound('Obra no encontrada', { code: 'LOT_NOT_FOUND' });
     }
     if (!canExhibit(lot)) {
-      throw DomainError.precondition('Esta obra tridimensional no tiene modelo 3D: súbelo para exponerla en tu sala.');
+      throw DomainError.precondition('Esta obra tridimensional no tiene modelo 3D: súbelo para exponerla en tu sala.', { code: 'ARTWORK_NEEDS_MODEL' });
     }
     await hang(this.galleries, ownerId, lot);
     return this.galleries.mine(ownerId);
@@ -153,7 +154,7 @@ export class PersonalGalleryUseCases {
     const gallery = await this.owned(ownerId);
     const current = gallery.artworks.find((artwork) => artwork.lotId === lotId);
     if (!current) {
-      throw DomainError.notFound('La obra no está en tu galería');
+      throw DomainError.notFound('La obra no está en tu galería', { code: 'ARTWORK_NOT_IN_GALLERY' });
     }
     await this.galleries.moveArtwork(current.id, placeArtwork(current, patch));
     return this.galleries.mine(ownerId);
@@ -162,7 +163,7 @@ export class PersonalGalleryUseCases {
   private async owned(ownerId: string): Promise<PersonalGallery> {
     const gallery = await this.galleries.find(ownerId);
     if (!gallery) {
-      throw DomainError.notFound('Todavía no tienes galería.');
+      throw DomainError.notFound('Todavía no tienes galería.', { code: 'GALLERY_NOT_FOUND' });
     }
     return gallery;
   }
@@ -189,13 +190,13 @@ export class SocialUseCases {
     const item = await this.social.itemOf(ownerId, lotId);
     // Una obra ajena o privada responde igual que una inexistente.
     if (!item || item.source !== 'GANADA' || !canViewItem(item, viewerId)) {
-      throw DomainError.notFound('Ficha no encontrada');
+      throw DomainError.notFound('Ficha no encontrada', { code: 'SHEET_NOT_FOUND' });
     }
     let sheet = await this.social.sheetOf(ownerId, lotId);
     if (!sheet) {
       const lot = await this.catalog.sheet(lotId);
       if (!lot) {
-        throw DomainError.notFound('Ficha no encontrada');
+        throw DomainError.notFound('Ficha no encontrada', { code: 'SHEET_NOT_FOUND' });
       }
       sheet = { lot, pricePaid: null, buyNow: null, acquiredAt: item.acquiredAt };
       await this.social.saveSheet(ownerId, lotId, sheet);
@@ -216,7 +217,7 @@ export class SocialUseCases {
     }
     const name = await this.identity.displayName(followeeId);
     if (name === null) {
-      throw DomainError.notFound('Usuario no encontrado');
+      throw DomainError.notFound('Usuario no encontrado', { code: 'USER_NOT_FOUND' });
     }
     if (!(await this.galleries.follow(followerId, followeeId))) {
       return;

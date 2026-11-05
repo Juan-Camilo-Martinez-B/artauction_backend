@@ -1,5 +1,6 @@
 import { DomainError } from '@artauction/platform';
 import { designFromPreferences, GALLERY_CONFIG_JSON_SCHEMA, randomPreferences } from '../src/internal/domain/gallery-design';
+import type { Locale } from '../src/internal/domain/gallery-labels';
 import { initialPlacement, placeArtwork, type Activity, type Artwork, type GalleryItem, type PersonalGallery, type PublicLot, type PurchasedSheet } from '../src/internal/domain/gallery';
 import type { CatalogPort, GalleryPatch, GalleryRepository, IdentityPort, SocialStore } from '../src/internal/application/ports';
 import { GalleryEventHandlers, PersonalGalleryUseCases, SocialUseCases } from '../src/internal/application/use-cases';
@@ -143,7 +144,9 @@ function own(social: MemorySocial, ownerId: string, lotId: string, source: Galle
   });
 }
 const identity: IdentityPort = { displayName: (userId) => Promise.resolve(userId === OTHER ? 'Nora' : null) };
-const designer = { design: (preferences: Parameters<typeof designFromPreferences>[0]) => Promise.resolve(designFromPreferences(preferences, 'ai-local')) };
+const designer = {
+  design: (preferences: Parameters<typeof designFromPreferences>[0], locale: Locale) => Promise.resolve(designFromPreferences(preferences, 'ai-local', locale)),
+};
 
 async function expectKind(promise: Promise<unknown>, kind: string): Promise<void> {
   const error: unknown = await promise.catch((caught: unknown) => caught);
@@ -230,12 +233,12 @@ describe('galeria personal', () => {
   it('genera la sala y pide confirmacion si hay cambios manuales', async () => {
     const galleries = new MemoryGalleries();
     const personal = new PersonalGalleryUseCases(galleries, designer, catalog, new MemorySocial());
-    const generated = await personal.generate(OWNER, null, true, false);
+    const generated = await personal.generate(OWNER, null, true, false, 'es');
     expect(generated.customizationStatus).toBe('PERSONALIZADA');
     const edited = { ...(generated.appliedConfig ?? {}), lighting: { ...((generated.appliedConfig?.['lighting'] as object | undefined) ?? {}), ambientIntensity: 0.2 } };
     expect((await personal.applyManual(OWNER, edited)).customizationStatus).toBe('EDITADA');
-    await expectKind(personal.generate(OWNER, randomPreferences(), false, false), 'CONFLICT');
-    expect((await personal.generate(OWNER, randomPreferences(), false, true)).customizationStatus).toBe('PERSONALIZADA');
+    await expectKind(personal.generate(OWNER, randomPreferences(), false, false, 'en'), 'CONFLICT');
+    expect((await personal.generate(OWNER, randomPreferences(), false, true, 'en')).customizationStatus).toBe('PERSONALIZADA');
     expect((await personal.restoreSuggested(OWNER)).customizationStatus).toBe('PERSONALIZADA');
   });
 

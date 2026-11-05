@@ -125,7 +125,7 @@ export class GroqModel implements LanguageModel {
       if (error instanceof DomainError) {
         throw error;
       }
-      throw DomainError.unavailable(error instanceof Error ? error.message : 'Groq no respondio');
+      throw DomainError.unavailable(error instanceof Error ? error.message : 'Groq no respondio', { code: 'AI_UNAVAILABLE' });
     }
   }
 

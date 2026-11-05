@@ -16,6 +16,7 @@ import {
   SignModelUploadDto,
   SignUploadDto,
 } from './catalog.dto';
+import { RequestLocale, type Locale } from '../locale';
 import { auditJson, categoryJson, imageJson, lotJson, modelJson, REPRESENTATION_FROM_JSON, SORT_FROM_JSON } from './lot.presenter';
 
 const VISIBILITY_FROM_JSON: Readonly<Record<'PUBLIC' | 'PRIVATE', commonV1.Visibility>> = {
@@ -39,7 +40,7 @@ export class CatalogController {
   ) {}
 
   @Get()
-  async list(@Query() query: ListLotsQuery) {
+  async list(@Query() query: ListLotsQuery, @RequestLocale() locale: Locale) {
     const response = await invoke(
       this.catalog.listPublicLots.bind(this.catalog),
       catalogV1.ListPublicLotsRequest.fromPartial({
@@ -54,7 +55,7 @@ export class CatalogController {
     );
     const auctions = await this.auctionsFor(response.lots.map((lot) => lot.id));
     return {
-      items: response.lots.map((lot) => lotJson(lot, auctions.get(lot.id))),
+      items: response.lots.map((lot) => lotJson(lot, auctions.get(lot.id), locale)),
       total: response.pageInfo?.total ?? 0,
       page: response.pageInfo?.page ?? 1,
       pageSize: response.pageInfo?.pageSize ?? 12,
@@ -76,21 +77,21 @@ export class CatalogController {
   }
 
   @Get(':id/related')
-  async related(@Param('id') id: string) {
+  async related(@Param('id') id: string, @RequestLocale() locale: Locale) {
     const response = await invoke(this.catalog.getRelatedLots.bind(this.catalog), { lotId: id }, this.options());
     const auctions = await this.auctionsFor(response.lots.map((lot) => lot.id));
-    return response.lots.map((lot) => lotJson(lot, auctions.get(lot.id)));
+    return response.lots.map((lot) => lotJson(lot, auctions.get(lot.id), locale));
   }
 
   @Get(':id')
-  async getOne(@Param('id') id: string, @Headers('authorization') authorization: string | undefined) {
+  async getOne(@Param('id') id: string, @Headers('authorization') authorization: string | undefined, @RequestLocale() locale: Locale) {
     const response = await invoke(this.catalog.getLot.bind(this.catalog), { lotId: id }, this.options(authorization));
     const lot = response.lot;
     if (!lot) {
       throw new Error('catalog-service respondio sin obra');
     }
     const [auctions, audit] = await Promise.all([this.auctionsFor([lot.id]), this.auditFor(lot.id)]);
-    return { ...lotJson(lot, auctions.get(lot.id)), auditSummaries: audit };
+    return { ...lotJson(lot, auctions.get(lot.id), locale), auditSummaries: audit };
   }
 
   @Post()

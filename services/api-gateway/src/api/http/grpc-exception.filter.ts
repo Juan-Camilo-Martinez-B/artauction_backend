@@ -1,11 +1,11 @@
-import { STATUS_CODES } from 'node:http';
 import { Catch, HttpException, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
 import type { Response } from 'express';
-import { isServiceError, toHttpError, type StructuredLogger } from '@artauction/platform';
+import { isServiceError, toHttpError, type GenericErrorCode, type StructuredLogger } from '@artauction/platform';
 
 /**
  * Responde con la misma forma JSON que el monolito ({ statusCode, message,
- * error }). Los errores gRPC de los servicios se traducen a su codigo HTTP; un
+ * error }) mas un codigo estable (code) que el frontend traduce al idioma de
+ * quien mira. Los errores gRPC de los servicios se traducen a su codigo HTTP; un
  * error inesperado del propio gateway sale como 500 sin detalles.
  */
 @Catch()
@@ -15,15 +15,10 @@ export class GrpcExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
     if (exception instanceof HttpException) {
+      const statusCode = exception.getStatus();
       const payload = exception.getResponse();
-      response
-        .status(exception.getStatus())
-        .json(typeof payload === 'string' ? { statusCode: exception.getStatus(), message: payload } : payload);
-      return;
-    }
-    const client = clientError(exception);
-    if (client) {
-      response.status(client.statusCode).json(client);
+      const body = typeof payload === 'string' ? { statusCode, message: payload } : payload;
+      response.status(statusCode).json({ ...body, code: httpCode(statusCode) });
       return;
     }
     const body = toHttpError(exception);
@@ -35,21 +30,26 @@ export class GrpcExceptionFilter implements ExceptionFilter {
 }
 
 /**
- * Errores del parser de cuerpo (JSON mal formado, cuerpo demasiado grande):
- * traen un status 4xx y `expose`, que indica que el mensaje es seguro de mostrar.
+ * Codigo de un error HTTP del propio gateway: un 400 es la validacion de un
+ * DTO, un 429 el limite de peticiones; el resto toma la categoria del status.
  */
-function clientError(exception: unknown): { statusCode: number; error: string; message: string } | null {
-  if (typeof exception !== 'object' || exception === null) {
-    return null;
+function httpCode(statusCode: number): GenericErrorCode {
+  switch (statusCode) {
+    case 400:
+      return 'VALIDATION_FAILED';
+    case 401:
+      return 'UNAUTHENTICATED';
+    case 403:
+      return 'PERMISSION_DENIED';
+    case 404:
+      return 'NOT_FOUND';
+    case 409:
+      return 'CONFLICT';
+    case 413:
+      return 'PAYLOAD_TOO_LARGE';
+    case 429:
+      return 'RATE_LIMITED';
+    default:
+      return statusCode >= 500 ? 'INTERNAL' : 'INVALID_ARGUMENT';
   }
-  const record = exception as { status?: unknown; expose?: unknown; message?: unknown };
-  const status = typeof record.status === 'number' ? record.status : 0;
-  if (record.expose !== true || status < 400 || status >= 500) {
-    return null;
-  }
-  return {
-    statusCode: status,
-    error: STATUS_CODES[status] ?? 'Bad Request',
-    message: status === 413 ? 'El cuerpo de la peticion es demasiado grande' : 'El cuerpo de la peticion no es JSON valido',
-  };
 }

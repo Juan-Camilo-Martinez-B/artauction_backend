@@ -1,6 +1,6 @@
 import { Prisma, type PrismaClient, type User } from '../../generated/prisma';
-import { isRole, type Account, type ProfileVisibility } from '../domain/account';
-import type { AccountRepository } from '../application/ports';
+import { DEFAULT_LOCALE, isLocale, isRole, type Account, type ProfileVisibility } from '../domain/account';
+import type { AccountPatch, AccountRepository } from '../application/ports';
 
 const UNIQUE_VIOLATION = 'P2002';
 const RECORD_NOT_FOUND = 'P2025';
@@ -21,7 +21,7 @@ export class PrismaAccountRepository implements AccountRepository {
     return user ? toAccount(user) : null;
   }
 
-  async create(input: { email: string; passwordHash: string; displayName: string; role: string }): Promise<Account | null> {
+  async create(input: { email: string; passwordHash: string; displayName: string; role: string; locale: string }): Promise<Account | null> {
     try {
       return toAccount(await this.prisma.user.create({ data: input }));
     } catch (error) {
@@ -32,7 +32,7 @@ export class PrismaAccountRepository implements AccountRepository {
     }
   }
 
-  async updateProfile(id: string, patch: { displayName: string; avatarUrl?: string | null }): Promise<Account | null> {
+  async update(id: string, patch: AccountPatch): Promise<Account | null> {
     if (!isUuid(id)) {
       return null;
     }
@@ -60,6 +60,7 @@ function toAccount(user: User): Account {
     role: user.role,
     profileVisibility: visibility,
     avatarUrl: user.avatarUrl,
+    locale: isLocale(user.locale) ? user.locale : DEFAULT_LOCALE,
   };
 }
 

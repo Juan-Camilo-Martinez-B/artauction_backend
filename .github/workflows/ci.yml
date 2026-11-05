@@ -124,6 +124,9 @@ jobs:
           fi
 
       - name: Start the platform
+        # Sin traduccion: las fichas se muestran en su idioma original y no se descargan modelos.
+        env:
+          TRANSLATION_ENABLED: "false"
         run: npm run compose:up
 
       - name: Wait for the gateway

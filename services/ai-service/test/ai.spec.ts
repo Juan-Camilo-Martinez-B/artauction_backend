@@ -121,6 +121,14 @@ describe('casos de uso', () => {
     expect(design.config['source']).toBe('ai');
   });
 
+  it('pide los textos de la sala en el idioma de quien la genera', async () => {
+    const model = new FakeModel(() => Promise.resolve({ schemaVersion: 1 }));
+    await new DesignGallery(model).execute({ tone: 'calido' }, null, 'en');
+    await new DesignGallery(model).execute({ tone: 'calido' });
+    expect(model.requests[0]?.system).toMatch(/en ingles \(English\)\.$/);
+    expect(model.requests[1]?.system).toMatch(/en espanol\.$/);
+  });
+
   it('pide JSON con esquema, temperatura 0 y tope de tokens', async () => {
     const model = new FakeModel(() => Promise.resolve({ score: 80, critical: false, priceMin: 1, priceMax: 2, findings: [] }));
     const result = await new AuditArtwork(model).execute(DOSSIER);

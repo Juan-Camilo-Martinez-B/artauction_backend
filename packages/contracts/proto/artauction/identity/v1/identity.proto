@@ -13,6 +13,8 @@ service IdentityService {
   rpc RefreshSession(RefreshSessionRequest) returns (RefreshSessionResponse);
   rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
   rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+  // Preferencias de la cuenta, por ahora el idioma de la interfaz.
+  rpc UpdatePreferences(UpdatePreferencesRequest) returns (UpdatePreferencesResponse);
   rpc GetPublicProfile(GetPublicProfileRequest) returns (GetPublicProfileResponse);
   // Claves publicas para verificar access tokens y tokens de servicio.
   rpc GetSigningKeys(GetSigningKeysRequest) returns (GetSigningKeysResponse);
@@ -33,6 +35,8 @@ message Account {
   Role role = 3;
   string display_name = 4;
   optional string avatar_url = 5;
+  // Idioma en que la cuenta ve la plataforma: "es" o "en".
+  string locale = 6;
 }
 
 message TokenPair {
@@ -61,6 +65,8 @@ message RegisterRequest {
   string display_name = 3;
   // Solo ROLE_USER o ROLE_SELLER. Sin valor equivale a ROLE_USER.
   Role role = 4;
+  // Idioma con que la persona veia la plataforma al registrarse. Sin valor, "es".
+  optional string locale = 5;
 }
 
 message RegisterResponse {
@@ -97,6 +103,14 @@ message UpdateProfileRequest {
 }
 
 message UpdateProfileResponse {
+  Account account = 1;
+}
+
+message UpdatePreferencesRequest {
+  string locale = 1;
+}
+
+message UpdatePreferencesResponse {
   Account account = 1;
 }
 

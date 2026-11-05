@@ -1,6 +1,7 @@
 import { DomainError } from '@artauction/platform';
 import { CLOSED_STATUSES, EDITABLE_STATUSES, PUBLIC_STATUSES, type LotStatus } from './lot-status';
 import type { LotReview } from './review';
+import type { Locale, LotTranslation } from './translation';
 
 export type Visibility = 'PUBLIC' | 'PRIVATE';
 export type RepresentationKind = 'TWO_D' | 'THREE_D' | 'OTHER';
@@ -72,6 +73,10 @@ export interface Lot {
   lastReview: LotReview | null;
   /** Modelo 3D opcional de una obra tridimensional. */
   model: LotModel | null;
+  /** Idioma en que se escribio la ficha; null hasta que se traduce por primera vez. */
+  sourceLocale: Locale | null;
+  /** Traducciones automaticas vigentes (de la version actual del texto). */
+  translations: LotTranslation[];
 }
 
 /** Clave del modelo 3D de una obra en el bucket: siempre bajo su prefijo. */
@@ -82,7 +87,7 @@ export function modelKeyPattern(lotId: string): RegExp {
 /** Un modelo 3D solo tiene sentido en una obra tridimensional. */
 export function assertAcceptsModel(lot: Lot): void {
   if (lot.representationKind !== 'THREE_D') {
-    throw DomainError.precondition('Solo una obra tridimensional (escultura u objeto) lleva modelo 3D.');
+    throw DomainError.precondition('Solo una obra tridimensional (escultura u objeto) lleva modelo 3D.', { code: 'MODEL_ONLY_THREE_D' });
   }
 }
 
@@ -92,7 +97,7 @@ export function assertAcceptsModel(lot: Lot): void {
  */
 export function assertShowable(lot: Pick<Lot, 'representationKind' | 'model'>): void {
   if (lot.representationKind === 'THREE_D' && lot.model === null) {
-    throw DomainError.precondition('Una obra tridimensional necesita su modelo 3D (.glb, .gltf, .fbx u .obj) antes de mostrarse.');
+    throw DomainError.precondition('Una obra tridimensional necesita su modelo 3D (.glb, .gltf, .fbx u .obj) antes de mostrarse.', { code: 'MODEL_REQUIRED' });
   }
 }
 
@@ -106,7 +111,7 @@ export function isListedPublicly(lot: Pick<Lot, 'visibility' | 'status'>): boole
 
 export function assertCanSell(actor: Actor): void {
   if (actor.role !== 'SELLER' && actor.role !== 'ADMIN') {
-    throw DomainError.forbidden('Solo un vendedor puede publicar obras');
+    throw DomainError.forbidden('Solo un vendedor puede publicar obras', { code: 'SELLER_ONLY' });
   }
 }
 
@@ -134,7 +139,7 @@ export function initialState(
 /** El vendedor solo modifica sus obras y solo mientras no esten cerradas. */
 export function assertOwnedAndOpen(lot: Lot | null, actor: Actor): Lot {
   if (!lot || lot.sellerId !== actor.userId) {
-    throw DomainError.notFound('Obra no encontrada');
+    throw DomainError.notFound('Obra no encontrada', { code: 'LOT_NOT_FOUND' });
   }
   if (CLOSED_STATUSES.includes(lot.status)) {
     throw DomainError.invalid('El lote esta cerrado');
@@ -149,7 +154,7 @@ export function assertOwnedAndOpen(lot: Lot | null, actor: Actor): Lot {
 export function assertEditable(lot: Lot | null, actor: Actor): Lot {
   const owned = assertOwnedAndOpen(lot, actor);
   if (!EDITABLE_STATUSES.includes(owned.status)) {
-    throw DomainError.precondition('Solo se puede cambiar una obra en borrador o un proyecto propio. Si un administrador te la devuelve, podras editarla.');
+    throw DomainError.precondition('Solo se puede cambiar una obra en borrador o un proyecto propio. Si un administrador te la devuelve, podras editarla.', { code: 'LOT_NOT_EDITABLE' });
   }
   return owned;
 }
@@ -161,7 +166,7 @@ export function assertEditable(lot: Lot | null, actor: Actor): Lot {
 export function assertPersonal(lot: Lot | null, actor: Actor): Lot {
   const owned = assertOwnedAndOpen(lot, actor);
   if (owned.status !== 'PERSONAL') {
-    throw DomainError.precondition('Solo un proyecto propio se muestra u oculta a mano. La visibilidad de una obra del catalogo la decide la auditoria.');
+    throw DomainError.precondition('Solo un proyecto propio se muestra u oculta a mano. La visibilidad de una obra del catalogo la decide la auditoria.', { code: 'LOT_VISIBILITY_FIXED' });
   }
   return owned;
 }

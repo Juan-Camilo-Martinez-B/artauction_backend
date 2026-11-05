@@ -13,6 +13,7 @@ import {
   PurgeExpiredSessions,
   RegisterAccount,
   RotateRefreshSession,
+  UpdatePreferences,
   UpdateProfile,
 } from './internal/application/use-cases';
 import {
@@ -70,6 +71,7 @@ const providers: Provider[] = [
         rotate: new RotateRefreshSession(accounts, store, codec, sessions, clock),
         getAccount: new GetAccount(accounts),
         updateProfile: new UpdateProfile(accounts),
+        updatePreferences: new UpdatePreferences(accounts),
         getPublicProfile: new GetPublicProfile(accounts),
         issueServiceToken: new IssueServiceToken(new EnvServiceClientRegistry(config.SERVICE_CLIENTS), tokens),
         getSigningKeys: new GetSigningKeys(tokens),

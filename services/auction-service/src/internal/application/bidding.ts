@@ -52,7 +52,7 @@ export class PlaceBid {
     }
     const snapshot = await this.auctions.findById(input.auctionId);
     if (!snapshot) {
-      throw DomainError.notFound('Subasta no encontrada');
+      throw DomainError.notFound('Subasta no encontrada', { code: 'AUCTION_NOT_FOUND' });
     }
     // Prevalidacion laxa (como si no hubiera pujas): solo evita reservar en
     // wallet una puja que de seguro no vale. La estricta va dentro del lock.
@@ -63,7 +63,7 @@ export class PlaceBid {
     const placed = await this.auctions.transaction(async (uow) => {
       const auction = await uow.lock(input.auctionId);
       if (!auction) {
-        throw DomainError.notFound('Subasta no encontrada');
+        throw DomainError.notFound('Subasta no encontrada', { code: 'AUCTION_NOT_FOUND' });
       }
       const raced = await uow.bidByKey(input.idempotencyKey);
       if (raced) {
@@ -140,10 +140,16 @@ export class PlaceBid {
   private async assertAmountFree(uow: AuctionUnitOfWork, auctionId: string, amount: string, bidderId: string, amountCents: number) {
     const owner = await uow.activeBidderAt(auctionId, amount);
     if (owner && owner !== bidderId) {
-      throw DomainError.conflict(`La oferta de ${publishedAmount(amountCents)} ya fue publicada por otro usuario.`);
+      throw DomainError.conflict(`La oferta de ${publishedAmount(amountCents)} ya fue publicada por otro usuario.`, {
+        code: 'BID_TAKEN',
+        params: { amount: publishedAmount(amountCents) },
+      });
     }
     if (owner === bidderId) {
-      throw DomainError.conflict(`Ya publicaste la oferta de ${publishedAmount(amountCents)}.`);
+      throw DomainError.conflict(`Ya publicaste la oferta de ${publishedAmount(amountCents)}.`, {
+        code: 'BID_ALREADY_PLACED',
+        params: { amount: publishedAmount(amountCents) },
+      });
     }
   }
 
@@ -155,11 +161,11 @@ export class PlaceBid {
     amountCents: number,
   ): Promise<PlacedBid> {
     if (bid.bidderId !== bidderId || bid.auctionId !== auctionId || toCents(bid.amount) !== amountCents) {
-      throw DomainError.conflict('idempotencyKey reutilizada');
+      throw DomainError.conflict('idempotencyKey reutilizada', { code: 'IDEMPOTENCY_KEY_REUSED' });
     }
     const auction = await this.auctions.findById(auctionId);
     if (!auction) {
-      throw DomainError.notFound('Subasta no encontrada');
+      throw DomainError.notFound('Subasta no encontrada', { code: 'AUCTION_NOT_FOUND' });
     }
     return {
       bidId: bid.id,
@@ -211,7 +217,7 @@ export class BuyNow {
     }
     const snapshot = await this.auctions.findById(input.auctionId);
     if (!snapshot) {
-      throw DomainError.notFound('Subasta no encontrada');
+      throw DomainError.notFound('Subasta no encontrada', { code: 'AUCTION_NOT_FOUND' });
     }
     this.assertAvailable(snapshot, buyerId);
     const price = snapshot.buyNowPrice;
@@ -222,7 +228,7 @@ export class BuyNow {
     const bought = await this.auctions.transaction(async (uow) => {
       const auction = await uow.lock(input.auctionId);
       if (!auction) {
-        throw DomainError.notFound('Subasta no encontrada');
+        throw DomainError.notFound('Subasta no encontrada', { code: 'AUCTION_NOT_FOUND' });
       }
       const raced = await uow.bidByKey(input.idempotencyKey);
       if (raced) {
@@ -298,7 +304,7 @@ export class BuyNow {
   /** Misma clave: la misma compra si es del mismo comprador y sala; si no, conflicto. */
   private replay(bid: { id: string; auctionId: string; bidderId: string; amount: string; buyNow: boolean }, buyerId: string, auctionId: string): BoughtNow {
     if (!bid.buyNow || bid.bidderId !== buyerId || bid.auctionId !== auctionId) {
-      throw DomainError.conflict('idempotencyKey reutilizada');
+      throw DomainError.conflict('idempotencyKey reutilizada', { code: 'IDEMPOTENCY_KEY_REUSED' });
     }
     return { auctionId, bidId: bid.id, amount: bid.amount, idempotent: true };
   }
@@ -320,13 +326,13 @@ export class WithdrawBid {
       this.auctions.transaction(async (uow) => {
         const auction = await uow.lock(auctionId);
         if (!auction) {
-          throw DomainError.notFound('Subasta no encontrada');
+          throw DomainError.notFound('Subasta no encontrada', { code: 'AUCTION_NOT_FOUND' });
         }
         if (auction.status !== 'ACTIVA') {
-          throw DomainError.precondition('La subasta no esta activa');
+          throw DomainError.precondition('La subasta no esta activa', { code: 'AUCTION_NOT_ACTIVE' });
         }
         if (!canWithdraw(this.clock.now(), auction.endsAt)) {
-          throw DomainError.precondition('No puedes retirarte durante los ultimos 4 minutos de la subasta.');
+          throw DomainError.precondition('No puedes retirarte durante los ultimos 4 minutos de la subasta.', { code: 'WITHDRAW_LOCKED' });
         }
         const mine = await uow.bidderActiveBid(auctionId, bidderId);
         if (!mine) {

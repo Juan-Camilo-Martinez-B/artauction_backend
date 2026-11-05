@@ -87,6 +87,18 @@ El navegador sube la imagen **directo al bucket** con la URL prefirmada; el back
 
 El Content-Type queda firmado: un `PUT` con otro tipo (por ejemplo `text/html`) se rechaza con 403, así nadie puede subir una página que el endpoint web serviría como HTML.
 
+## Traducción de fichas
+
+Las fichas públicas se muestran en español o en inglés aunque el autor escriba en uno solo. catalog guarda la traducción; quien traduce es ai-service con Opus-MT, un modelo abierto que corre en local (ver su README).
+
+- **Reconciliador.** Cada `TRANSLATION_INTERVAL_MS` el worker encola las fichas públicas cuya versión actual no tiene traducción ni solicitud. La versión se reconoce por una huella: SHA-256 de título, descripción, materiales y procedencia separados por `chr(31)`, calculada igual en SQL y en TypeScript. Así entran por un solo camino las obras que se publican, las que se editan y las que ya existían.
+- **Cola.** `catalog.translation_requests` se reclama con `FOR UPDATE SKIP LOCKED` y un arriendo de 5 minutos. Se traducen `TRANSLATION_BATCH` fichas por pasada, de a una, porque el modelo usa la CPU de ai-service. Un fallo se reintenta con espera doble (30 s, 1 min… hasta 30 min); al quinto queda `FALLIDA`.
+- **Descarte.** Si al traducir la ficha ya cambió, dejó de ser pública o se borró, la solicitud se borra: la siguiente pasada encola la versión nueva.
+- **Lectura.** `catalog.lot_translations` guarda una fila por idioma con la huella del texto que tradujo. La obra solo lleva las traducciones de su huella vigente, así nunca se muestra la traducción de un texto viejo. El gateway elige el idioma según `Accept-Language` y devuelve el original aparte (`translated`, `original`).
+- **Búsqueda.** El buscador público también mira las traducciones: "statue" encuentra una obra escrita en español.
+
+Con `TRANSLATION_ENABLED=false` (así va en CI) no se traduce nada y las fichas se ven en su idioma original.
+
 ## Estructura
 
 ```
@@ -96,7 +108,7 @@ src/
   internal/
     domain/            Lot, máquina de estados, alta de obra, URL de imagen, eventos
     application/       consultas, comandos, handlers de eventos y puertos
-    infrastructure/    Prisma (esquema catalog), firmador S3, pool de hash y su worker
+    infrastructure/    Prisma (esquema catalog y cola de traducción), firmador S3, pool de hash y su worker
   catalog.module.ts    raíz de composición
 ```
 
@@ -113,4 +125,4 @@ npm start -w @artauction/catalog-service
 
 ## Pruebas
 
-`npm test -w @artauction/catalog-service`: máquina de estados, alta de obra, URLs de imagen, visibilidad, roles, propiedad de claves, revisión manual con su evento e idempotencia de eventos entrantes.
+`npm test -w @artauction/catalog-service`: máquina de estados, alta de obra, URLs de imagen, visibilidad, roles, propiedad de claves, revisión manual con su evento, idempotencia de eventos entrantes y el worker de traducción (huella, descarte, reintentos).

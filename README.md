@@ -57,6 +57,7 @@ Para entender el sistema, en este orden:
 - **Pujas.** En artacoins enteras. La primera debe llegar al precio de salida y las siguientes al precio actual más el incremento. El vendedor no puja en su propia sala. Una puja en los últimos 30 s alarga el cierre otros 30 s. El reloj es el del servidor. Cada puja lleva su clave de idempotencia y reserva saldo con Try-Confirm-Cancel.
 - **Cierre.** Si hay ganador, wallet le cobra, devuelve las reservas de los demás y abona al vendedor el precio menos un 10 % de comisión. La obra pasa a la galería del ganador. Una sala sin pujas se reprograma.
 - **Privacidad.** Una obra privada responde 404 a quien no es su vendedor.
+- **Idiomas.** Español e inglés. Las fichas públicas se traducen en segundo plano con Opus-MT, en local, y el original es el que vale. El idioma de la cuenta se guarda en identity y los errores llevan un `code` estable que el frontend traduce (ADR 0012).
 
 ## Levantar la plataforma
 

@@ -81,7 +81,7 @@ export class UpdateLot {
     }
     const updated = await this.lots.update(lotId, lot, category.id);
     if (!updated) {
-      throw DomainError.conflict('La obra cambio mientras se editaba. Intenta de nuevo.');
+      throw DomainError.conflict('La obra cambio mientras se editaba. Intenta de nuevo.', { code: 'LOT_CHANGED' });
     }
     return updated;
   }
@@ -200,7 +200,7 @@ export class RemoveLotModel {
     const lot = assertEditable(await this.lots.findById(lotId), actor);
     // Un proyecto propio publico no se queda sin modelo: se reemplaza subiendo otro.
     if (lot.visibility === 'PUBLIC' && lot.representationKind === 'THREE_D') {
-      throw DomainError.precondition('Tu obra es publica: sube otro modelo para reemplazarlo u ocultala antes de quitarlo.');
+      throw DomainError.precondition('Tu obra es publica: sube otro modelo para reemplazarlo u ocultala antes de quitarlo.', { code: 'MODEL_REMOVE_PUBLIC' });
     }
     await this.lots.removeModel(lot.id);
   }
@@ -237,7 +237,7 @@ export class SubmitLot {
     // Un proyecto propio publico se oculta mientras se audita: lo publica la auditoria.
     const updated = await this.lots.transition(lotId, lot.status, 'PENDIENTE_AUDITORIA', { visibility: 'PRIVATE' }, () => [lotSubmitted(lotId)]);
     if (!updated) {
-      throw DomainError.conflict('La obra cambio mientras se enviaba. Intenta de nuevo.');
+      throw DomainError.conflict('La obra cambio mientras se enviaba. Intenta de nuevo.', { code: 'LOT_CHANGED' });
     }
     return 'PENDIENTE_AUDITORIA';
   }
@@ -258,7 +258,7 @@ export class SetLotVisibility {
     // Mismo estado de origen y destino: el control optimista evita pisar un envio al catalogo.
     const updated = await this.lots.transition(lotId, 'PERSONAL', 'PERSONAL', { visibility }, (changed) => [lotVisibilityChanged(changed)]);
     if (!updated) {
-      throw DomainError.conflict('La obra cambio mientras se actualizaba. Intenta de nuevo.');
+      throw DomainError.conflict('La obra cambio mientras se actualizaba. Intenta de nuevo.', { code: 'LOT_CHANGED' });
     }
     return updated;
   }
@@ -281,11 +281,11 @@ export class ResolveManualReview {
     input: { decision: ReviewDecision; reason?: string | null; priceMin?: number | null; priceMax?: number | null },
   ): Promise<Lot> {
     if (actor.role !== 'ADMIN') {
-      throw DomainError.forbidden('Solo un administrador resuelve revisiones');
+      throw DomainError.forbidden('Solo un administrador resuelve revisiones', { code: 'ADMIN_ONLY' });
     }
     const lot = await this.lots.findById(lotId);
     if (!lot) {
-      throw DomainError.notFound('Obra no encontrada');
+      throw DomainError.notFound('Obra no encontrada', { code: 'LOT_NOT_FOUND' });
     }
     const plan = planReview(lot, input);
     assertTransition(lot.status, plan.to);
@@ -315,7 +315,7 @@ export class ResolveManualReview {
       { adminId: actor.userId, decision: plan.decision, reason: plan.reason, priceMin: plan.priceMin, priceMax: plan.priceMax },
     );
     if (!updated) {
-      throw DomainError.conflict('La obra cambio mientras se resolvia. Intenta de nuevo.');
+      throw DomainError.conflict('La obra cambio mientras se resolvia. Intenta de nuevo.', { code: 'LOT_CHANGED' });
     }
     return updated;
   }

@@ -1,6 +1,6 @@
 import { status } from '@grpc/grpc-js';
 import { walletV1 } from '@artauction/contracts';
-import { DomainError, isServiceError } from '@artauction/platform';
+import { DomainError, errorOptionsFrom, isServiceError } from '@artauction/platform';
 import { invoke, type ServiceTokenProvider } from '@artauction/service-kit';
 import type { WalletPort } from '../../internal/application/ports';
 
@@ -35,10 +35,11 @@ function translate(error: unknown): unknown {
   switch (error.code) {
     case status.FAILED_PRECONDITION:
     case status.INVALID_ARGUMENT:
-      return DomainError.invalid(error.details);
+      // Se conserva el codigo del bolsillo (por ejemplo INSUFFICIENT_FUNDS) para el cliente.
+      return DomainError.invalid(error.details, errorOptionsFrom(error));
     case status.UNAVAILABLE:
     case status.DEADLINE_EXCEEDED:
-      return DomainError.unavailable('El bolsillo no responde. Intenta la puja de nuevo.');
+      return DomainError.unavailable('El bolsillo no responde. Intenta la puja de nuevo.', { code: 'WALLET_UNAVAILABLE' });
     default:
       return error;
   }

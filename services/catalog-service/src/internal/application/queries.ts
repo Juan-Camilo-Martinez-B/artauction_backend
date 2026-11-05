@@ -58,7 +58,7 @@ export class GetLotForViewer {
     const lot = await this.lots.findById(lotId);
     // Una obra privada responde igual que una inexistente: no se revela que existe.
     if (!lot || !canViewLot(lot, viewerId)) {
-      throw DomainError.notFound('Obra no encontrada');
+      throw DomainError.notFound('Obra no encontrada', { code: 'LOT_NOT_FOUND' });
     }
     return lot;
   }
@@ -101,7 +101,7 @@ export class ListReviewQueue {
 
   async execute(actor: Actor, limit: number): Promise<Lot[]> {
     if (actor.role !== 'ADMIN') {
-      throw DomainError.forbidden('Solo un administrador ve la cola de revision');
+      throw DomainError.forbidden('Solo un administrador ve la cola de revision', { code: 'ADMIN_ONLY' });
     }
     const size = Number.isInteger(limit) && limit > 0 ? Math.min(limit, MAX_REVIEW_QUEUE) : MAX_REVIEW_QUEUE;
     return this.lots.listByStatus('REVISION_MANUAL', size);

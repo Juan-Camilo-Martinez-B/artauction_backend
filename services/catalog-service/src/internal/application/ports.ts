@@ -1,6 +1,7 @@
 import type { DomainEvent } from '@artauction/platform';
 import type { Category, Lot, LotImage, LotModel, NewLot, RepresentationKind, Visibility } from '../domain/lot';
 import type { LotStatus } from '../domain/lot-status';
+import type { Locale, TranslatableTexts } from '../domain/translation';
 
 export type LotSort = 'recent' | 'title' | 'score';
 
@@ -114,4 +115,47 @@ export interface TokenSource {
 
 export interface ImageHasher {
   hash(bytes: Uint8Array): Promise<string>;
+}
+
+/** Solicitud de traduccion tomada de la cola, con su lease. */
+export interface TranslationJob {
+  id: string;
+  lotId: string;
+  /** Huella del texto que habia que traducir al encolarla. */
+  sourceHash: string;
+  /** Intentos, contando el actual. */
+  attempts: number;
+}
+
+/** Ficha tal como esta ahora, para decidir si la solicitud sigue vigente. */
+export interface TranslationSource {
+  texts: TranslatableTexts;
+  visibility: Visibility;
+}
+
+/** Resultado del traductor: idioma detectado del original y sus traducciones. */
+export interface TranslatedTexts {
+  sourceLocale: Locale;
+  model: string;
+  translations: Array<{ locale: Locale; texts: TranslatableTexts }>;
+}
+
+/** Cola de traduccion y guardado de las traducciones. */
+export interface TranslationStore {
+  /** Encola las fichas publicas sin traduccion vigente ni intento previo de esa version. Devuelve cuantas. */
+  enqueueStale(limit: number): Promise<number>;
+  /** Toma la siguiente solicitud vencida con FOR UPDATE SKIP LOCKED y le pone un lease. */
+  claimNext(leaseMs: number): Promise<TranslationJob | null>;
+  sourceOf(lotId: string): Promise<TranslationSource | null>;
+  /** Reemplaza las traducciones de la obra, guarda su idioma y cierra la solicitud, en una transaccion. */
+  save(job: TranslationJob, sourceHash: string, result: TranslatedTexts): Promise<void>;
+  /** Cierra una solicitud que ya no aplica (la ficha cambio o dejo de ser publica). */
+  discard(jobId: string): Promise<void>;
+  /** Registra un fallo: reintento en retryAt, o solicitud fallida si es null. */
+  fail(jobId: string, error: string, retryAt: Date | null): Promise<void>;
+}
+
+/** Traductor de fichas (ai-service). */
+export interface LotTranslator {
+  translate(texts: TranslatableTexts): Promise<TranslatedTexts>;
 }

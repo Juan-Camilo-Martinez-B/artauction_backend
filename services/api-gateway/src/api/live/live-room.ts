@@ -1,7 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
 import type { auctionV1 } from '@artauction/contracts';
-import { isServiceError, isUuid, toHttpError, type StructuredLogger, type TokenVerifier } from '@artauction/platform';
+import { isServiceError, isUuid, toHttpError, type ErrorParams, type StructuredLogger, type TokenVerifier } from '@artauction/platform';
 import { invoke } from '@artauction/service-kit';
 import { closeReasonName } from '../http/auctions/auction.presenter';
 import { RoomStreams, type RoomNotice, type WatchSource } from './room-streams';
@@ -13,6 +13,9 @@ interface BidRejectedEvent {
   version: 1;
   auctionId: string;
   message: string;
+  /** Codigo estable para mostrar el rechazo en el idioma de quien puja. */
+  code: string;
+  params?: ErrorParams;
   serverTime: string;
 }
 
@@ -45,8 +48,8 @@ function now(): string {
   return new Date().toISOString();
 }
 
-function reject(auctionId: string, message: string): BidRejectedEvent {
-  return { version: 1, auctionId, message, serverTime: now() };
+function reject(auctionId: string, message: string, code: string, params?: ErrorParams): BidRejectedEvent {
+  return { version: 1, auctionId, message, code, ...(params ? { params } : {}), serverTime: now() };
 }
 
 function roomName(auctionId: string): string {
@@ -181,10 +184,10 @@ export class LiveRoom {
     const auctionId = typeof body.auctionId === 'string' ? body.auctionId : '';
     const { amount, idempotencyKey } = body;
     if (!isUuid(auctionId) || typeof amount !== 'string' || typeof idempotencyKey !== 'string' || idempotencyKey.length < 8) {
-      return reject(auctionId, 'Puja incompleta');
+      return reject(auctionId, 'Puja incompleta', 'VALIDATION_FAILED');
     }
     if (!this.withinRate(state(socket))) {
-      const event = reject(auctionId, 'Demasiadas pujas seguidas; espera unos segundos.');
+      const event = reject(auctionId, 'Demasiadas pujas seguidas; espera unos segundos.', 'RATE_LIMITED');
       socket.emit('bid:rejected', event);
       return event;
     }
@@ -195,7 +198,7 @@ export class LiveRoom {
       // El token del socket se fija al conectar y caduca antes que la sesion.
       // El frontend envia la misma puja tambien por REST con un token fresco y
       // la misma clave de idempotencia, asi que aqui no se anuncia un rechazo.
-      return reject(auctionId, 'La sesion del socket expiro');
+      return reject(auctionId, 'La sesion del socket expiro', 'UNAUTHENTICATED');
     }
     try {
       const placed = await invoke(
@@ -208,7 +211,8 @@ export class LiveRoom {
       if (!isServiceError(error)) {
         this.logger.error(error instanceof Error ? error.message : String(error), undefined, 'live-room');
       }
-      const event = reject(auctionId, toHttpError(error).message);
+      const failure = toHttpError(error);
+      const event = reject(auctionId, failure.message, failure.code, failure.params);
       socket.emit('bid:rejected', event);
       return event;
     }

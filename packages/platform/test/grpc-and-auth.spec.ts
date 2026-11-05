@@ -4,13 +4,31 @@ import { sign } from 'jsonwebtoken';
 import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '../src/auth/principal';
 import { TokenVerifier } from '../src/auth/token-verifier';
 import { DomainError } from '../src/errors/domain-error';
-import { toHttpError, toServiceError } from '../src/grpc/status-mapping';
+import { errorOptionsFrom, toHttpError, toServiceError } from '../src/grpc/status-mapping';
+import { METADATA_KEYS } from '../src/context/request-context';
 
 describe('mapeo de errores', () => {
   it('conserva el mensaje de un error de dominio', () => {
     const error = toServiceError(DomainError.conflict('El correo ya esta registrado'));
     expect(error.code).toBe(status.ALREADY_EXISTS);
-    expect(toHttpError(error)).toEqual({ statusCode: 409, error: 'Conflict', message: 'El correo ya esta registrado' });
+    expect(toHttpError(error)).toEqual({ statusCode: 409, error: 'Conflict', message: 'El correo ya esta registrado', code: 'CONFLICT' });
+  });
+
+  it('el codigo estable y sus parametros viajan hasta el JSON y se conservan al relanzar', () => {
+    const error = toServiceError(
+      DomainError.precondition('No tienes artacoins suficientes. Faltan 40 en el bolsillo.', { code: 'INSUFFICIENT_FUNDS', params: { missing: '40' } }),
+    );
+    expect(toHttpError(error)).toMatchObject({ statusCode: 409, code: 'INSUFFICIENT_FUNDS', params: { missing: '40' } });
+    expect(errorOptionsFrom(error)).toEqual({ code: 'INSUFFICIENT_FUNDS', params: { missing: '40' } });
+  });
+
+  it('un codigo desconocido o parametros mal formados no llegan al cliente', () => {
+    const error = toServiceError(DomainError.invalid('Dato no valido'));
+    error.metadata.set(METADATA_KEYS.errorCode, 'DROP TABLE');
+    error.metadata.set(METADATA_KEYS.errorParams, '{"amount": 5, "ok": "si"}');
+    expect(toHttpError(error)).toEqual({ statusCode: 400, error: 'Bad Request', message: 'Dato no valido', code: 'INVALID_ARGUMENT', params: { ok: 'si' } });
+    error.metadata.set(METADATA_KEYS.errorParams, 'no es json');
+    expect(toHttpError(error)).not.toHaveProperty('params');
   });
 
   it('oculta el detalle de un error inesperado', () => {

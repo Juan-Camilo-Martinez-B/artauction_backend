@@ -115,6 +115,8 @@ message GenerateGalleryRequest {
   google.protobuf.Struct preferences = 1;
   bool random = 2;
   bool replace_applied = 3;
+  // Idioma de los textos de la sala (nombre de estilo, resumen, clima): "es" o "en".
+  string locale = 4;
 }
 
 message GenerateGalleryResponse {

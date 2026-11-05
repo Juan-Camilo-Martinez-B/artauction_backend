@@ -36,7 +36,8 @@ export function assertIdempotencyKey(key: string): string {
 
 export function assertTopUpCoins(coins: number): number {
   if (!Number.isInteger(coins) || coins < MIN_TOP_UP_COINS || coins > MAX_TOP_UP_COINS) {
-    throw DomainError.invalid(`Se cargan entre ${String(MIN_TOP_UP_COINS)} y ${String(MAX_TOP_UP_COINS)} artacoins enteras.`);
+    const params = { min: String(MIN_TOP_UP_COINS), max: String(MAX_TOP_UP_COINS) };
+    throw DomainError.invalid(`Se cargan entre ${params.min} y ${params.max} artacoins enteras.`, { code: 'TOP_UP_OUT_OF_RANGE', params });
   }
   return coins;
 }

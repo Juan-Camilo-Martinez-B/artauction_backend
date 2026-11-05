@@ -109,6 +109,8 @@ class MemoryLots implements LotRepository {
       currency: 'USD',
       createdAt: new Date(0),
       images: [],
+      sourceLocale: null,
+      translations: [],
       categories: [{ isPrimary: true, category: PAINTINGS }],
       lastReview: null,
       model: null,

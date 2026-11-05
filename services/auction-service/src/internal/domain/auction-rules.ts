@@ -53,13 +53,13 @@ export function evaluateBid(input: {
 export function rejectionError(code: BidRejection): DomainError {
   switch (code) {
     case 'OWN_LOT':
-      return DomainError.forbidden('No puedes pujar por tu propia obra');
+      return DomainError.forbidden('No puedes pujar por tu propia obra', { code: 'OWN_LOT_BID' });
     case 'TOO_LOW':
-      return DomainError.invalid('La puja no alcanza el incremento minimo');
+      return DomainError.invalid('La puja no alcanza el incremento minimo', { code: 'BID_BELOW_INCREMENT' });
     case 'NOT_ACTIVE':
-      return DomainError.precondition('La subasta no esta activa');
+      return DomainError.precondition('La subasta no esta activa', { code: 'AUCTION_NOT_ACTIVE' });
     case 'CLOSED':
-      return DomainError.precondition('La subasta ya cerro');
+      return DomainError.precondition('La subasta ya cerro', { code: 'AUCTION_CLOSED' });
   }
 }
 
@@ -113,13 +113,13 @@ export function evaluateBuyNow(input: {
 export function buyNowRejectionError(code: BuyNowRejection): DomainError {
   switch (code) {
     case 'OWN_LOT':
-      return DomainError.forbidden('No puedes comprar tu propia obra');
+      return DomainError.forbidden('No puedes comprar tu propia obra', { code: 'OWN_LOT_PURCHASE' });
     case 'UNAVAILABLE':
-      return DomainError.precondition('La compra inmediata ya no esta disponible: las pujas llegaron al 80 % de su precio.');
+      return DomainError.precondition('La compra inmediata ya no esta disponible: las pujas llegaron al 80 % de su precio.', { code: 'BUY_NOW_EXCEEDED' });
     case 'NOT_ACTIVE':
-      return DomainError.precondition('La compra inmediata solo esta disponible con la sala abierta');
+      return DomainError.precondition('La compra inmediata solo esta disponible con la sala abierta', { code: 'BUY_NOW_ROOM_CLOSED' });
     case 'CLOSED':
-      return DomainError.precondition('La subasta ya cerro');
+      return DomainError.precondition('La subasta ya cerro', { code: 'AUCTION_CLOSED' });
   }
 }
 

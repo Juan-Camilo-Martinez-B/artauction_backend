@@ -31,6 +31,7 @@ export function accountToProto(view: AccountView): identityV1.Account {
     role: ROLE_TO_PROTO[view.role],
     displayName: view.displayName,
     avatarUrl: view.avatarUrl ?? undefined,
+    locale: view.locale,
   });
 }
 

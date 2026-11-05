@@ -9,6 +9,9 @@ import "google/protobuf/struct.proto";
 service AiService {
   rpc AuditArtwork(AuditArtworkRequest) returns (AuditArtworkResponse);
   rpc DesignGallery(DesignGalleryRequest) returns (DesignGalleryResponse);
+  // Traduce los textos de la ficha de una obra a los demas idiomas de la plataforma
+  // con un modelo local (Opus-MT). Solo la llama catalog-service.
+  rpc TranslateLot(TranslateLotRequest) returns (TranslateLotResponse);
 }
 
 enum FindingSeverity {
@@ -64,10 +67,38 @@ message DesignGalleryRequest {
   // JSON Schema de la configuracion, definido por el duenio de la galeria. El
   // modelo responde con esa estructura (responseJsonSchema).
   optional google.protobuf.Struct response_schema = 2;
+  // Idioma en que el modelo escribe los textos de la sala: "es" o "en".
+  string locale = 3;
 }
 
 message DesignGalleryResponse {
   // Configuracion propuesta. gallery-service la valida antes de guardarla.
   google.protobuf.Struct config = 1;
   string source = 2;
+}
+
+// Textos de la ficha de una obra que se traducen.
+message LotTexts {
+  string title = 1;
+  string description = 2;
+  string materials = 3;
+  optional string provenance = 4;
+}
+
+message TranslateLotRequest {
+  LotTexts texts = 1;
+}
+
+message LotTranslation {
+  // Idioma de la traduccion: "es" o "en".
+  string locale = 1;
+  LotTexts texts = 2;
+}
+
+message TranslateLotResponse {
+  // Idioma detectado del original.
+  string source_locale = 1;
+  // Modelo que tradujo, para registrarlo junto a la traduccion.
+  string model = 2;
+  repeated LotTranslation translations = 3;
 }

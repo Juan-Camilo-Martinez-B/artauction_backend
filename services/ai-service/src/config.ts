@@ -36,6 +36,24 @@ export class AiConfig {
   @Max(60_000)
   GROQ_TIMEOUT_MS = 15_000;
 
+  /**
+   * Traduccion automatica de fichas con Opus-MT, local. En CI va apagada para
+   * no descargar unos 230 MB de modelos en cada corrida.
+   */
+  @IsBoolean()
+  TRANSLATION_ENABLED = true;
+
+  /** Carpeta donde quedan los modelos de traduccion tras la primera descarga. */
+  @IsString()
+  @MinLength(1)
+  TRANSLATION_CACHE_DIR = '.cache/models';
+
+  /** Tope de una traduccion; la primera incluye la descarga del modelo. */
+  @IsInt()
+  @Min(5_000)
+  @Max(600_000)
+  TRANSLATION_TIMEOUT_MS = 180_000;
+
   @IsBoolean()
   GRPC_TLS = false;
 

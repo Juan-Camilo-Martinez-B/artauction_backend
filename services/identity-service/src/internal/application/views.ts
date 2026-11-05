@@ -1,4 +1,4 @@
-import type { Account, ProfileVisibility, Role } from '../domain/account';
+import type { Account, Locale, ProfileVisibility, Role } from '../domain/account';
 
 export interface AccountView {
   userId: string;
@@ -6,6 +6,7 @@ export interface AccountView {
   role: Role;
   displayName: string;
   avatarUrl: string | null;
+  locale: Locale;
 }
 
 export interface PublicProfileView {
@@ -28,5 +29,6 @@ export function toAccountView(account: Account): AccountView {
     role: account.role,
     displayName: account.displayName,
     avatarUrl: account.avatarUrl,
+    locale: account.locale,
   };
 }
