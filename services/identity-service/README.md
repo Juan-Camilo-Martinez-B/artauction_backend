@@ -8,7 +8,7 @@ Expone `artauction.identity.v1.IdentityService` por gRPC (puerto `50051`) y `grp
 
 | RPC | Caso de uso | Notas |
 |---|---|---|
-| `Register` | `RegisterAccount` | Normaliza el correo, exige 10+ caracteres y solo deja elegir `USER` o `SELLER`. Argon2id. Acepta `locale`, el idioma con que la persona veía la plataforma (`es` por omisión). |
+| `Register` | `RegisterAccount` | Normaliza el correo, exige 10+ caracteres y crea la cuenta como `SELLER`, porque toda cuenta puede publicar. La API admite pedir `USER`, pero nunca `ADMIN`. Argon2id. Acepta `locale`, el idioma con que la persona veía la plataforma (`es` por omisión). |
 | `Login` | `Login` | Si el correo no existe verifica contra un hash señuelo: la respuesta tarda lo mismo y no revela qué correos existen. |
 | `RefreshSession` | `RotateRefreshSession` | Refresh opaco de 256 bits; en Postgres solo vive su SHA-256. Cada uso rota la sesión. Reusar una sesión revocada revoca toda la familia. Dos rotaciones simultáneas del mismo token: solo una gana. |
 | `GetAccount`, `UpdateProfile` | `GetAccount`, `UpdateProfile` | El usuario sale del access token en la metadata `authorization`. El avatar tiene que ser `https` sin credenciales. |

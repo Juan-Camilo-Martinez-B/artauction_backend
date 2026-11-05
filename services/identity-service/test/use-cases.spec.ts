@@ -165,7 +165,7 @@ describe('registro', () => {
     const { register } = setup();
     const account = await register.execute({ email: ' Leo@ArtAuction.Local ', password: 'DevPassword!234', displayName: 'Leo' });
     expect(account.email).toBe('leo@artauction.local');
-    expect(account.role).toBe('USER');
+    expect(account.role).toBe('SELLER');
     await expectKind(register.execute({ email: 'leo@artauction.local', password: 'DevPassword!234', displayName: 'Leo' }), 'CONFLICT');
   });
 
