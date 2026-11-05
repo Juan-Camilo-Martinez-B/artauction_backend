@@ -185,13 +185,30 @@ async function publish({ kind, work }, mine, seller, admin) {
 
 const only = process.env.DEMO_ONLY?.split(',').map((title) => title.trim());
 const entries = catalogEntries().filter(({ work }) => !only || only.includes(work.title));
-const admin = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
+let admin = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
 const sessions = new Map();
 const owned = new Map();
 for (const key of new Set(entries.map(({ work }) => work.seller))) {
   const token = await sellerSession(key);
   sessions.set(key, token);
   owned.set(key, await api('GET', '/lots/mine', { token }));
+}
+
+/** La carga dura mas que un token: ante un 401 renueva las sesiones y reintenta una vez. */
+async function publishWithFreshSession(entry) {
+  const { seller } = entry.work;
+  try {
+    return await publish(entry, owned.get(seller), sessions.get(seller), admin);
+  } catch (error) {
+    if (error.status !== 401) {
+      throw error;
+    }
+    admin = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
+    const token = await login(sellerEmail(seller), SELLER_PASSWORD);
+    sessions.set(seller, token);
+    owned.set(seller, await api('GET', '/lots/mine', { token }));
+    return publish(entry, owned.get(seller), token, admin);
+  }
 }
 
 const failed = [];
@@ -202,7 +219,7 @@ for (const entry of entries) {
   done += 1;
   const prefix = `[${String(done)}/${String(entries.length)}] ${work.title}`;
   try {
-    const result = await publish(entry, owned.get(work.seller), sessions.get(work.seller), admin);
+    const result = await publishWithFreshSession(entry);
     console.log(`${prefix}: ${result.status}, ${result.note}`);
     if (result.selfApproved) {
       selfApproved.push(work.title);

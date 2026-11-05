@@ -23,6 +23,7 @@ import { parseArgs } from 'node:util';
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const SECRETS = path.join(ROOT, 'secrets', 'production');
 const SUPABASE_ENV = path.resolve(ROOT, '../artauction_bd/.env.supabase');
+const PUBLISHED_TAG_FILE = path.join(SECRETS, 'image-tag');
 const AZ = 'C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin\\az.cmd';
 
 const RESOURCE_GROUP = 'artauction-prod';
@@ -280,6 +281,8 @@ function publishImages() {
     run('docker', [...args, '.']);
     pushWithRetries(image);
   }
+  // Las apps usan lo publicado, no el ultimo commit: puede no tener imagen.
+  writeFileSync(PUBLISHED_TAG_FILE, tag);
 }
 
 /** Configuracion completa de un servicio, con cada secreto separado del texto. */
@@ -375,7 +378,7 @@ function deployApps() {
     jwtPrivate: readFileSync(path.join(SECRETS, 'jwt-private.pem'), 'utf8'),
     environmentId,
     registry: registryCredentials(),
-    tag: imageTag(),
+    tag: readFileSync(PUBLISHED_TAG_FILE, 'utf8').trim(),
     groqKey,
     loadMode,
     frontendOrigin: process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000',
