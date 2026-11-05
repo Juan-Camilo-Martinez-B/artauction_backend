@@ -58,7 +58,13 @@ Se guardan con la huella del texto publicado. Si alguien edita su ficha, la huel
 
 ## Después de cargar
 
-Al terminar, reinicia ai-service y audit-service con su configuración normal.
+1. Pasa las salas a la rotación, para que la cartelera tenga siempre salas abiertas:
+
+   ```bash
+   psql "$DATABASE_URL" -f scripts/catalog/demo-catalog/rotation.sql
+   ```
+
+2. Reinicia ai-service y audit-service con su configuración normal.
 
 ## Cómo añadir una obra
 
