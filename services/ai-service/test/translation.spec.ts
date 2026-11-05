@@ -135,6 +135,15 @@ describe('traduccion de una ficha', () => {
     expect(result.translations[0]?.texts).toEqual(lot);
     expect(introducesNumbers('Datada en 1820–42', 'Dated 1820-1842')).toBe(true);
     expect(introducesNumbers('Retrato de 1887', 'Portrait from 1887')).toBe(false);
+    expect(introducesNumbers('Tela del siglo XIX', 'Canvas from the 19th century')).toBe(false);
+    expect(introducesNumbers('Tela del siglo XIX', 'Canvas from the 18th century')).toBe(true);
+  });
+
+  it('una traduccion que se desboca repitiendo texto se descarta', async () => {
+    const looping: Translator = { name: 'looping', translate: (texts) => Promise.resolve(texts.map(() => 'Oh, '.repeat(80))) };
+    const lot = { title: 'Retrato de mujer', description: 'Retrato al óleo de una mujer.', materials: 'Óleo', provenance: null };
+    const result = await new TranslateLot(looping, detector).execute(lot);
+    expect(result.translations[0]?.texts).toEqual(lot);
   });
 
   it('sin traductor responde que la traduccion esta desactivada', async () => {

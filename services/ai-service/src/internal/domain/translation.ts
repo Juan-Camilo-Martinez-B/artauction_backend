@@ -152,14 +152,31 @@ export function withoutProtected(text: string): string {
   return text.replace(PROTECTED, ' ').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Con algunas palabras sueltas Opus-MT entra en un ciclo y repite una silaba
+ * hasta el tope ("oh, oh, oh..."). Ninguna traduccion legitima triplica el texto.
+ */
+export function outgrewOriginal(original: string, translated: string): boolean {
+  return translated.length > original.length * 3 + 40;
+}
+
 const NUMBER = /\d+/g;
+const ROMAN = /\b[IVXLC]+\b/g;
+const ROMAN_VALUES: Readonly<Record<string, number>> = { I: 1, V: 5, X: 10, L: 50, C: 100 };
+
+function romanValue(numeral: string): number {
+  const values = numeral.split('').map((letter) => ROMAN_VALUES[letter] ?? 0);
+  return values.reduce((total, value, index) => total + (value < (values[index + 1] ?? 0) ? -value : value), 0);
+}
 
 /**
  * Opus-MT a veces agrega datos que no estaban (medidas, fechas). Una
  * traduccion solo es aceptable si cada numero que trae ya estaba en el original.
  */
 export function introducesNumbers(original: string, translated: string): boolean {
-  const known = new Set(original.match(NUMBER) ?? []);
+  // "siglo XIX" se traduce bien como "19th century": un romano cuenta como su numero.
+  const romans = (original.match(ROMAN) ?? []).map((numeral) => String(romanValue(numeral)));
+  const known = new Set([...(original.match(NUMBER) ?? []), ...romans]);
   return (translated.match(NUMBER) ?? []).some((number) => !known.has(number));
 }
 

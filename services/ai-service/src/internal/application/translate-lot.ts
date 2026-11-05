@@ -2,6 +2,7 @@ import { DomainError } from '@artauction/platform';
 import {
   introducesNumbers,
   MIN_DETECTABLE_LENGTH,
+  outgrewOriginal,
   protectSegments,
   splitForTranslation,
   targetLocales,
@@ -58,9 +59,9 @@ export class TranslateLot {
     return detectable.length >= MIN_DETECTABLE_LENGTH ? (this.detector.detect(detectable) ?? fallback) : fallback;
   }
 
-  /** La traduccion vale si conserva lo protegido y no inventa numeros; si no, queda el original. */
+  /** La traduccion vale si conserva lo protegido, no inventa numeros y no se desboca; si no, queda el original. */
   private static accept(original: string, restored: string | null): string {
-    return restored !== null && !introducesNumbers(original, restored) ? restored : original;
+    return restored !== null && !introducesNumbers(original, restored) && !outgrewOriginal(original, restored) ? restored : original;
   }
 
   private async translateTo(texts: LotTexts, source: Locale, target: Locale, translator: Translator): Promise<LotTexts> {
