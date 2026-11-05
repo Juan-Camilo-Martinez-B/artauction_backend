@@ -175,6 +175,8 @@ El ref de los repos hermanos sale de las variables del repositorio `ARTAUCTION_B
 - Mínimo privilegio: un login de Postgres por servicio; la clave de Groq solo en ai-service.
 - Idempotencia en pujas, recargas (`Idempotency-Key`) y consumidores de eventos.
 - Los secretos viven en `secrets/` y en los `.env`, fuera de git y de las imágenes.
+- `overrides` en `package.json` fuerza `multer` 2.5 y `deepmerge-ts` 8 por vulnerabilidades altas: NestJS 11 y Prisma 6 traen versiones anteriores. Se pueden quitar al pasar a NestJS 12 y Prisma 7. npm ignora un override nuevo si el lockfile ya resolvió el paquete: hay que regenerar el lockfile y comprobar la versión instalada, no solo `npm audit`.
+- `@grpc/grpc-js` va con versión exacta e igual en todos los paquetes: dos copias tienen tipos incompatibles y la compilación falla.
 
 ## Convenciones
 
