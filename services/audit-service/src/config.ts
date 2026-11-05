@@ -78,6 +78,11 @@ export class AuditConfig {
   @IsBoolean()
   WORKER_ENABLED = true;
 
+  // En false, sin modelo toda obra pasa por un administrador: lo usa la carga
+  // del catalogo de demostracion para que cada obra salga con su precio.
+  @IsBoolean()
+  AUDIT_LOCAL_AUTO_APPROVE = true;
+
   @IsBoolean()
   OUTBOX_RELAY_ENABLED = true;
 

@@ -36,6 +36,8 @@ export interface AuditDependencies {
   ai: AiPort;
   clock: Clock;
   logger: StructuredLogger;
+  /** Si la evaluacion local puede aprobar sola una obra sin advertencias. */
+  localAutoApprove?: boolean;
 }
 
 /**
@@ -114,7 +116,7 @@ export class RunAuditWorker {
 
   private async finish(request: AuditRequest, lot: LotSheet, assessment: Assessment, decidedBy: DecidedBy, dossier: Dossier | null): Promise<void> {
     const summaryId = randomUUID();
-    const verdict = verdictFor(assessment, decidedBy);
+    const verdict = verdictFor(assessment, decidedBy, this.deps.localAutoApprove);
     // Resumen, informe completo y evento entran en una sola transaccion: si
     // falla, el reintento empieza de cero y no queda un informe sin resumen.
     await this.deps.audits.complete(request.id, {

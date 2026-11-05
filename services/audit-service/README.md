@@ -68,6 +68,8 @@ Va a revisión manual si hay algo crítico (de las reglas o del modelo) o si el 
 | `LOCAL` | El modelo de IA falló y ai-service respondió con su evaluación local (`local-rules`) | Aprueba solo sin advertencias; si no, revisión manual |
 | `FALLBACK` | ai-service no respondió en cinco intentos | Revisión manual |
 
+Con `AUDIT_LOCAL_AUTO_APPROVE=false` la evaluación local no aprueba ninguna obra y todas pasan por un administrador. Lo usa la carga del catálogo de demostración, porque el rango de precio local es genérico; por omisión vale `true`.
+
 La evaluación local solo resta puntos por hallazgo y no sabe pesar una advertencia, por eso no aprueba obras con advertencias. Como no se cachea, re-auditar la obra cuando el modelo de IA vuelva sí lo consulta.
 
 ## Cola y reintentos
