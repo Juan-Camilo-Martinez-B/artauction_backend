@@ -26,6 +26,7 @@ describe('servidor y cliente gRPC', () => {
         return Promise.resolve(aiV1.AuditArtworkResponse.fromPartial({ model: 'fake', score: 80 }));
       }),
       designGallery: unary(logger, 'DesignGallery', () => Promise.resolve(aiV1.DesignGalleryResponse.fromPartial({}))),
+      translateLot: unary(logger, 'TranslateLot', () => Promise.resolve(aiV1.TranslateLotResponse.fromPartial({}))),
     };
     server = await startGrpcServer({
       host: '127.0.0.1',
