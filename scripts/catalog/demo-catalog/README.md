@@ -56,6 +56,19 @@ psql "$DATABASE_URL" -f traducciones.sql
 
 Se guardan con la huella del texto publicado. Si alguien edita su ficha, la huella deja de coincidir y Opus-MT la retoma; las obras que se publiquen durante la demostración usan también Opus-MT.
 
+## Obras propias y salas públicas
+
+`personal.json` añade 20 obras propias, cuatro por cuenta. Son proyectos públicos: no pasan por auditoría ni se subastan, así que nunca se venden y cada sala conserva siempre algo que mostrar, aunque se vendan las obras del catálogo.
+
+```bash
+npm run catalog:demo:personal
+npm run catalog:demo:rooms   # cuelga, organiza y abre al público cada sala
+```
+
+`rooms.json` guarda el ambiente de cada sala. El segundo comando lee el plan de colgado del frontend, así que debe estar `artauction_frontend` junto a este repo (o su ruta en `DEMO_FRONTEND_DIR`) y requiere Node 24. Repetirlo reorganiza las salas y descarta lo que se haya movido a mano.
+
+Las traducciones de estas obras también están en `translations.json` y las aplica el mismo comando de arriba.
+
 ## Después de cargar
 
 1. Pasa las salas a la rotación, para que la cartelera tenga siempre salas abiertas:

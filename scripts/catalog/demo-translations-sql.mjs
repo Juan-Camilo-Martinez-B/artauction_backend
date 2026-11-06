@@ -23,6 +23,7 @@ import {
   flatCredit,
   login,
   modelCredit,
+  personalEntries,
   readData,
   requirePasswords,
   sellerEmail,
@@ -47,7 +48,7 @@ function translatedCredit({ kind, work }, lot, lang) {
 
 requirePasswords();
 const { materials, works } = readData('translations.json');
-const entries = catalogEntries();
+const entries = [...catalogEntries(), ...personalEntries().map((work) => ({ kind: work.kind, work }))];
 
 const missing = entries.flatMap(({ work }) => [
   ...(works[work.title] ? [] : [`ficha: ${work.title}`]),
