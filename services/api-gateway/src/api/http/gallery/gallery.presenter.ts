@@ -1,4 +1,4 @@
-import { commonV1, galleryV1, type catalogV1, type notificationV1 } from '@artauction/contracts';
+import { commonV1, galleryV1, type catalogV1, type identityV1, type notificationV1 } from '@artauction/contracts';
 import { lotJson } from '../catalog/lot.presenter';
 import type { Locale } from '../locale';
 
@@ -81,6 +81,20 @@ export function galleryItemJson(item: galleryV1.GalleryItem) {
     artistName: item.artistName ?? null,
     imageKeys: item.imageKeys,
     acquiredAt: item.acquiredAt?.toISOString() ?? null,
+    previewUrl: item.previewUrl ?? null,
+  };
+}
+
+/** Tarjeta de una galeria al explorar: lo publico de su duena y su perfil. */
+export function publicGalleryJson(gallery: galleryV1.PublicGallerySummary, profile: identityV1.PublicProfile) {
+  return {
+    ownerId: gallery.ownerId,
+    displayName: profile.displayName,
+    avatarUrl: profile.avatarUrl ?? null,
+    workCount: gallery.workCount,
+    followerCount: gallery.followerCount,
+    latestAt: gallery.latestAt?.toISOString() ?? null,
+    previews: gallery.previews.map(galleryItemJson),
   };
 }
 

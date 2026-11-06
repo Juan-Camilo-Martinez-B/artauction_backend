@@ -71,6 +71,8 @@ model GalleryItem {
   acquiredAt DateTime @map("acquired_at") @db.Timestamptz(6)
   // Ficha guardada de una obra ganada (0032).
   sheet      Json?
+  // Primera imagen, para las vistas previas de Explorar (0038).
+  previewUrl String?  @map("preview_url")
 
   // Una entrada por obra y duena: asi se comprueba la propiedad al colgar (0029).
   @@unique([ownerId, lotId], map: "items_owner_lot_uidx")

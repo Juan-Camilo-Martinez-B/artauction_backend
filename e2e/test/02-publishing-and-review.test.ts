@@ -177,14 +177,22 @@ describe('publicar, auditar y revisar', () => {
     assert.ok(decided);
   });
 
-  test('las obras propias entran en la galeria del vendedor y solo el las ve', async () => {
+  test('las obras propias entran en la galeria del vendedor y el publico solo ve las publicadas', async () => {
     const own = await eventually('gallery-service recibe LotCreated', async () => {
       const items = await call<Array<{ lotId: string | null; source: string }>>('GET', `/galleries/${seller.userId}`, { token: seller.token });
       const lotIds = items.body.filter((item) => item.source === 'PROPIA').map((item) => item.lotId);
       return lotIds.includes(cleanLot) && lotIds.includes(conflictLot) ? lotIds : null;
     });
     assert.ok(own.length >= 2);
-    const anonymous = await call<unknown[]>('GET', `/galleries/${seller.userId}`);
-    assert.equal(anonymous.body.length, 0);
+    const anonymous = await call<Array<{ visibility: string }>>('GET', `/galleries/${seller.userId}`);
+    assert.ok(anonymous.body.every((item) => item.visibility === 'PUBLIC'), 'lo que aun no se publica no se ve');
+
+    const published = await call<{ status: string }>('GET', `/lots/${cleanLot}`, { token: seller.token });
+    if (published.body.status === 'PUBLICADA') {
+      await eventually('LotListed lleva la obra publicada a la galeria publica', async () => {
+        const items = await call<Array<{ lotId: string | null }>>('GET', `/galleries/${seller.userId}`);
+        return items.body.some((item) => item.lotId === cleanLot);
+      });
+    }
   });
 });

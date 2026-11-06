@@ -1,7 +1,7 @@
 import { isRecord } from '@artauction/platform';
-import type { PrismaClient } from '../../generated/prisma';
-import type { Activity, GalleryItem, PurchasedSheet } from '../domain/gallery';
-import type { SocialStore } from '../application/ports';
+import { Prisma, type PrismaClient } from '../../generated/prisma';
+import type { Activity, GalleryItem, PublicGallery, PurchasedSheet } from '../domain/gallery';
+import type { PublicGalleryQuery, SocialStore } from '../application/ports';
 
 /**
  * Galeria social y feed en gallery.items y gallery.activity. Las escrituras son
@@ -29,7 +29,7 @@ export class PrismaSocialStore implements SocialStore {
     return (await this.prisma.galleryItem.findMany({ where: { lotId } })).map(toItem);
   }
 
-  async updateItem(ownerId: string, lotId: string, patch: Partial<Pick<GalleryItem, 'source' | 'visibility'>>): Promise<void> {
+  async updateItem(ownerId: string, lotId: string, patch: Partial<Pick<GalleryItem, 'source' | 'visibility' | 'previewUrl'>>): Promise<void> {
     await this.prisma.galleryItem.updateMany({ where: { ownerId, lotId }, data: patch });
   }
 
@@ -49,6 +49,43 @@ export class PrismaSocialStore implements SocialStore {
 
   async upsertActivity(id: string, activity: Activity): Promise<void> {
     await this.prisma.activity.createMany({ data: [{ id, ...activity }], skipDuplicates: true });
+  }
+
+  async removeActivity(id: string): Promise<void> {
+    await this.prisma.activity.deleteMany({ where: { id } });
+  }
+
+  async publicGalleries(query: PublicGalleryQuery): Promise<{ galleries: PublicGallery[]; total: number }> {
+    const owner = query.ownerId ? Prisma.sql`AND i.owner_id = ${query.ownerId}::uuid` : Prisma.empty;
+    const order = query.sort === 'POPULAR' ? Prisma.sql`"followerCount" DESC, "latestAt" DESC` : Prisma.sql`"latestAt" DESC`;
+    const [rows, totals] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ ownerId: string; workCount: number; followerCount: number; latestAt: Date }>>`
+        SELECT i.owner_id::text AS "ownerId",
+               count(*)::int AS "workCount",
+               max(i.acquired_at) AS "latestAt",
+               (SELECT count(*)::int FROM gallery.follows f WHERE f.followee_id = i.owner_id) AS "followerCount"
+        FROM gallery.items i
+        WHERE i.visibility = 'PUBLIC' ${owner}
+        GROUP BY i.owner_id
+        ORDER BY ${order}, i.owner_id
+        LIMIT ${query.limit} OFFSET ${query.offset}`,
+      this.prisma.$queryRaw<Array<{ total: number }>>`
+        SELECT count(DISTINCT i.owner_id)::int AS total FROM gallery.items i WHERE i.visibility = 'PUBLIC' ${owner}`,
+    ]);
+    const items = await this.prisma.galleryItem.findMany({
+      where: { ownerId: { in: rows.map((row) => row.ownerId) }, visibility: 'PUBLIC' },
+      orderBy: { acquiredAt: 'desc' },
+    });
+    return {
+      galleries: rows.map((row) => ({
+        ...row,
+        previews: items
+          .filter((item) => item.ownerId === row.ownerId)
+          .slice(0, query.previews)
+          .map(toItem),
+      })),
+      total: totals[0]?.total ?? 0,
+    };
   }
 
   async feed(viewerId: string, limit: number): Promise<Activity[]> {
@@ -78,6 +115,7 @@ function toItem(row: {
   artistName: string | null;
   imageKeys: string[];
   acquiredAt: Date;
+  previewUrl: string | null;
 }): GalleryItem {
   return {
     ownerId: row.ownerId,
@@ -87,6 +125,7 @@ function toItem(row: {
     title: row.title,
     artistName: row.artistName,
     imageKeys: row.imageKeys,
+    previewUrl: row.previewUrl,
     acquiredAt: row.acquiredAt,
   };
 }

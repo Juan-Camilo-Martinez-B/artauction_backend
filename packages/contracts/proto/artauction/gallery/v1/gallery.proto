@@ -21,8 +21,18 @@ service GalleryService {
   // Ficha guardada de una obra ganada. La ve cualquiera si la obra es publica
   // en la galeria de su duena; si no, solo ella. El precio pagado, solo ella.
   rpc GetPurchasedSheet(GetPurchasedSheetRequest) returns (GetPurchasedSheetResponse);
+  // Galerias con obras publicas, para explorarlas; con owner_id, solo esa.
+  rpc ListPublicGalleries(ListPublicGalleriesRequest) returns (ListPublicGalleriesResponse);
   rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
+  rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse);
+  rpc ListFollowing(ListFollowingRequest) returns (ListFollowingResponse);
   rpc GetFeed(GetFeedRequest) returns (GetFeedResponse);
+}
+
+enum PublicGallerySort {
+  PUBLIC_GALLERY_SORT_UNSPECIFIED = 0;
+  PUBLIC_GALLERY_SORT_RECENT = 1;
+  PUBLIC_GALLERY_SORT_POPULAR = 2;
 }
 
 enum CustomizationStatus {
@@ -84,6 +94,16 @@ message GalleryItem {
   optional string artist_name = 6;
   repeated string image_keys = 7;
   google.protobuf.Timestamp acquired_at = 8;
+  // URL publica de la primera imagen; vacia si la obra no se ha expuesto todavia.
+  optional string preview_url = 9;
+}
+
+message PublicGallerySummary {
+  string owner_id = 1;
+  int32 work_count = 2;
+  int32 follower_count = 3;
+  google.protobuf.Timestamp latest_at = 4;
+  repeated GalleryItem previews = 5;
 }
 
 message Activity {
@@ -201,6 +221,30 @@ message FollowUserRequest {
 }
 
 message FollowUserResponse {}
+
+message UnfollowUserRequest {
+  string followee_id = 1;
+}
+
+message UnfollowUserResponse {}
+
+message ListFollowingRequest {}
+
+message ListFollowingResponse {
+  repeated string followee_ids = 1;
+}
+
+message ListPublicGalleriesRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  PublicGallerySort sort = 3;
+  optional string owner_id = 4;
+}
+
+message ListPublicGalleriesResponse {
+  repeated PublicGallerySummary galleries = 1;
+  int32 total = 2;
+}
 
 message GetFeedRequest {}
 

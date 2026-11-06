@@ -102,6 +102,16 @@ export class PrismaGalleryRepository implements GalleryRepository {
     await this.prisma.personalGalleryArtwork.update({ where: { id: artworkId }, data: placement });
   }
 
+  async unfollow(followerId: string, followeeId: string): Promise<boolean> {
+    const removed = await this.prisma.follow.deleteMany({ where: { followerId, followeeId } });
+    return removed.count > 0;
+  }
+
+  async followingOf(followerId: string): Promise<string[]> {
+    const rows = await this.prisma.follow.findMany({ where: { followerId }, select: { followeeId: true } });
+    return rows.map((row) => row.followeeId);
+  }
+
   async follow(followerId: string, followeeId: string): Promise<boolean> {
     try {
       await this.prisma.follow.create({ data: { followerId, followeeId } });

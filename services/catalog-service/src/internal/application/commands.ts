@@ -1,5 +1,5 @@
 import { DomainError } from '@artauction/platform';
-import { lotCreated, lotPublished, lotReturnedToDraft, lotSubmitted, lotVisibilityChanged } from '../domain/events';
+import { lotCreated, lotListed, lotPublished, lotReturnedToDraft, lotSubmitted, lotVisibilityChanged } from '../domain/events';
 import { inspectGlb, MODEL_LIMITS } from '../domain/glb';
 import {
   assertAcceptsModel,
@@ -305,7 +305,7 @@ export class ResolveManualReview {
       patch,
       (next) => {
         if (plan.decision === 'APPROVE') {
-          return [lotPublished(next)];
+          return [lotListed(next.id), lotPublished(next)];
         }
         if (plan.decision === 'RETURN_TO_DRAFT') {
           return [lotReturnedToDraft(next, plan.reason ?? '')];

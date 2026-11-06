@@ -24,12 +24,14 @@ const REPRESENTATION: ReadonlyMap<catalogV1.RepresentationKind, PublicLot['repre
 ]);
 
 function toPublicLot(lot: catalogV1.Lot): PublicLot {
+  const images = [...lot.images].sort((left, right) => left.position - right.position);
   return {
     lotId: lot.id,
     title: lot.title,
     artistName: lot.artistName ?? null,
     representationKind: REPRESENTATION.get(lot.representationKind) ?? 'TWO_D',
-    imageKeys: [...lot.images].sort((left, right) => left.position - right.position).map((image) => image.objectKey),
+    imageKeys: images.map((image) => image.objectKey),
+    previewUrl: images[0]?.url ?? null,
     hasModel: lot.model !== undefined,
   };
 }

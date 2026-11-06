@@ -22,6 +22,43 @@ interface Item {
 
 // Proyectos propios: una cuenta cualquiera sube obras solo para su galeria, sin
 // auditoria ni subasta, y decide si se ven en su galeria publica.
+describe('explorar galerias', () => {
+  test('una galeria publica se puede explorar, seguir y dejar de seguir', async () => {
+    const author = await register('galerista', 'USER');
+    const fan = await register('seguidora', 'USER');
+    const fields = { title: 'E2E Obra de la galeria', description: 'Estudio a lapiz para probar la galeria publica.', materials: 'Lapiz sobre papel', categorySlug: 'otras', representationKind: 'TWO_D', widthCm: 20, heightCm: 30, destination: 'PERSONAL' };
+    const lotId = await createLotWithImage(author, fields, 971);
+
+    const empty = await call<{ workCount: number }>('GET', `/galleries/${author.userId}/summary`);
+    assert.equal(empty.status, 200);
+    assert.equal(empty.body.workCount, 0, 'un proyecto privado no cuenta');
+
+    assert.equal((await call('PATCH', `/lots/${lotId}/visibility`, { token: author.token, body: { visibility: 'PUBLIC' } })).status, 200);
+    type Card = { ownerId: string; displayName: string; workCount: number; followerCount: number; previews: Array<{ lotId: string; previewUrl: string | null }> };
+    const card = await eventually('la galeria aparece con su obra', async () => {
+      const reply = await call<Card>('GET', `/galleries/${author.userId}/summary`);
+      return reply.body.workCount === 1 ? reply.body : null;
+    });
+    assert.match(card.displayName, /galerista/);
+    const [preview] = card.previews;
+    assert.ok(preview);
+    assert.equal(preview.lotId, lotId);
+    assert.match(preview.previewUrl ?? '', /^https?:\/\//, 'la vista previa trae una URL que el navegador puede abrir');
+
+    const page = await call<{ items: Card[]; total: number }>('GET', '/galleries?sort=recent&pageSize=24');
+    assert.equal(page.status, 200);
+    assert.ok(page.body.items.some((item) => item.ownerId === author.userId), 'la galeria mas reciente sale al explorar');
+
+    assert.equal((await call('POST', `/users/${author.userId}/follow`, { token: fan.token })).status, 201);
+    assert.deepEqual((await call<string[]>('GET', '/me/following', { token: fan.token })).body, [author.userId]);
+    assert.equal((await call<Card>('GET', `/galleries/${author.userId}/summary`)).body.followerCount, 1);
+
+    assert.equal((await call('DELETE', `/users/${author.userId}/follow`, { token: fan.token })).status, 200);
+    assert.deepEqual((await call<string[]>('GET', '/me/following', { token: fan.token })).body, []);
+    assert.equal((await call('GET', '/me/following')).status, 401, 'la lista de seguidos exige sesion');
+  });
+});
+
 describe('proyectos propios', () => {
   let collector: Account;
   let seller: Account;
@@ -99,7 +136,8 @@ describe('proyectos propios', () => {
       const items = await call<Item[]>('GET', `/galleries/${seller.userId}`, { token: seller.token });
       return items.body.find((item) => item.lotId === own && item.source === 'PROPIA');
     });
-    assert.equal(mine.visibility, 'PRIVATE');
+    // Privada mientras se audita; pasa a publica al entrar al catalogo, y la auditoria puede ser muy rapida.
+    assert.ok(['PRIVATE', 'PUBLIC'].includes(mine.visibility));
     // Ya es una obra del catalogo: no se edita ni cambia de visibilidad a mano.
     assert.ok((await call('PATCH', `/lots/${own}/visibility`, { token: seller.token, body: { visibility: 'PUBLIC' } })).status >= 400);
   });

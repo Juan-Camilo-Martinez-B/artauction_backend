@@ -36,6 +36,14 @@ La galería registra **lo que es de cada persona** (`gallery.items`, una entrada
 - **Feed:** las últimas 50 actividades públicas y las propias.
 - **Visibilidad:** una obra privada solo la ve su dueño.
 
+### Explorar galerías
+
+`ListPublicGalleries` lista a quienes tienen obras públicas, con su número de obras, sus seguidores y una muestra de cuatro. Se puede ordenar por lo más reciente o por seguidores. El gateway añade el nombre desde identity y descarta los perfiles privados, así que una página puede traer menos tarjetas que su tamaño.
+
+Una obra aparece en la galería pública cuando entra al catálogo (evento `LotListed`, por auditoría o por un administrador) o cuando su autor hace público un proyecto propio. Una obra en auditoría o una obra ganada siguen siendo privadas.
+
+La imagen de la muestra se pide a catalog la primera vez y se guarda en `preview_url`; si catalog no responde, la obra sale sin imagen y se reintenta en la siguiente visita. `UnfollowUser` borra también la actividad del seguimiento, y `ListFollowing` dice a quién sigue la sesión.
+
 ### Eventos sin duplicados
 
 El inbox y los efectos están en el mismo esquema, pero los escriben puertos distintos y no comparten transacción. Por eso las filas tienen **ids deterministas**:
