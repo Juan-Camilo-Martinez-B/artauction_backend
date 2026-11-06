@@ -34,13 +34,15 @@ La galería registra **lo que es de cada persona** (`gallery.items`, una entrada
 - **Proyecto propio:** se cuelga solo en la sala del autor. Si es público, aparece en su galería pública; el frontend lo marca como «Proyecto propio, sin auditar».
 - **Seguir:** comprueba que el usuario exista con `GetPublicProfile` de identity y publica la actividad `FOLLOW`. Nadie se sigue a sí mismo y repetir no duplica.
 - **Feed:** las últimas 50 actividades públicas y las propias.
-- **Visibilidad:** una obra privada solo la ve su dueño.
+- **Visibilidad:** una obra privada solo la ve su dueño. Una galería es privada hasta que su dueño la abre con `SetGalleryVisibility`. Un visitante ve una obra solo si la galería es pública y la obra está colgada y marcada como pública (`exhibitedItems`).
+- **Obras compradas:** empiezan privadas. `SetItemVisibility` las muestra u oculta; un proyecto cambia en catalog y una obra del catálogo depende de su estado, así que esa operación las rechaza con `ITEM_VISIBILITY_LOCKED`.
+- **Sala para visitantes:** `GetGalleryRoom` da la sala con sus obras expuestas. A cualquier otra persona, una galería privada le responde igual que una inexistente; su dueño la abre para ver cómo quedaría.
 
 ### Explorar galerías
 
-`ListPublicGalleries` lista a quienes tienen obras públicas, con su número de obras, sus seguidores y una muestra de cuatro. Se puede ordenar por lo más reciente o por seguidores. El gateway añade el nombre desde identity y descarta los perfiles privados, así que una página puede traer menos tarjetas que su tamaño.
+`ListPublicGalleries` lista las galerías públicas con obras expuestas, con su número de obras, sus seguidores y una muestra de cuatro. Se puede ordenar por lo más reciente o por seguidores. El gateway añade el nombre y descarta los perfiles privados.
 
-Una obra aparece en la galería pública cuando entra al catálogo (evento `LotListed`, por auditoría o por un administrador) o cuando su autor hace público un proyecto propio. Una obra en auditoría o una obra ganada siguen siendo privadas.
+Una obra se marca como pública cuando entra al catálogo (evento `LotListed`, por auditoría o por un administrador), cuando su autor hace público un proyecto propio o cuando su comprador la muestra. Una obra en auditoría o un proyecto oculto no se exponen, aunque llegue tarde un evento repetido.
 
 La imagen de la muestra se pide a catalog la primera vez y se guarda en `preview_url`; si catalog no responde, la obra sale sin imagen y se reintenta en la siguiente visita. `UnfollowUser` borra también la actividad del seguimiento, y `ListFollowing` dice a quién sigue la sesión.
 

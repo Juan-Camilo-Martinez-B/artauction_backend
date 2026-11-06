@@ -151,4 +151,24 @@ describe('compra inmediata', () => {
     assert.equal((await call('GET', `/galleries/${buyer.userId}/works/${lotId}`, { token: bidder.token })).status, 404);
     assert.equal((await call('GET', `/galleries/${buyer.userId}/works/${lotId}`)).status, 404);
   });
+
+  test('el comprador decide si muestra la obra en su galeria', async () => {
+    type Room = { artworks: Array<{ lotId: string }> };
+    const toggle = (visibility: string, token?: string) => call('PATCH', `/me/gallery/items/${lotId}/visibility`, { token, body: { visibility } });
+    assert.equal((await call('PATCH', '/me/gallery/visibility', { token: buyer.token, body: { visibility: 'PUBLIC' } })).status, 200);
+    const hidden = await call<Room>('GET', `/galleries/${buyer.userId}/room`);
+    assert.ok(!hidden.body.artworks.some((artwork) => artwork.lotId === lotId), 'lo comprado empieza privado');
+
+    assert.equal((await toggle('PUBLIC')).status, 401);
+    assert.equal((await toggle('PUBLIC', bidder.token)).status, 404);
+    assert.equal((await toggle('PUBLIC', buyer.token)).status, 200);
+    const shown = await call<Room>('GET', `/galleries/${buyer.userId}/room`);
+    assert.ok(shown.body.artworks.some((artwork) => artwork.lotId === lotId));
+    const sheet = await call<{ pricePaid: string | null }>('GET', `/galleries/${buyer.userId}/works/${lotId}`);
+    assert.equal(sheet.status, 200);
+    assert.equal(sheet.body.pricePaid, null, 'el precio pagado es solo del comprador');
+
+    assert.equal((await toggle('PRIVATE', buyer.token)).status, 200);
+    assert.equal((await call('GET', `/galleries/${buyer.userId}/works/${lotId}`)).status, 404);
+  });
 });

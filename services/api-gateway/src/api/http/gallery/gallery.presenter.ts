@@ -46,29 +46,45 @@ export function galleryJson(gallery: galleryV1.PersonalGallery, lots: ReadonlyMa
     id: gallery.id,
     ownerId: gallery.ownerId,
     name: gallery.name,
+    visibility: visibility(gallery.visibility),
     customizationStatus: STATUS.get(gallery.customizationStatus) ?? 'SIN_PERSONALIZAR',
     preferences: gallery.preferences ?? {},
     suggestedConfig: gallery.suggestedConfig ?? null,
     appliedConfig: gallery.appliedConfig ?? null,
-    artworks: gallery.artworks.flatMap((artwork) => {
-      const lot = lots.get(artwork.lotId);
-      return lot
-        ? [
-            {
-              id: artwork.id,
-              lotId: artwork.lotId,
-              posX: artwork.posX,
-              posY: artwork.posY,
-              posZ: artwork.posZ,
-              rotY: artwork.rotY,
-              scale: artwork.scale,
-              support: SUPPORT.get(artwork.support) ?? 'WALL',
-              lot: lotJson(lot, null, locale),
-            },
-          ]
-        : [];
-    }),
+    artworks: artworksJson(gallery, lots, locale),
   };
+}
+
+/** La sala para visitantes: nada de los gustos que eligio su duena ni de la propuesta de la IA. */
+export function publicRoomJson(gallery: galleryV1.PersonalGallery, locale: Locale) {
+  const lots = new Map(gallery.artworks.flatMap((artwork) => (artwork.lot ? [[artwork.lotId, artwork.lot] as const] : [])));
+  return {
+    ownerId: gallery.ownerId,
+    visibility: visibility(gallery.visibility),
+    appliedConfig: gallery.appliedConfig ?? null,
+    artworks: artworksJson(gallery, lots, locale),
+  };
+}
+
+function artworksJson(gallery: galleryV1.PersonalGallery, lots: ReadonlyMap<string, catalogV1.Lot>, locale: Locale) {
+  return gallery.artworks.flatMap((artwork) => {
+    const lot = lots.get(artwork.lotId);
+    return lot
+      ? [
+          {
+            id: artwork.id,
+            lotId: artwork.lotId,
+            posX: artwork.posX,
+            posY: artwork.posY,
+            posZ: artwork.posZ,
+            rotY: artwork.rotY,
+            scale: artwork.scale,
+            support: SUPPORT.get(artwork.support) ?? 'WALL',
+            lot: lotJson(lot, null, locale),
+          },
+        ]
+      : [];
+  });
 }
 
 export function galleryItemJson(item: galleryV1.GalleryItem) {

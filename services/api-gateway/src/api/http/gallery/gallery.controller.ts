@@ -8,7 +8,7 @@ import { CATALOG_CLIENT, GALLERY_CLIENT, IDENTITY_CLIENT, NOTIFICATION_CLIENT } 
 import type { GatewayConfig } from '../../../config';
 import { RequestLocale, type Locale } from '../locale';
 import { GATEWAY_CONFIG, GATEWAY_LOGGER } from '../tokens';
-import { activityJson, galleryItemJson, galleryJson, notificationJson, publicGalleryJson, purchasedSheetJson, SUPPORT_FROM_JSON } from './gallery.presenter';
+import { activityJson, galleryItemJson, galleryJson, notificationJson, publicGalleryJson, publicRoomJson, purchasedSheetJson, SUPPORT_FROM_JSON } from './gallery.presenter';
 
 export class ListPublicGalleriesQuery {
   @IsOptional()
@@ -28,6 +28,16 @@ export class ListPublicGalleriesQuery {
   @IsIn(['recent', 'popular'])
   sort?: 'recent' | 'popular';
 }
+
+export class GalleryVisibilityDto {
+  @IsIn(['PUBLIC', 'PRIVATE'])
+  visibility!: 'PUBLIC' | 'PRIVATE';
+}
+
+const VISIBILITY_FROM_JSON: Readonly<Record<'PUBLIC' | 'PRIVATE', commonV1.Visibility>> = {
+  PUBLIC: commonV1.Visibility.VISIBILITY_PUBLIC,
+  PRIVATE: commonV1.Visibility.VISIBILITY_PRIVATE,
+};
 
 export class GenerateGalleryDto {
   @IsOptional()
@@ -136,6 +146,25 @@ export class PersonalGalleryController {
     return this.compose(response.gallery, locale);
   }
 
+  @Patch('visibility')
+  async setVisibility(@Headers('authorization') authorization: string | undefined, @Body() body: GalleryVisibilityDto, @RequestLocale() locale: Locale) {
+    const response = await invoke(this.gallery.setGalleryVisibility.bind(this.gallery), { visibility: VISIBILITY_FROM_JSON[body.visibility] }, this.options(authorization));
+    return this.compose(response.gallery, locale);
+  }
+
+  @Patch('items/:lotId/visibility')
+  async setItemVisibility(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('lotId', ParseUUIDPipe) lotId: string,
+    @Body() body: GalleryVisibilityDto,
+  ) {
+    const response = await invoke(this.gallery.setItemVisibility.bind(this.gallery), { lotId, visibility: VISIBILITY_FROM_JSON[body.visibility] }, this.options(authorization));
+    if (!response.item) {
+      throw new Error('gallery-service respondio sin obra');
+    }
+    return galleryItemJson(response.item);
+  }
+
   @Post('artworks')
   async add(@Headers('authorization') authorization: string | undefined, @Body() body: PlaceArtworkDto, @RequestLocale() locale: Locale) {
     if (!body.lotId) {
@@ -235,7 +264,7 @@ export class SocialController {
     return { items: cards.filter((card) => card !== null), total: response.total, page: query.page ?? 1, pageSize: query.pageSize ?? 12 };
   }
 
-  /** Cabecera de una galeria. Sin obras publicas responde igual, con cero obras. */
+  /** Cabecera de una galeria. Si es privada o no expone obras, responde con cero obras. */
   @Get('galleries/:ownerId/summary')
   async summary(@Param('ownerId', ParseUUIDPipe) ownerId: string) {
     const profile = await this.publicProfile(ownerId);
@@ -249,6 +278,16 @@ export class SocialController {
     );
     const gallery = response.galleries[0] ?? galleryV1.PublicGallerySummary.fromPartial({ ownerId });
     return publicGalleryJson(gallery, profile);
+  }
+
+  /** La sala 3D para visitantes; privada responde 404, salvo a su duena. */
+  @Get('galleries/:ownerId/room')
+  async room(@Headers('authorization') authorization: string | undefined, @Param('ownerId', ParseUUIDPipe) ownerId: string, @RequestLocale() locale: Locale) {
+    const response = await invoke(this.gallery.getGalleryRoom.bind(this.gallery), { ownerId }, this.options(authorization));
+    if (!response.gallery) {
+      throw new Error('gallery-service respondio sin galeria');
+    }
+    return publicRoomJson(response.gallery, locale);
   }
 
   @Get('galleries/:ownerId')

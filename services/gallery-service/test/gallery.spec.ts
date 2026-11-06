@@ -31,6 +31,7 @@ class MemoryGalleries implements GalleryRepository {
       suggestedConfig: null,
       appliedConfig: null,
       artworks: [],
+      visibility: 'PRIVATE',
     };
     this.galleries.set(ownerId, created);
     return Promise.resolve(structuredClone(created));
@@ -90,6 +91,9 @@ class MemoryGalleries implements GalleryRepository {
 }
 
 class MemorySocial implements SocialStore {
+  /** Las salas, para saber que expone cada galeria; el store real lo resuelve con un JOIN. */
+  constructor(private readonly rooms?: MemoryGalleries) {}
+
   items = new Map<string, GalleryItem>();
   sheets = new Map<string, PurchasedSheet>();
   sheetOf(ownerId: string, lotId: string) {
@@ -134,7 +138,11 @@ class MemorySocial implements SocialStore {
     return Promise.resolve();
   }
   publicGalleries(query: PublicGalleryQuery) {
-    const visible = [...this.items.values()].filter((item) => item.visibility === 'PUBLIC' && (!query.ownerId || item.ownerId === query.ownerId));
+    const visible = [...this.items.values()].filter((item) => {
+      const room = this.rooms?.galleries.get(item.ownerId);
+      const exhibited = room?.visibility === 'PUBLIC' && room.artworks.some((artwork) => artwork.lotId === item.lotId);
+      return exhibited && item.visibility === 'PUBLIC' && (!query.ownerId || item.ownerId === query.ownerId);
+    });
     const owners = [...new Set(visible.map((item) => item.ownerId))];
     const galleries = owners.slice(query.offset, query.offset + query.limit).map((ownerId) => {
       const works = visible.filter((item) => item.ownerId === ownerId);
@@ -162,6 +170,12 @@ function own(social: MemorySocial, ownerId: string, lotId: string, source: Galle
     ownerId, lotId, source, visibility: 'PRIVATE', title: 'Obra', artistName: null, imageKeys: [], acquiredAt: clock.now(),
   });
 }
+/** Deja la obra colgada en una galeria publica: asi se expone lo que ya sea publico. */
+async function openRoom(galleries: MemoryGalleries, ownerId: string, lotId: string) {
+  const room = await galleries.mine(ownerId);
+  await galleries.update(room.id, { visibility: 'PUBLIC' });
+  await galleries.addArtwork(room.id, lotId, { posX: 0, posY: 1.5, posZ: 0, rotY: 0, scale: 1, support: 'WALL' });
+}
 const identity: IdentityPort = { displayName: (userId) => Promise.resolve(userId === OTHER ? 'Nora' : null) };
 const designer = {
   design: (preferences: Parameters<typeof designFromPreferences>[0], locale: Locale) => Promise.resolve(designFromPreferences(preferences, 'ai-local', locale)),
@@ -177,6 +191,7 @@ describe('reglas de la sala', () => {
   const empty: PersonalGallery = {
     id: 'g', ownerId: OWNER, name: 'Mi galería', customizationStatus: 'SIN_PERSONALIZAR',
     preferences: {}, suggestedConfig: null, appliedConfig: { architecture: { roomDepth: 12 } }, artworks: [],
+    visibility: 'PRIVATE',
   };
 
   const wall = (posX: number, posZ: number, rotY = 0): Artwork => ({ id: `w${String(posX)}${String(posZ)}`, lotId: LOT, posX, posY: 1.55, posZ, rotY, scale: 1, support: 'WALL' });
@@ -273,10 +288,11 @@ describe('galeria personal', () => {
 describe('explorar galerias', () => {
   it('una obra publicada en el catalogo pasa a la galeria publica de quien la publico', async () => {
     const galleries = new MemoryGalleries();
-    const social = new MemorySocial();
+    const social = new MemorySocial(galleries);
     const handlers = new GalleryEventHandlers(galleries, social, catalog, clock);
     const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
     await own(social, OWNER, LOT);
+    await openRoom(galleries, OWNER, LOT);
     expect((await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' })).total).toBe(0);
     await handlers.lotListed({ eventId: 'e1', lotId: LOT });
     const { galleries: listed, total } = await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' });
@@ -286,17 +302,18 @@ describe('explorar galerias', () => {
 
   it('un proyecto oculto o en auditoria no aparece, aunque llegue tarde un evento', async () => {
     const galleries = new MemoryGalleries();
-    const social = new MemorySocial();
+    const social = new MemorySocial(galleries);
     const handlers = new GalleryEventHandlers(galleries, social, catalog, clock);
     const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
     await own(social, OWNER, LOT, 'PROYECTO');
+    await openRoom(galleries, OWNER, LOT);
     await handlers.lotListed({ eventId: 'e1', lotId: LOT });
     expect((await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' })).total).toBe(0);
   });
 
   it('pide la imagen al catalogo una sola vez y la guarda', async () => {
     const galleries = new MemoryGalleries();
-    const social = new MemorySocial();
+    const social = new MemorySocial(galleries);
     const handlers = new GalleryEventHandlers(galleries, social, catalog, clock);
     let calls = 0;
     const counting: CatalogPort = {
@@ -309,6 +326,7 @@ describe('explorar galerias', () => {
     };
     const useCases = new SocialUseCases(galleries, social, identity, clock, counting);
     await own(social, OWNER, LOT);
+    await openRoom(galleries, OWNER, LOT);
     await handlers.lotListed({ eventId: 'e1', lotId: LOT });
     const first = await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' });
     expect(first.galleries[0]?.previews[0]?.previewUrl).toBe('https://media.test/uno.jpg');
@@ -319,11 +337,12 @@ describe('explorar galerias', () => {
 
   it('sin respuesta del catalogo la galeria sigue saliendo, sin imagen', async () => {
     const galleries = new MemoryGalleries();
-    const social = new MemorySocial();
+    const social = new MemorySocial(galleries);
     const handlers = new GalleryEventHandlers(galleries, social, catalog, clock);
     const down: CatalogPort = { ...catalog, snapshot: () => Promise.reject(new Error('caido')) };
     const useCases = new SocialUseCases(galleries, social, identity, clock, down);
     await own(social, OWNER, LOT);
+    await openRoom(galleries, OWNER, LOT);
     await handlers.lotListed({ eventId: 'e1', lotId: LOT });
     const { galleries: listed } = await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' });
     expect(listed[0]?.previews[0]?.previewUrl ?? null).toBeNull();
@@ -331,7 +350,7 @@ describe('explorar galerias', () => {
 
   it('dejar de seguir quita el seguimiento y su actividad, y se puede volver a seguir', async () => {
     const galleries = new MemoryGalleries();
-    const social = new MemorySocial();
+    const social = new MemorySocial(galleries);
     const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
     await useCases.follow(OWNER, OTHER);
     expect(await useCases.following(OWNER)).toEqual([OTHER]);
@@ -342,6 +361,81 @@ describe('explorar galerias', () => {
     await useCases.follow(OWNER, OTHER);
     expect(social.activity.size).toBe(1);
     await expectKind(useCases.unfollow(OWNER, 'no-es-uuid'), 'INVALID_ARGUMENT');
+  });
+});
+
+describe('galeria publica o privada', () => {
+  async function publicWork() {
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial(galleries);
+    await own(social, OWNER, LOT);
+    await social.updateItem(OWNER, LOT, { visibility: 'PUBLIC' });
+    const personal = new PersonalGalleryUseCases(galleries, designer, catalog, social);
+    await personal.addArtwork(OWNER, LOT);
+    return { galleries, social, personal, useCases: new SocialUseCases(galleries, social, identity, clock, catalog) };
+  }
+
+  it('una galeria nueva es privada: nadie mas la ve, ni sus obras, ni sale al explorar', async () => {
+    const { useCases } = await publicWork();
+    await expectKind(useCases.room(OWNER, null), 'NOT_FOUND');
+    await expectKind(useCases.room(OWNER, OTHER), 'NOT_FOUND');
+    expect(await useCases.items(OWNER, OTHER)).toEqual([]);
+    expect((await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' })).total).toBe(0);
+  });
+
+  it('su duena la abre aunque sea privada, y una persona sin sala no existe para nadie', async () => {
+    const { useCases } = await publicWork();
+    expect((await useCases.room(OWNER, OWNER)).artworks).toEqual([expect.objectContaining({ lotId: LOT })]);
+    await expectKind(useCases.room(OTHER, null), 'NOT_FOUND');
+    await expectKind(useCases.room('no-uuid', null), 'INVALID_ARGUMENT');
+  });
+
+  it('al abrirla la ve todo el mundo; al cerrarla vuelve a ser solo de su duena', async () => {
+    const { useCases, personal } = await publicWork();
+    await personal.setVisibility(OWNER, 'PUBLIC');
+    expect((await useCases.room(OWNER, null)).artworks).toEqual([expect.objectContaining({ lotId: LOT })]);
+    expect(await useCases.items(OWNER, null)).toEqual([expect.objectContaining({ lotId: LOT })]);
+    expect((await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' })).total).toBe(1);
+    await personal.setVisibility(OWNER, 'PRIVATE');
+    await expectKind(useCases.room(OWNER, null), 'NOT_FOUND');
+    expect((await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' })).total).toBe(0);
+  });
+
+  it('una obra sin colgar o privada no se expone, aunque la galeria sea publica', async () => {
+    const { useCases, personal, social } = await publicWork();
+    await personal.setVisibility(OWNER, 'PUBLIC');
+    await own(social, OWNER, SCULPTURE);
+    await social.updateItem(OWNER, SCULPTURE, { visibility: 'PUBLIC' });
+    expect((await useCases.items(OWNER, null)).map((item) => item.lotId)).toEqual([LOT]);
+    await social.updateItem(OWNER, LOT, { visibility: 'PRIVATE' });
+    expect((await useCases.room(OWNER, null)).artworks).toEqual([]);
+    expect((await useCases.room(OWNER, OWNER)).artworks).toEqual([]);
+    expect(await useCases.items(OWNER, null)).toEqual([]);
+  });
+
+  it('la duena muestra u oculta una obra comprada; lo demas no se cambia desde aqui', async () => {
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial(galleries);
+    const handlers = new GalleryEventHandlers(galleries, social, catalog, clock);
+    await handlers.auctionClosed({ eventId: 'e1', lotId: LOT, sellerId: OWNER, winnerId: OTHER, buyNow: false, amount: '500.00' });
+    const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
+    const personal = new PersonalGalleryUseCases(galleries, designer, catalog, social);
+    await personal.setVisibility(OTHER, 'PUBLIC');
+    expect((await useCases.room(OTHER, null)).artworks).toEqual([]);
+
+    const shown = await useCases.setItemVisibility(OTHER, LOT, 'PUBLIC');
+    expect(shown.visibility).toBe('PUBLIC');
+    expect((await useCases.room(OTHER, null)).artworks).toEqual([expect.objectContaining({ lotId: LOT })]);
+    expect(await useCases.purchasedSheet(OTHER, LOT, null)).toMatchObject({ pricePaid: null });
+
+    await useCases.setItemVisibility(OTHER, LOT, 'PRIVATE');
+    expect((await useCases.room(OTHER, null)).artworks).toEqual([]);
+    await expectKind(useCases.purchasedSheet(OTHER, LOT, null), 'NOT_FOUND');
+
+    await own(social, OWNER, SCULPTURE, 'PROYECTO');
+    await expectKind(useCases.setItemVisibility(OWNER, SCULPTURE, 'PUBLIC'), 'FAILED_PRECONDITION');
+    await expectKind(useCases.setItemVisibility(OWNER, LOT, 'PUBLIC'), 'NOT_FOUND');
+    await expectKind(useCases.setItemVisibility(OWNER, 'no-uuid', 'PUBLIC'), 'INVALID_ARGUMENT');
   });
 });
 
@@ -401,8 +495,12 @@ describe('propiedad de las obras', () => {
     await handlers.lotCreated({ eventId: 'e1', lotId: SCULPTURE, sellerId: OWNER, title: 'Aphrodite', artistName: null, personal: true, visibility: 'PUBLIC' });
     expect(await social.itemOf(OWNER, SCULPTURE)).toMatchObject({ source: 'PROYECTO', visibility: 'PUBLIC' });
     expect((await galleries.mine(OWNER)).artworks).toEqual([expect.objectContaining({ lotId: SCULPTURE, support: 'PEDESTAL' })]);
-    // Se ve en la galeria publica del autor.
-    expect(await new SocialUseCases(galleries, social, identity, clock, catalog).items(OWNER, null)).toHaveLength(1);
+    // Se ve en cuanto el autor abra su galeria.
+    const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
+    expect(await useCases.items(OWNER, null)).toEqual([]);
+    const room = await galleries.mine(OWNER);
+    await galleries.update(room.id, { visibility: 'PUBLIC' });
+    expect(await useCases.items(OWNER, null)).toHaveLength(1);
   });
 
   it('un objeto sin modelo 3D no entra en la sala, ni solo ni a mano', async () => {
@@ -455,7 +553,11 @@ describe('ficha guardada de una obra comprada', () => {
     // Privada en la galeria de su duena: nadie mas abre la ficha.
     await expectKind(useCases.purchasedSheet(OTHER, LOT, OWNER), 'NOT_FOUND');
     await expectKind(useCases.purchasedSheet(OTHER, LOT, null), 'NOT_FOUND');
+    // Publica y colgada, pero en una galeria privada: tampoco.
     await social.updateItem(OTHER, LOT, { visibility: 'PUBLIC' });
+    await expectKind(useCases.purchasedSheet(OTHER, LOT, null), 'NOT_FOUND');
+    const room = await galleries.mine(OTHER);
+    await galleries.update(room.id, { visibility: 'PUBLIC' });
     expect(await useCases.purchasedSheet(OTHER, LOT, null)).toMatchObject({ lot: `ficha:${LOT}`, pricePaid: null });
   });
 
