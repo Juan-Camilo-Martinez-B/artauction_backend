@@ -74,6 +74,16 @@ export function catalogEntries() {
   return entries;
 }
 
+/** Obras propias de las cuentas, que no se venden. Mismas reglas que el catalogo. */
+export function personalEntries() {
+  const works = readData('personal.json');
+  const titles = new Set(works.map((work) => `${work.seller}/${work.title}`));
+  if (titles.size !== works.length) {
+    throw new Error('hay titulos repetidos en un mismo vendedor: romperian la idempotencia');
+  }
+  return works;
+}
+
 /** Titulo del museo sin la serie ni los nombres alternativos, que lo alargan mucho. */
 function shortSourceTitle(title) {
   return title.replace(/,? (from the series|also known as)\b.*$/s, '').replace(/\s*\([^)]*\)\s*$/, '').trim();

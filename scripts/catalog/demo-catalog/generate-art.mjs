@@ -1,4 +1,4 @@
-// Arte generativo del catalogo de demostracion: diez piezas propias, sin
+// Arte generativo de las cuentas de demostracion: catorce piezas propias, sin
 // licencias de terceros. Cada una es determinista (misma semilla, misma imagen)
 // y sale como PNG, sin dependencias, con zlib de Node.
 import { deflateSync } from 'node:zlib';
@@ -264,6 +264,79 @@ const ART = {
       }
     };
     split(0, 0, canvas.size, canvas.size, 6);
+  },
+  newton(canvas) {
+    // Raices de z^3 = 1: el tono dice a cual llega cada punto, y la luz cuanto tarda.
+    const roots = [[1, 0], [-0.5, Math.sqrt(3) / 2], [-0.5, -Math.sqrt(3) / 2]];
+    const hues = [0.02, 0.48, 0.62];
+    canvas.shade((u, v) => {
+      let x = (u - 0.5) * 2.6;
+      let y = (v - 0.5) * 2.6;
+      for (let step = 0; step < 40; step += 1) {
+        const x2 = x * x - y * y;
+        const y2 = 2 * x * y;
+        const f = [x2 * x - y2 * y - 1, x2 * y + y2 * x];
+        const d = [3 * x2, 3 * y2];
+        const norm = d[0] * d[0] + d[1] * d[1];
+        if (norm < 1e-12) {
+          break;
+        }
+        x -= (f[0] * d[0] + f[1] * d[1]) / norm;
+        y -= (f[1] * d[0] - f[0] * d[1]) / norm;
+        const hit = roots.findIndex(([rx, ry]) => (x - rx) ** 2 + (y - ry) ** 2 < 1e-6);
+        if (hit >= 0) {
+          return hsl(hues[hit], 0.72, Math.max(0.08, 0.62 - step * 0.035));
+        }
+      }
+      return [8, 8, 14];
+    });
+  },
+  burningShip(canvas) {
+    const [cx, cy, span] = [-1.762, -0.028, 0.09];
+    canvas.shade((u, v) => {
+      const a = cx + (u - 0.5) * span;
+      const b = cy + (v - 0.5) * span;
+      let x = 0;
+      let y = 0;
+      for (let step = 0; step < 300; step += 1) {
+        const nextX = x * x - y * y + a;
+        y = Math.abs(2 * x * y) + b;
+        x = Math.abs(nextX);
+        if (x * x + y * y > 16) {
+          const t = step + 1 - Math.log2(Math.log2(x * x + y * y) / 2);
+          return hsl(0.04 + t * 0.002, 0.9, Math.min(0.7, 0.06 + t * 0.012));
+        }
+      }
+      return [10, 6, 8];
+    });
+  },
+  quasicrystal(canvas) {
+    const waves = Array.from({ length: 7 }, (_wave, index) => (index * Math.PI) / 7);
+    canvas.shade((u, v) => {
+      const x = (u - 0.5) * 90;
+      const y = (v - 0.5) * 90;
+      const sum = waves.reduce((total, angle) => total + Math.cos(x * Math.cos(angle) + y * Math.sin(angle)), 0) / waves.length;
+      const level = (sum + 1) / 2;
+      return hsl(0.52 + level * 0.14, 0.65, 0.1 + level * 0.62);
+    });
+  },
+  complexPlane(canvas) {
+    // f(z) = (z^2 - 1)(z - 2 - i)^2 / (z^2 + 2 + 2i)
+    canvas.shade((u, v) => {
+      const x = (u - 0.5) * 6;
+      const y = (v - 0.5) * 6;
+      const mul = ([a, b], [c, d]) => [a * c - b * d, a * d + b * c];
+      const z2 = mul([x, y], [x, y]);
+      const shift = [x - 2, y - 1];
+      const top = mul([z2[0] - 1, z2[1]], mul(shift, shift));
+      const bottom = [z2[0] + 2, z2[1] + 2];
+      const norm = bottom[0] * bottom[0] + bottom[1] * bottom[1] || 1e-9;
+      const re = (top[0] * bottom[0] + top[1] * bottom[1]) / norm;
+      const im = (top[1] * bottom[0] - top[0] * bottom[1]) / norm;
+      const bands = Math.log(Math.hypot(re, im) + 1e-9);
+      const light = 0.34 + 0.18 * (bands - Math.floor(bands));
+      return hsl(Math.atan2(im, re) / (2 * Math.PI), 0.85, light);
+    });
   },
 };
 

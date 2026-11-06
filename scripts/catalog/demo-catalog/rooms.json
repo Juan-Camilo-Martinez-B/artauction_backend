@@ -1,0 +1,37 @@
+{
+  "aurora": {
+    "styleName": "Salón claro",
+    "summary": "Pintura y objetos de época en una sala luminosa.",
+    "palette": { "wall": "#efe8dc", "floor": "#b89f7f", "ceiling": "#f6f1e8", "accent": "#7a2e24", "pedestal": "#e9e2d4" },
+    "materials": { "wall": "plaster", "floor": "wood", "sculptureSupport": "pedestal" },
+    "lighting": { "ambientIntensity": 0.5, "colorTemperature": 3600, "spotIntensity": 0.6, "mood": "serenidad" }
+  },
+  "bellamy": {
+    "styleName": "Gabinete clásico",
+    "summary": "Antigüedades sobre paredes verde oscuro.",
+    "palette": { "wall": "#31443b", "floor": "#6b4a32", "ceiling": "#e8e0d0", "accent": "#b08d57", "pedestal": "#d8cfbd" },
+    "materials": { "wall": "plaster", "floor": "wood", "sculptureSupport": "pedestal" },
+    "lighting": { "ambientIntensity": 0.55, "colorTemperature": 3200, "spotIntensity": 0.75, "mood": "serenidad" }
+  },
+  "norte": {
+    "styleName": "Estudio nórdico",
+    "summary": "Madera clara y luz fría para objetos y cerámica.",
+    "palette": { "wall": "#f2f2ee", "floor": "#c9b89f", "ceiling": "#fafaf7", "accent": "#3d5a6c", "pedestal": "#e6e4dd" },
+    "materials": { "wall": "plaster", "floor": "wood", "sculptureSupport": "pedestal" },
+    "lighting": { "ambientIntensity": 0.55, "colorTemperature": 4500, "spotIntensity": 0.55, "mood": "serenidad" }
+  },
+  "lumen": {
+    "styleName": "Archivo fotográfico",
+    "summary": "Fotografía histórica sobre gris sereno.",
+    "palette": { "wall": "#8d8f8c", "floor": "#55524e", "ceiling": "#d9d8d4", "accent": "#c2a36b", "pedestal": "#b5b3ae" },
+    "materials": { "wall": "concrete", "floor": "concrete", "sculptureSupport": "pedestal" },
+    "lighting": { "ambientIntensity": 0.5, "colorTemperature": 3800, "spotIntensity": 0.8, "mood": "serenidad" }
+  },
+  "vertice": {
+    "styleName": "Cubo oscuro",
+    "summary": "Arte generativo sobre paredes casi negras.",
+    "palette": { "wall": "#1f2024", "floor": "#2d2e33", "ceiling": "#17181b", "accent": "#d8a23a", "pedestal": "#3a3b41" },
+    "materials": { "wall": "concrete", "floor": "concrete", "sculptureSupport": "pedestal" },
+    "lighting": { "ambientIntensity": 0.4, "colorTemperature": 4200, "spotIntensity": 1, "mood": "serenidad" }
+  }
+}

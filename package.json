@@ -23,6 +23,8 @@
     "catalog:sample-3d": "node scripts/catalog/publish-sample-3d.mjs",
     "catalog:demo": "node scripts/catalog/publish-demo-catalog.mjs",
     "catalog:demo:translations": "node scripts/catalog/demo-translations-sql.mjs",
+    "catalog:demo:personal": "node scripts/catalog/publish-demo-personal.mjs",
+    "catalog:demo:rooms": "node scripts/catalog/open-demo-rooms.mjs",
     "prepare": "husky"
   },
   "devDependencies": {

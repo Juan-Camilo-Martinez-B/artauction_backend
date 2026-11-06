@@ -46,111 +46,481 @@
     "Algorithmically generated digital image": "Imagen digital generada por algoritmo"
   },
   "works": {
-    "Dos hermanas en la terraza": ["Two Sisters on the Terrace", "Two young women pose on a terrace above the Seine, with flowers and a basket of yarn. The loose brushwork and the older sister's red hat gather all the light of summer."],
-    "El baño de la niña": ["The Child's Bath", "A mother washes her daughter's feet over a basin. The view from above and the flat patterns reveal the influence of Japanese prints."],
-    "Arrival of the Normandy Train, Gare Saint-Lazare": ["Llegada del tren de Normandía, Gare Saint-Lazare", "El vapor llena la estación de techo acristalado mientras entra un tren. Monet trata la industria moderna como un estudio de la luz y la atmósfera cambiantes."],
-    "Mujer en su tocador": ["Woman at Her Toilette", "A woman, seen from behind, prepares herself at the dressing table. The whites and greys vibrate in quick strokes that almost dissolve the room."],
-    "San Jorge y el dragón": ["Saint George and the Dragon", "Catalan Gothic panel in which the saint on horseback pierces the dragon while the princess watches. The gilding and the detail of the armor stand out."],
-    "Distant View of Niagara Falls": ["Vista lejana de las cataratas del Niágara", "Figuras diminutas contemplan las cataratas desde una altura rocosa, entre árboles otoñales y un cielo de tormenta. Un paisaje estadounidense temprano que convierte el Niágara en una visión romántica de lo sublime."],
-    "La playa de Sainte-Adresse": ["The Beach at Sainte-Adresse", "Fishing boats rest on the shore under a cloudy Normandy sky. An early work that already announces the brushwork of Impressionism."],
-    "La red de arenque": ["The Herring Net", "Two fishermen haul in a heavy net from a small boat on a grey, choppy sea. The weight of the catch and the swell give the scene its tension."],
-    "Nocturne: Blue and Gold, Southampton Water": ["Nocturno: azul y oro, Southampton Water", "Barcos y luces lejanas se disuelven en una bruma azul de atardecer sobre el agua. Whistler reduce la escena a color y atmósfera, muy cerca de la abstracción."],
-    "Acróbatas en el Circo Fernando": ["Acrobats at the Cirque Fernando", "Two young performers take their bow in the ring with the oranges thrown by the audience. Renoir paints the Parisian circus up close, in warm colors."],
-    "La sombrerería": ["The Millinery Shop", "A milliner examines a hat among a group of displayed headpieces. Degas frames the scene from the side, like a snapshot of Parisian life."],
-    "Mujer ante un acuario": ["Woman before an Aquarium", "A woman rests her head on her hand and gazes at a fishbowl on the table. The patterned background and soft colors create a serene interior."],
-    "Mountain Brook": ["Arroyo de montaña", "Un arroyo claro corre sobre rocas cubiertas de musgo en un bosque sombrío, iluminado por manchas sueltas de sol. Bierstadt pinta cada piedra y cada hoja con serena precisión."],
-    "Arlesianas (Mistral)": ["Women of Arles (Mistral)", "Women of Arles walk wrapped in shawls, their faces covered against the wind. Painted during Gauguin's stay with Van Gogh, on a very coarse jute canvas."],
-    "Un parque de la ciudad": ["A City Park", "A woman rests on a bench beside a wide, sunlit path, among lush gardens. A quiet scene of American Impressionism."],
-    "El hogar de la garza": ["The Home of the Heron", "A dim wetland, bathed in a golden haze, where the heron of the title can barely be made out. The trees melt into the light in an almost spiritual landscape."],
-    "Croquet Scene": ["Escena de cróquet", "Mujeres con vistosos miriñaques y un hombre arrodillado juegan al cróquet en un césped de verano. La luz dura y las sombras marcadas dan a esta escena de ocio un aire moderno."],
-    "Vista del Cotopaxi": ["View of Cotopaxi", "The Ecuadorian volcano rises above a tropical valley with a lake and a waterfall. Church painted the Andes after his travels in South America, with almost scientific detail."],
-    "Beata Beatrix": ["Beata Beatrix", "Beatriz aparece en trance, con los ojos cerrados, mientras una paloma roja le trae una amapola. Rossetti volvió a este tema de Dante en memoria de su difunta esposa; la imagen incluye su marco dorado."],
-    "Magnolias sobre terciopelo azul claro": ["Magnolias on Light Blue Velvet", "White magnolias rest on a velvet cloth that gleams in the light. A sensual still life of fleshy petals and very soft shadows."],
-    "La Natividad": ["The Nativity", "The Virgin and Saint Joseph adore the Child in a small panel from the Florentine Renaissance. The bright colors and serene composition are typical of the painter."],
-    "Still Life with Strawberries and Nuts": ["Bodegón con fresas y nueces", "Un frasco de vidrio con fresas, un cuenco de nueces, un cítrico amarillo y una taza de porcelana llenan una mesa oscura. Peale fue un pionero del bodegón en Estados Unidos."],
-    "Bodegón con geranio": ["Still Life with Geranium", "A potted geranium, fruit and a plaster figure share a tilted table. Matisse uses pure color to organize the space of the painting."],
-    "Fray Pedro dispara a El Maragato": ["Friar Pedro Shoots El Maragato", "A scene from Goya's series on the capture of a famous bandit: the friar shoots him as his horse runs off. A popular tale told almost like a comic strip."],
-    "Paseo por el acantilado en Pourville": ["Cliff Walk at Pourville", "Two small figures walk along a cliff facing a sea full of sails. The grass and the water vibrate in quick touches of color."],
-    "Water Lily Pond": ["Estanque de nenúfares", "Un puente japonés se arquea sobre un estanque cubierto de nenúfares en Giverny. Monet volvió una y otra vez a este jardín durante sus últimas décadas."],
-    "Paisaje con dos álamos": ["Landscape with Two Poplars", "Intense shapes and colors almost entirely replace the real landscape. Here Kandinsky takes a decisive step toward abstract painting."],
-    "Manzanas y uvas": ["Apples and Grapes", "A still life of fruit on a crumpled white cloth, painted in thick, luminous strokes. Monet brings a landscape painter's eye to the table."],
-    "Boceto para «Tarde de domingo en la Grande Jatte»": ["Sketch for \"A Sunday on La Grande Jatte\"", "A small oil study for Seurat's famous painting, done on panel in the open air. It shows the light and shadows of the island before the final pointillism."],
-    "A Holiday": ["Un día de fiesta", "Niños vestidos de blanco juegan en la orilla de una playa soleada, pintados con toques rápidos y alegres. Potthast hizo del ocio junto al mar su tema característico."],
-    "Mrs. George Swinton": ["La señora George Swinton", "Retrato de cuerpo entero de una dama de sociedad, con un brillante vestido blanco, junto a un sillón rosado. La pincelada rápida de Sargent convierte la tela y la pose en pura elegancia."],
-    "Lectura interrumpida": ["Interrupted Reading", "A young woman looks up from her book, lost in thought. Corot, known for his landscapes, painted these silent figures in his later years."],
-
-    "The Steerage": ["El entrepuente", "Pasajeros se amontonan en las cubiertas inferiores de un transatlántico, vistos desde arriba. Stieglitz consideraba esta imagen de líneas, formas y personas uno de sus mayores logros."],
-    "El rey Arturo": ["King Arthur", "A staged portrait of a model as King Arthur, with a full beard, helmet and chain mail. Cameron created this image to illustrate Tennyson's poems."],
-    "Locomoción animal, lámina 758": ["Animal Locomotion, Plate 758", "A sequence of photographs that breaks a bird's flight into phases. With these series Muybridge showed what the human eye cannot catch."],
-    "La Victoria de Samotracia": ["The Winged Victory of Samothrace", "A photograph of the Greek sculpture held at the Louvre, taken in the 1860s. An early record of how the camera spread the works of museums."],
-    "Articles of China": ["Artículos de porcelana", "Hileras de porcelana llenan los estantes de una vitrina en uno de los primeros libros fotográficos. Talbot quería mostrar que una cámara podía inventariar toda una colección."],
-    "Moulin de la Galette, Montmartre": ["Moulin de la Galette, Montmartre", "A view of the famous Montmartre windmill in 1842, three years after photography was announced. Bayard was one of the medium's forgotten inventors."],
-    "Estudio de hojas": ["Study of Leaves", "The silhouettes of a fern and several leaves are printed directly on the paper, without a camera. A delicate photogram that joins photography and botany."],
-    "Cabaret de l'Homme Armé": ["Cabaret de l'Homme Armé", "The façade of an old cabaret on the rue des Blancs-Manteaux in Paris. Atget patiently documented the old city that was about to disappear."],
-    "Avignon: Flood of 1856": ["Aviñón: la inundación de 1856", "Baldus registró la ciudad inundada tras el desbordamiento del Ródano, por encargo del gobierno francés. Un ejemplo temprano de la fotografía como registro de actualidad."],
-    "Pilares osíricos y coloso caído": ["Osiride Pillars and Fallen Colossus", "The ruins of the temple at Thebes under the Egyptian sun in 1857. Frith carried his darkroom up the Nile to produce these hugely popular views."],
-    "Mono Lake, Volcano": ["Lago Mono, volcán", "Una tierra volcánica y árida se extiende en California en esta fotografía de exploración de 1868. La austera vista de O'Sullivan resulta hoy extrañamente moderna."],
-    "Obrero de grúa en el Empire State": ["Derrick Worker on the Empire State Building", "A worker stands out against the sky on the frame of a crane, during the construction of the skyscraper. With these images Hine celebrated those who raised the city."],
-    "«¡Fresas, todas maduras!»": ["\"Strawberries, All Ripe!\"", "A strawberry seller on a London street in 1877. It comes from a pioneering book of documentary photography about street life."],
-    "Iglesia de Villeneuve-le-Comte": ["Church of Villeneuve-le-Comte", "The portal of a rural French church, photographed in sharp detail in 1862. Marville was one of the great architectural photographers of his time."],
-
-    "La gran ola de Kanagawa": ["The Great Wave off Kanagawa", "A huge wave threatens three boats, with Mount Fuji in the distance. It is the most famous Japanese print, from the series Thirty-Six Views of Mount Fuji."],
-    "Grullas en un pino nevado": ["Cranes on a Snow-Covered Pine", "Cranes rest on the snow-laden branches of a pine. The tall, narrow format reinforces the calm of the scene."],
-    "Tormenta bajo la cumbre": ["Storm Below the Summit", "Mount Fuji rises dark as lightning strikes its slopes, under a clear sky. Another of Hokusai's celebrated views."],
-    "Whaling off the Goto Islands": ["Caza de ballenas frente a las islas Goto", "Pequeñas barcas con estandartes rodean una ballena enorme frente a una costa boscosa, en una de las series de Hokusai sobre el océano. La estampa convierte una caza peligrosa en un dibujo lleno de movimiento."],
-    "Peces de colores": ["Goldfish", "A woman and a child lean in together in a domestic scene around some goldfish. Utamaro was the great Japanese master of the female portrait in print."],
-    "El actor Bando Mitsugoro II": ["The Actor Bando Mitsugoro II", "A portrait of a kabuki actor with a highly expressive gesture. Sharaku worked for only ten months and left some of the most intense faces in Japanese printmaking."],
-    "La nieve al atardecer sobre un molde de seda": ["Evening Snow on a Floss Shaper", "Two women work indoors, stretching white silk over a form. The silk playfully evokes the snow of classical landscapes. Harunobu pioneered the first full-color prints."],
-    "Kanbara: Evening Snow": ["Kanbara: nieve al anochecer", "Pequeñas figuras avanzan por una aldea silenciosa bajo la nieve, en la famosa serie del Tokaido de Hiroshige. Sus grises callados la han convertido en una de sus estampas más queridas."],
-    "Mishima: niebla matinal": ["Mishima: Morning Mist", "Travelers pass through a village wrapped in dawn mist, with grey silhouettes in the background. One of the most atmospheric prints of the Tokaido road."],
-    "Nieve en el santuario de Benzaiten": ["Snow at Benzaiten Shrine", "The shrine on Inokashira Pond appears covered in snow. Hiroshige presents it as a silent refuge on the outskirts of Edo."],
-    "The Bull": ["El toro", "Pequeño aguafuerte de un toro en un prado holandés, obra del pintor de animales Paulus Potter. Muestra una observación atenta del ganado, tema favorito de su época."],
-    "El emperador Maximiliano presentado a Cristo": ["Emperor Maximilian Presented to Christ", "A large German Renaissance woodcut in which the saints present the emperor to Christ. An image of political power and devotion, dated 1519."],
-
-    "Estatua gótica con corona y cadenas": ["Gothic Statue with Crown and Chains", "A standing figure wrapped in a long cloak, with a crown, heavy chains, a book and a sword. The dark metal keeps the wear of the years."],
-    "Ballena de bronce": ["Bronze Whale", "A sculpture of a whale in mid-leap above a wave-shaped base, cast in bronze with a dark patina and golden highlights."],
-    "Bronze Shark": ["Tiburón de bronce", "Un tiburón captado en pleno giro sobre una varilla fina y una base negra. La pátina oscura se desgasta en las aletas y el vientre, que atrapan la luz al rodear la pieza."],
-    "Mantarraya de bronce": ["Bronze Manta Ray", "A manta ray seems to glide above its black base, wings spread. The bluish patina brings out the soft curve of the whole body."],
-    "Busto de mármol de un hombre joven": ["Marble Bust of a Young Man", "A classical-style bust of a young man with short curly hair, carved in pale marble on a turned foot."],
-    "Cabeza de león": ["Lion's Head", "A lion's head with a thick mane and solemn expression, mounted on a black base. The detail of the fur shows when you come closer."],
-    "Horse Head": ["Cabeza de caballo", "La cabeza y el cuello de un caballo se elevan desde una base oscura, con la crin echada hacia atrás por el viento. El bronce tiene la calma alerta de la escultura ecuestre clásica."],
-    "Cabeza de toro": ["Bull's Head", "A bull's head with long curved horns and a steady gaze, on a round base. The dark bronze reveals the detail of the muzzle and the coat."],
-    "Caballo en corveta": ["Rearing Horse", "A white horse rising on its hind legs, small in format and dynamic in outline, with mane and tail in the wind above a wooden base."],
-    "Concrete Cat": ["Gato de hormigón", "Un gato sentado, de ojos entrecerrados, vaciado en hormigón y curtido por años a la intemperie. El musgo y el liquen se han posado en su lomo, como si siempre hubiera estado en el jardín."],
-    "Elefante de madera tallada": ["Carved Wooden Elephant", "A small elephant carved by hand in warm-toned wood, with its trunk lowered and the soft polish of use."],
-    "Gnomo de jardín": ["Garden Gnome", "A white-bearded gnome with a red hat, green shirt and a lantern in his hand. A popular, humorous piece in bright colors."],
-
-    "Jarrón de cerámica con flores azules": ["Ceramic Vase with Blue Flowers", "An oval vase decorated with blue floral motifs on a white ground, with blue bands at the mouth and foot."],
-    "White Ceramic Vase": ["Jarrón blanco de cerámica", "Jarrón blanco de cuerpo bulboso, cuello largo y borde suavemente ondulado. Su superficie lisa y brillante deja todo el protagonismo a la forma y a la luz."],
-    "Jarrón blanco de cuerpo ancho": ["Wide White Vase", "A broad-shouldered vase with a wide mouth, in a matte white glaze with a slightly grainy texture."],
-    "Jarrón alto de sección cuadrada": ["Tall Square Vase", "A tall four-sided vase, wider at the mouth than at the base, with sober lines and a matte surface."],
-    "White Ceramic Jug": ["Jarra blanca de cerámica", "Jarra alta y blanca de cuello estrecho y pequeña asa curva. La superficie mate y el cuerpo abultado le dan un aire sereno y moderno."],
-    "Olla de cerámica con tapa": ["Lidded Ceramic Pot", "A wide pot with a lid and two handles, glazed in ochre and greenish tones. Its simple form recalls traditional pottery."],
-    "Maceta de barro": ["Terracotta Pot", "A classic terracotta pot, with the reddish tone and whitish stains left by the passage of time."],
-    "Jarra con tulipanes": ["Jug with Tulips", "A white jug with a wide handle and broad spout, decorated with a bouquet of pink tulips and a black line at the rim."],
-
-    "Jarrón alto de latón": ["Tall Brass Vase", "A slender brass vase with a long flared neck, a bulbous belly and a high foot, with the dark patina of the years."],
-    "Tall Brass Ewer": ["Aguamanil alto de latón", "Esbelto aguamanil de latón, de cuello largo, asa curva y bandas grabadas en la base. Años de uso han dejado en el metal un brillo cálido y desigual."],
-    "Reloj de chimenea": ["Mantel Clock", "A table clock for a mantelpiece, with a curved dark wood case, a pale dial and a gilded metal ring."],
-    "Reloj de pie antiguo": ["Antique Grandfather Clock", "A tall-case clock in reddish wood, with a golden dial and a curved top."],
-    "Chess Set": ["Juego de ajedrez", "Un juego de ajedrez completo, con piezas torneadas blancas y negras sobre un tablero de piedra veteada. Cada pieza se modeló por separado, así que vale la pena mirarla de cerca."],
-    "Candelabros de latón": ["Brass Candelabra", "A set of three brass candelabra of different sizes, from one to several curved arms, with their candles in place. The surface keeps the patina of use."],
-    "Brass Goblets": ["Copas de latón", "Tres copas de latón grabado, de interior brillante y pie corto. Su superficie gastada sugiere una larga vida en la mesa y no detrás de un cristal."],
-    "Farol chino": ["Chinese Lantern", "A hexagonal Chinese-inspired lantern, with a dark wood frame, panels painted with flowering branches and red tassels."],
-    "Lámpara de aceite antigua": ["Antique Oil Lamp", "An oil lamp with a glass chimney, a spherical reservoir decorated with roses and a brass foot, like those that lit homes before electricity."],
-    "Espejo de arco dorado": ["Gilded Arched Mirror", "An arch-shaped wall mirror, with a thin gilded frame crowned by an ornament at the top."],
-    "Treasure Chest": ["Cofre del tesoro", "Un pesado cofre de madera reforzado con hierro, de tapa curva y gran cerradura. Parece hecho para un largo viaje por mar."],
-    "Brújula de marino": ["Sailor's Compass", "A pocket compass with a hinged lid and ring, in a brass case worn by use. A small object that evokes voyages at sea."],
-
-    "Frontera de Mandelbrot": ["Mandelbrot Boundary", "A close-up of the edge of the Mandelbrot set, where every spiral repeats the shape of the whole. The image is pure mathematics, colored by each point's escape time."],
-    "Julia Bloom": ["Flor de Julia", "Un conjunto de Julia representado como una forma luminosa parecida a una flor. Un solo número complejo decide toda la figura; basta cambiarlo un poco para que aparezca otra flor."],
-    "Campo de corrientes": ["Field of Currents", "Thousands of blue strokes follow an invisible field of forces and draw crossing currents. It recalls wind on water or the grain of wood."],
-    "Laberinto de Truchet": ["Truchet Maze", "A single tile with two arcs, rotated at random, is enough to create a continuous maze. Order and chance share the composition."],
-    "Vitral de Voronoi": ["Voronoi Stained Glass", "The plane is divided into cells around random points, with a result much like stained glass. The color of each cell changes with its position."],
-    "Moiré Waves": ["Ondas de moiré", "Dos grupos de anillos concéntricos se superponen y producen bandas brillantes que ninguno de los dos contiene. El dibujo parece moverse aunque nada se mueve."],
-    "Filotaxis áurea": ["Golden Phyllotaxis", "Dots placed at the golden angle form the same spirals as a sunflower. A very simple rule is enough to reproduce a pattern from nature."],
-    "Atractor de Clifford": ["Clifford Attractor", "Millions of iterations of two equations draw a shape like a veil of smoke. Each point depends on the one before, yet the whole seems drawn by hand."],
-    "Wave Interference": ["Interferencia de ondas", "Varias ondas circulares parten de fuentes ocultas, se refuerzan y se anulan entre sí. El resultado se traduce a color, como ondas en un estanque pintado."],
-    "Subdivisión recursiva": ["Recursive Subdivision", "A square is split again and again at random, and each part receives a flat color. The result converses with the geometric abstraction of the twentieth century."]
+    "Dos hermanas en la terraza": [
+      "Two Sisters on the Terrace",
+      "Two young women pose on a terrace above the Seine, with flowers and a basket of yarn. The loose brushwork and the older sister's red hat gather all the light of summer."
+    ],
+    "El baño de la niña": [
+      "The Child's Bath",
+      "A mother washes her daughter's feet over a basin. The view from above and the flat patterns reveal the influence of Japanese prints."
+    ],
+    "Arrival of the Normandy Train, Gare Saint-Lazare": [
+      "Llegada del tren de Normandía, Gare Saint-Lazare",
+      "El vapor llena la estación de techo acristalado mientras entra un tren. Monet trata la industria moderna como un estudio de la luz y la atmósfera cambiantes."
+    ],
+    "Mujer en su tocador": [
+      "Woman at Her Toilette",
+      "A woman, seen from behind, prepares herself at the dressing table. The whites and greys vibrate in quick strokes that almost dissolve the room."
+    ],
+    "San Jorge y el dragón": [
+      "Saint George and the Dragon",
+      "Catalan Gothic panel in which the saint on horseback pierces the dragon while the princess watches. The gilding and the detail of the armor stand out."
+    ],
+    "Distant View of Niagara Falls": [
+      "Vista lejana de las cataratas del Niágara",
+      "Figuras diminutas contemplan las cataratas desde una altura rocosa, entre árboles otoñales y un cielo de tormenta. Un paisaje estadounidense temprano que convierte el Niágara en una visión romántica de lo sublime."
+    ],
+    "La playa de Sainte-Adresse": [
+      "The Beach at Sainte-Adresse",
+      "Fishing boats rest on the shore under a cloudy Normandy sky. An early work that already announces the brushwork of Impressionism."
+    ],
+    "La red de arenque": [
+      "The Herring Net",
+      "Two fishermen haul in a heavy net from a small boat on a grey, choppy sea. The weight of the catch and the swell give the scene its tension."
+    ],
+    "Nocturne: Blue and Gold, Southampton Water": [
+      "Nocturno: azul y oro, Southampton Water",
+      "Barcos y luces lejanas se disuelven en una bruma azul de atardecer sobre el agua. Whistler reduce la escena a color y atmósfera, muy cerca de la abstracción."
+    ],
+    "Acróbatas en el Circo Fernando": [
+      "Acrobats at the Cirque Fernando",
+      "Two young performers take their bow in the ring with the oranges thrown by the audience. Renoir paints the Parisian circus up close, in warm colors."
+    ],
+    "La sombrerería": [
+      "The Millinery Shop",
+      "A milliner examines a hat among a group of displayed headpieces. Degas frames the scene from the side, like a snapshot of Parisian life."
+    ],
+    "Mujer ante un acuario": [
+      "Woman before an Aquarium",
+      "A woman rests her head on her hand and gazes at a fishbowl on the table. The patterned background and soft colors create a serene interior."
+    ],
+    "Mountain Brook": [
+      "Arroyo de montaña",
+      "Un arroyo claro corre sobre rocas cubiertas de musgo en un bosque sombrío, iluminado por manchas sueltas de sol. Bierstadt pinta cada piedra y cada hoja con serena precisión."
+    ],
+    "Arlesianas (Mistral)": [
+      "Women of Arles (Mistral)",
+      "Women of Arles walk wrapped in shawls, their faces covered against the wind. Painted during Gauguin's stay with Van Gogh, on a very coarse jute canvas."
+    ],
+    "Un parque de la ciudad": [
+      "A City Park",
+      "A woman rests on a bench beside a wide, sunlit path, among lush gardens. A quiet scene of American Impressionism."
+    ],
+    "El hogar de la garza": [
+      "The Home of the Heron",
+      "A dim wetland, bathed in a golden haze, where the heron of the title can barely be made out. The trees melt into the light in an almost spiritual landscape."
+    ],
+    "Croquet Scene": [
+      "Escena de cróquet",
+      "Mujeres con vistosos miriñaques y un hombre arrodillado juegan al cróquet en un césped de verano. La luz dura y las sombras marcadas dan a esta escena de ocio un aire moderno."
+    ],
+    "Vista del Cotopaxi": [
+      "View of Cotopaxi",
+      "The Ecuadorian volcano rises above a tropical valley with a lake and a waterfall. Church painted the Andes after his travels in South America, with almost scientific detail."
+    ],
+    "Beata Beatrix": [
+      "Beata Beatrix",
+      "Beatriz aparece en trance, con los ojos cerrados, mientras una paloma roja le trae una amapola. Rossetti volvió a este tema de Dante en memoria de su difunta esposa; la imagen incluye su marco dorado."
+    ],
+    "Magnolias sobre terciopelo azul claro": [
+      "Magnolias on Light Blue Velvet",
+      "White magnolias rest on a velvet cloth that gleams in the light. A sensual still life of fleshy petals and very soft shadows."
+    ],
+    "La Natividad": [
+      "The Nativity",
+      "The Virgin and Saint Joseph adore the Child in a small panel from the Florentine Renaissance. The bright colors and serene composition are typical of the painter."
+    ],
+    "Still Life with Strawberries and Nuts": [
+      "Bodegón con fresas y nueces",
+      "Un frasco de vidrio con fresas, un cuenco de nueces, un cítrico amarillo y una taza de porcelana llenan una mesa oscura. Peale fue un pionero del bodegón en Estados Unidos."
+    ],
+    "Bodegón con geranio": [
+      "Still Life with Geranium",
+      "A potted geranium, fruit and a plaster figure share a tilted table. Matisse uses pure color to organize the space of the painting."
+    ],
+    "Fray Pedro dispara a El Maragato": [
+      "Friar Pedro Shoots El Maragato",
+      "A scene from Goya's series on the capture of a famous bandit: the friar shoots him as his horse runs off. A popular tale told almost like a comic strip."
+    ],
+    "Paseo por el acantilado en Pourville": [
+      "Cliff Walk at Pourville",
+      "Two small figures walk along a cliff facing a sea full of sails. The grass and the water vibrate in quick touches of color."
+    ],
+    "Water Lily Pond": [
+      "Estanque de nenúfares",
+      "Un puente japonés se arquea sobre un estanque cubierto de nenúfares en Giverny. Monet volvió una y otra vez a este jardín durante sus últimas décadas."
+    ],
+    "Paisaje con dos álamos": [
+      "Landscape with Two Poplars",
+      "Intense shapes and colors almost entirely replace the real landscape. Here Kandinsky takes a decisive step toward abstract painting."
+    ],
+    "Manzanas y uvas": [
+      "Apples and Grapes",
+      "A still life of fruit on a crumpled white cloth, painted in thick, luminous strokes. Monet brings a landscape painter's eye to the table."
+    ],
+    "Boceto para «Tarde de domingo en la Grande Jatte»": [
+      "Sketch for \"A Sunday on La Grande Jatte\"",
+      "A small oil study for Seurat's famous painting, done on panel in the open air. It shows the light and shadows of the island before the final pointillism."
+    ],
+    "A Holiday": [
+      "Un día de fiesta",
+      "Niños vestidos de blanco juegan en la orilla de una playa soleada, pintados con toques rápidos y alegres. Potthast hizo del ocio junto al mar su tema característico."
+    ],
+    "Mrs. George Swinton": [
+      "La señora George Swinton",
+      "Retrato de cuerpo entero de una dama de sociedad, con un brillante vestido blanco, junto a un sillón rosado. La pincelada rápida de Sargent convierte la tela y la pose en pura elegancia."
+    ],
+    "Lectura interrumpida": [
+      "Interrupted Reading",
+      "A young woman looks up from her book, lost in thought. Corot, known for his landscapes, painted these silent figures in his later years."
+    ],
+    "The Steerage": [
+      "El entrepuente",
+      "Pasajeros se amontonan en las cubiertas inferiores de un transatlántico, vistos desde arriba. Stieglitz consideraba esta imagen de líneas, formas y personas uno de sus mayores logros."
+    ],
+    "El rey Arturo": [
+      "King Arthur",
+      "A staged portrait of a model as King Arthur, with a full beard, helmet and chain mail. Cameron created this image to illustrate Tennyson's poems."
+    ],
+    "Locomoción animal, lámina 758": [
+      "Animal Locomotion, Plate 758",
+      "A sequence of photographs that breaks a bird's flight into phases. With these series Muybridge showed what the human eye cannot catch."
+    ],
+    "La Victoria de Samotracia": [
+      "The Winged Victory of Samothrace",
+      "A photograph of the Greek sculpture held at the Louvre, taken in the 1860s. An early record of how the camera spread the works of museums."
+    ],
+    "Articles of China": [
+      "Artículos de porcelana",
+      "Hileras de porcelana llenan los estantes de una vitrina en uno de los primeros libros fotográficos. Talbot quería mostrar que una cámara podía inventariar toda una colección."
+    ],
+    "Moulin de la Galette, Montmartre": [
+      "Moulin de la Galette, Montmartre",
+      "A view of the famous Montmartre windmill in 1842, three years after photography was announced. Bayard was one of the medium's forgotten inventors."
+    ],
+    "Estudio de hojas": [
+      "Study of Leaves",
+      "The silhouettes of a fern and several leaves are printed directly on the paper, without a camera. A delicate photogram that joins photography and botany."
+    ],
+    "Cabaret de l'Homme Armé": [
+      "Cabaret de l'Homme Armé",
+      "The façade of an old cabaret on the rue des Blancs-Manteaux in Paris. Atget patiently documented the old city that was about to disappear."
+    ],
+    "Avignon: Flood of 1856": [
+      "Aviñón: la inundación de 1856",
+      "Baldus registró la ciudad inundada tras el desbordamiento del Ródano, por encargo del gobierno francés. Un ejemplo temprano de la fotografía como registro de actualidad."
+    ],
+    "Pilares osíricos y coloso caído": [
+      "Osiride Pillars and Fallen Colossus",
+      "The ruins of the temple at Thebes under the Egyptian sun in 1857. Frith carried his darkroom up the Nile to produce these hugely popular views."
+    ],
+    "Mono Lake, Volcano": [
+      "Lago Mono, volcán",
+      "Una tierra volcánica y árida se extiende en California en esta fotografía de exploración de 1868. La austera vista de O'Sullivan resulta hoy extrañamente moderna."
+    ],
+    "Obrero de grúa en el Empire State": [
+      "Derrick Worker on the Empire State Building",
+      "A worker stands out against the sky on the frame of a crane, during the construction of the skyscraper. With these images Hine celebrated those who raised the city."
+    ],
+    "«¡Fresas, todas maduras!»": [
+      "\"Strawberries, All Ripe!\"",
+      "A strawberry seller on a London street in 1877. It comes from a pioneering book of documentary photography about street life."
+    ],
+    "Iglesia de Villeneuve-le-Comte": [
+      "Church of Villeneuve-le-Comte",
+      "The portal of a rural French church, photographed in sharp detail in 1862. Marville was one of the great architectural photographers of his time."
+    ],
+    "La gran ola de Kanagawa": [
+      "The Great Wave off Kanagawa",
+      "An enormous wave looms over three boats, with a tiny Mount Fuji in the distance. It is the most famous image of the series Thirty-Six Views of Mount Fuji."
+    ],
+    "Grullas en un pino nevado": [
+      "Cranes on a Snow-Covered Pine",
+      "Cranes rest on the snow-laden branches of a pine. The tall, narrow format reinforces the calm of the scene."
+    ],
+    "Tormenta bajo la cumbre": [
+      "Storm Below the Summit",
+      "Mount Fuji rises dark as lightning strikes its slopes, under a clear sky. Another of Hokusai's celebrated views."
+    ],
+    "Whaling off the Goto Islands": [
+      "Caza de ballenas frente a las islas Goto",
+      "Pequeñas barcas con estandartes rodean una ballena enorme frente a una costa boscosa, en una de las series de Hokusai sobre el océano. La estampa convierte una caza peligrosa en un dibujo lleno de movimiento."
+    ],
+    "Peces de colores": [
+      "Goldfish",
+      "A woman and a child lean in together in a domestic scene around some goldfish. Utamaro was the great Japanese master of the female portrait in print."
+    ],
+    "El actor Bando Mitsugoro II": [
+      "The Actor Bando Mitsugoro II",
+      "A portrait of a kabuki actor with a highly expressive gesture. Sharaku worked for only ten months and left some of the most intense faces in Japanese printmaking."
+    ],
+    "La nieve al atardecer sobre un molde de seda": [
+      "Evening Snow on a Floss Shaper",
+      "Two women work indoors, stretching white silk over a form. The silk playfully evokes the snow of classical landscapes. Harunobu pioneered the first full-color prints."
+    ],
+    "Kanbara: Evening Snow": [
+      "Kanbara: nieve al anochecer",
+      "Pequeñas figuras avanzan por una aldea silenciosa bajo la nieve, en la famosa serie del Tokaido de Hiroshige. Sus grises callados la han convertido en una de sus estampas más queridas."
+    ],
+    "Mishima: niebla matinal": [
+      "Mishima: Morning Mist",
+      "Travelers pass through a village wrapped in dawn mist, with grey silhouettes in the background. One of the most atmospheric prints of the Tokaido road."
+    ],
+    "Nieve en el santuario de Benzaiten": [
+      "Snow at Benzaiten Shrine",
+      "The shrine on Inokashira Pond appears covered in snow. Hiroshige presents it as a silent refuge on the outskirts of Edo."
+    ],
+    "The Bull": [
+      "El toro",
+      "Pequeño aguafuerte de un toro en un prado holandés, obra del pintor de animales Paulus Potter. Muestra una observación atenta del ganado, tema favorito de su época."
+    ],
+    "El emperador Maximiliano presentado a Cristo": [
+      "Emperor Maximilian Presented to Christ",
+      "A large German Renaissance woodcut in which the saints present the emperor to Christ. An image of political power and devotion, dated 1519."
+    ],
+    "Estatua gótica con corona y cadenas": [
+      "Gothic Statue with Crown and Chains",
+      "A standing figure wrapped in a long cloak, with a crown, heavy chains, a book and a sword. The dark metal keeps the wear of the years."
+    ],
+    "Ballena de bronce": [
+      "Bronze Whale",
+      "A sculpture of a whale in mid-leap above a wave-shaped base, cast in bronze with a dark patina and golden highlights."
+    ],
+    "Bronze Shark": [
+      "Tiburón de bronce",
+      "Un tiburón captado en pleno giro sobre una varilla fina y una base negra. La pátina oscura se desgasta en las aletas y el vientre, que atrapan la luz al rodear la pieza."
+    ],
+    "Mantarraya de bronce": [
+      "Bronze Manta Ray",
+      "A manta ray seems to glide above its black base, wings spread. The bluish patina brings out the soft curve of the whole body."
+    ],
+    "Busto de mármol de un hombre joven": [
+      "Marble Bust of a Young Man",
+      "A classical-style bust of a young man with short curly hair, carved in pale marble on a turned foot."
+    ],
+    "Cabeza de león": [
+      "Lion's Head",
+      "A lion's head with a thick mane and solemn expression, mounted on a black base. The detail of the fur shows when you come closer."
+    ],
+    "Horse Head": [
+      "Cabeza de caballo",
+      "La cabeza y el cuello de un caballo se elevan desde una base oscura, con la crin echada hacia atrás por el viento. El bronce tiene la calma alerta de la escultura ecuestre clásica."
+    ],
+    "Cabeza de toro": [
+      "Bull's Head",
+      "A bull's head with long curved horns and a steady gaze, on a round base. The dark bronze reveals the detail of the muzzle and the coat."
+    ],
+    "Caballo en corveta": [
+      "Rearing Horse",
+      "A white horse rising on its hind legs, small in format and dynamic in outline, with mane and tail in the wind above a wooden base."
+    ],
+    "Concrete Cat": [
+      "Gato de hormigón",
+      "Un gato sentado, de ojos entrecerrados, vaciado en hormigón y curtido por años a la intemperie. El musgo y el liquen se han posado en su lomo, como si siempre hubiera estado en el jardín."
+    ],
+    "Elefante de madera tallada": [
+      "Carved Wooden Elephant",
+      "A small elephant carved by hand in warm-toned wood, with its trunk lowered and the soft polish of use."
+    ],
+    "Gnomo de jardín": [
+      "Garden Gnome",
+      "A white-bearded gnome with a red hat, green shirt and a lantern in his hand. A popular, humorous piece in bright colors."
+    ],
+    "Jarrón de cerámica con flores azules": [
+      "Ceramic Vase with Blue Flowers",
+      "An oval vase decorated with blue floral motifs on a white ground, with blue bands at the mouth and foot."
+    ],
+    "White Ceramic Vase": [
+      "Jarrón blanco de cerámica",
+      "Jarrón blanco de cuerpo bulboso, cuello largo y borde suavemente ondulado. Su superficie lisa y brillante deja todo el protagonismo a la forma y a la luz."
+    ],
+    "Jarrón blanco de cuerpo ancho": [
+      "Wide White Vase",
+      "A broad-shouldered vase with a wide mouth, in a matte white glaze with a slightly grainy texture."
+    ],
+    "Jarrón alto de sección cuadrada": [
+      "Tall Square Vase",
+      "A tall four-sided vase, wider at the mouth than at the base, with sober lines and a matte surface."
+    ],
+    "White Ceramic Jug": [
+      "Jarra blanca de cerámica",
+      "Jarra alta y blanca de cuello estrecho y pequeña asa curva. La superficie mate y el cuerpo abultado le dan un aire sereno y moderno."
+    ],
+    "Olla de cerámica con tapa": [
+      "Lidded Ceramic Pot",
+      "A wide pot with a lid and two handles, glazed in ochre and greenish tones. Its simple form recalls traditional pottery."
+    ],
+    "Maceta de barro": [
+      "Terracotta Pot",
+      "A classic terracotta pot, with the reddish tone and whitish stains left by the passage of time."
+    ],
+    "Jarra con tulipanes": [
+      "Jug with Tulips",
+      "A white jug with a wide handle and broad spout, decorated with a bouquet of pink tulips and a black line at the rim."
+    ],
+    "Jarrón alto de latón": [
+      "Tall Brass Vase",
+      "A slender brass vase with a long flared neck, a bulbous belly and a high foot, with the dark patina of the years."
+    ],
+    "Tall Brass Ewer": [
+      "Aguamanil alto de latón",
+      "Esbelto aguamanil de latón, de cuello largo, asa curva y bandas grabadas en la base. Años de uso han dejado en el metal un brillo cálido y desigual."
+    ],
+    "Reloj de chimenea": [
+      "Mantel Clock",
+      "A table clock for a mantelpiece, with a curved dark wood case, a pale dial and a gilded metal ring."
+    ],
+    "Reloj de pie antiguo": [
+      "Antique Grandfather Clock",
+      "A tall-case clock in reddish wood, with a golden dial and a curved top."
+    ],
+    "Chess Set": [
+      "Juego de ajedrez",
+      "Un juego de ajedrez completo, con piezas torneadas blancas y negras sobre un tablero de piedra veteada. Cada pieza se modeló por separado, así que vale la pena mirarla de cerca."
+    ],
+    "Candelabros de latón": [
+      "Brass Candelabra",
+      "A set of three brass candelabra of different sizes, from one to several curved arms, with their candles in place. The surface keeps the patina of use."
+    ],
+    "Brass Goblets": [
+      "Copas de latón",
+      "Tres copas de latón grabado, de interior brillante y pie corto. Su superficie gastada sugiere una larga vida en la mesa y no detrás de un cristal."
+    ],
+    "Farol chino": [
+      "Chinese Lantern",
+      "A hexagonal Chinese-inspired lantern, with a dark wood frame, panels painted with flowering branches and red tassels."
+    ],
+    "Lámpara de aceite antigua": [
+      "Antique Oil Lamp",
+      "An oil lamp with a glass chimney, a spherical reservoir decorated with roses and a brass foot, like those that lit homes before electricity."
+    ],
+    "Espejo de arco dorado": [
+      "Gilded Arched Mirror",
+      "An arch-shaped wall mirror, with a thin gilded frame crowned by an ornament at the top."
+    ],
+    "Treasure Chest": [
+      "Cofre del tesoro",
+      "Un pesado cofre de madera reforzado con hierro, de tapa curva y gran cerradura. Parece hecho para un largo viaje por mar."
+    ],
+    "Brújula de marino": [
+      "Sailor's Compass",
+      "A pocket compass with a hinged lid and ring, in a brass case worn by use. A small object that evokes voyages at sea."
+    ],
+    "Frontera de Mandelbrot": [
+      "Mandelbrot Boundary",
+      "A close-up of the edge of the Mandelbrot set, where every spiral repeats the shape of the whole. The image is pure mathematics, colored by each point's escape time."
+    ],
+    "Julia Bloom": [
+      "Flor de Julia",
+      "Un conjunto de Julia representado como una forma luminosa parecida a una flor. Un solo número complejo decide toda la figura; basta cambiarlo un poco para que aparezca otra flor."
+    ],
+    "Campo de corrientes": [
+      "Field of Currents",
+      "Thousands of blue strokes follow an invisible field of forces and draw crossing currents. It recalls wind on water or the grain of wood."
+    ],
+    "Laberinto de Truchet": [
+      "Truchet Maze",
+      "A single tile with two arcs, rotated at random, is enough to create a continuous maze. Order and chance share the composition."
+    ],
+    "Vitral de Voronoi": [
+      "Voronoi Stained Glass",
+      "The plane is divided into cells around random points, with a result much like stained glass. The color of each cell changes with its position."
+    ],
+    "Moiré Waves": [
+      "Ondas de moiré",
+      "Dos grupos de anillos concéntricos se superponen y producen bandas brillantes que ninguno de los dos contiene. El dibujo parece moverse aunque nada se mueve."
+    ],
+    "Filotaxis áurea": [
+      "Golden Phyllotaxis",
+      "Dots placed at the golden angle form the same spirals as a sunflower. A very simple rule is enough to reproduce a pattern from nature."
+    ],
+    "Atractor de Clifford": [
+      "Clifford Attractor",
+      "Millions of iterations of two equations draw a shape like a veil of smoke. Each point depends on the one before, yet the whole seems drawn by hand."
+    ],
+    "Wave Interference": [
+      "Interferencia de ondas",
+      "Varias ondas circulares parten de fuentes ocultas, se refuerzan y se anulan entre sí. El resultado se traduce a color, como ondas en un estanque pintado."
+    ],
+    "Subdivisión recursiva": [
+      "Recursive Subdivision",
+      "A square is split again and again at random, and each part receives a flat color. The result converses with the geometric abstraction of the twentieth century."
+    ],
+    "Bordighera": [
+      "Bordighera",
+      "Twisted pines in the foreground frame the town of Bordighera and the blue of the Mediterranean. Monet painted this view during his stay on the Italian Riviera in 1884."
+    ],
+    "Brazo del Sena cerca de Giverny, con niebla": [
+      "Branch of the Seine near Giverny, in Mist",
+      "Dawn mist dissolves the bank and the trees into mauves and blues, barely reflected in the water. It belongs to the series of mornings on the Seine that Monet painted in 1897."
+    ],
+    "A orillas del Sena, Bennecourt": [
+      "On the Bank of the Seine, Bennecourt",
+      "A woman in a striped dress sits on the grass beside a green boat, looking at the village reflected in the river. It is one of Monet's first outdoor scenes."
+    ],
+    "Alice": [
+      "Alice",
+      "Full-length portrait of a girl in white playing with a ribbon against a dark background. Chase portrayed his eldest daughter here."
+    ],
+    "For Sunday's Dinner": [
+      "Para la cena del domingo",
+      "Un pollo desplumado cuelga de las patas contra una puerta oscura y gastada con bisagras de hierro. El trampantojo de Harnett vuelve sorprendentemente táctil un tema corriente de cocina."
+    ],
+    "Early Morning, Tarpon Springs": [
+      "Primera hora de la mañana, Tarpon Springs",
+      "Altos pinos se elevan sobre un claro de Florida mientras la primera luz calienta el suelo. Inness pintó este paisaje brumoso y contemplativo en los últimos años de su vida."
+    ],
+    "Portrait of Mary Adeline Williams": [
+      "Retrato de Mary Adeline Williams",
+      "Una mujer con vestido oscuro plisado y cuello blanco mira de lado, con el rostro saliendo de una sombra profunda. Eakins pintó a esta amiga cercana de su familia con su franqueza habitual."
+    ],
+    "Icebound": [
+      "Atrapado en el hielo",
+      "Un arroyo corre azul y verde entre orillas de nieve profunda, bajo unas pocas ramas desnudas. Twachtman encontró este tipo de tema invernal y tranquilo cerca de su casa en Greenwich, Connecticut."
+    ],
+    "Hamamatsu, del Tokaido con poemas": [
+      "Hamamatsu, from the Tokaido with Poems",
+      "Porters and packhorses move along the street of Hamamatsu, with the castle among the pines and a flock of birds behind. A poem accompanies the scene in the sky."
+    ],
+    "Mitsuke: barcas en el río Tenryu": [
+      "Mitsuke: Ferries on the Tenryu River",
+      "A traveler reaches the bank of the Tenryu while ferries carry passengers under leaning pines. The river opens into blue branches all the way to the horizon."
+    ],
+    "Maisaka: el transbordador de Imagiri": [
+      "Maisaka: The Ferry at Imagiri",
+      "Two sailboats full of travelers cross the waters of Imagiri, facing dark mountains that fade into the mist."
+    ],
+    "Big River desde la Rancherie, Mendocino": [
+      "Big River from the Rancherie, Mendocino",
+      "Dark pines frame the valley where the Big River disappears into the mist of the California coast. Watkins photographed the western landscape with large-format plates."
+    ],
+    "Sainte-Colombe, frente a Vienne": [
+      "Sainte-Colombe, across from Vienne",
+      "A stone bridge crosses an almost dry channel between the buildings of Sainte-Colombe, with another bridge behind. Baldus made this view around 1861."
+    ],
+    "Molinos de Montmartre": [
+      "Windmills of Montmartre",
+      "A windmill rises above the houses and grounds of Montmartre. Bayard, one of the inventors of photography, made the negative in the 1840s; this print is from 1965."
+    ],
+    "Templo de Cleopatra en Erment": [
+      "Cleopatra's Temple at Erment",
+      "Columns with their capitals still stand among the rubble of Erment, near Thebes. Frith took this photograph during his journey through Egypt."
+    ],
+    "Cuencas de Newton": [
+      "Newton Basins",
+      "Each point of the plane is colored by the root that Newton's method reaches. The borders between colors fold over themselves endlessly."
+    ],
+    "Barco en llamas": [
+      "Burning Ship",
+      "A detail of the Burning Ship fractal, a variant of the Mandelbrot set. Its shapes recall masts on fire over a black sea."
+    ],
+    "Cuasicristal": [
+      "Quasicrystal",
+      "Seven plane waves add up to an order that never quite repeats, like that of the quasicrystals studied in physics."
+    ],
+    "Color del plano complejo": [
+      "Color of the Complex Plane",
+      "A complex function drawn only with color: the hue gives the angle and the bands of light the magnitude. The swirls mark its zeros and poles."
+    ]
   }
 }
