@@ -34,6 +34,25 @@ describe('explorar galerias', () => {
     assert.equal(empty.body.workCount, 0, 'un proyecto privado no cuenta');
 
     assert.equal((await call('PATCH', `/lots/${lotId}/visibility`, { token: author.token, body: { visibility: 'PUBLIC' } })).status, 200);
+    await eventually('la obra queda colgada y marcada como publica', async () => {
+      const room = await call<Room>('GET', `/galleries/${author.userId}/room`, { token: author.token });
+      return room.status === 200 && room.body.artworks.some((artwork) => artwork.lotId === lotId);
+    });
+    // Una galeria es privada hasta que su autor la abre.
+    assert.equal((await call('GET', `/galleries/${author.userId}/room`)).status, 404);
+    assert.equal((await call('GET', `/galleries/${author.userId}/room`, { token: fan.token })).status, 404);
+    assert.deepEqual((await call('GET', `/galleries/${author.userId}`)).body, []);
+    assert.equal((await call<{ workCount: number }>('GET', `/galleries/${author.userId}/summary`)).body.workCount, 0);
+
+    const opened = await call<{ visibility: string }>('PATCH', '/me/gallery/visibility', { token: author.token, body: { visibility: 'PUBLIC' } });
+    assert.equal(opened.body.visibility, 'PUBLIC');
+    assert.equal((await call('PATCH', '/me/gallery/visibility', { token: author.token, body: { visibility: 'OTRA' } })).status, 400);
+    assert.equal((await call('PATCH', '/me/gallery/visibility', { body: { visibility: 'PUBLIC' } })).status, 401);
+    const visit = await call<Room & { visibility: string; preferences?: unknown }>('GET', `/galleries/${author.userId}/room`);
+    assert.equal(visit.status, 200);
+    assert.equal(visit.body.artworks[0]?.lot.title, 'E2E Obra de la galeria');
+    assert.equal(visit.body.preferences, undefined, 'los gustos que eligio su duena no salen a los visitantes');
+
     type Card = { ownerId: string; displayName: string; workCount: number; followerCount: number; previews: Array<{ lotId: string; previewUrl: string | null }> };
     const card = await eventually('la galeria aparece con su obra', async () => {
       const reply = await call<Card>('GET', `/galleries/${author.userId}/summary`);
@@ -98,6 +117,7 @@ describe('proyectos propios', () => {
     const shown = await call<LotView>('PATCH', `/lots/${project}/visibility`, { token: collector.token, body: { visibility: 'PUBLIC' } });
     assert.equal(shown.body.visibility, 'PUBLIC');
 
+    assert.equal((await call('PATCH', '/me/gallery/visibility', { token: collector.token, body: { visibility: 'PUBLIC' } })).status, 200);
     const listed = await eventually('la galeria publica muestra el proyecto', async () => {
       const items = await call<Item[]>('GET', `/galleries/${collector.userId}`);
       return items.body.find((item) => item.lotId === project);
@@ -125,7 +145,7 @@ describe('proyectos propios', () => {
       42,
     );
     await eventually('el proyecto publico llega a su galeria', async () => {
-      const items = await call<Item[]>('GET', `/galleries/${seller.userId}`);
+      const items = await call<Item[]>('GET', `/galleries/${seller.userId}`, { token: seller.token });
       return items.body.some((item) => item.lotId === own && item.source === 'PROYECTO');
     });
     assert.equal((await call('POST', `/lots/${own}/submit`, { token: seller.token })).status, 201);

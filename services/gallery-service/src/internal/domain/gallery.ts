@@ -38,6 +38,8 @@ export interface PersonalGallery {
   suggestedConfig: Record<string, unknown> | null;
   appliedConfig: Record<string, unknown> | null;
   artworks: Artwork[];
+  /** Una galeria es privada hasta que su duena la abre a los visitantes. */
+  visibility: Visibility;
 }
 
 export interface GalleryItem {
@@ -55,7 +57,7 @@ export interface GalleryItem {
 
 export type PublicGallerySort = 'RECENT' | 'POPULAR';
 
-/** Una galeria con obras publicas, tal como se muestra al explorar. */
+/** Una galeria publica con obras expuestas, tal como se muestra al explorar. */
 export interface PublicGallery {
   ownerId: string;
   workCount: number;
@@ -275,8 +277,16 @@ export function hasManualChanges(gallery: PersonalGallery, differ: (left: unknow
   return gallery.customizationStatus === 'EDITADA' && differ(gallery.appliedConfig, gallery.suggestedConfig);
 }
 
-export function canViewItem(item: { visibility: Visibility; ownerId: string }, viewerId: string | null): boolean {
-  return item.visibility === 'PUBLIC' || (viewerId !== null && viewerId === item.ownerId);
+/**
+ * Lo que ve un visitante: en una galeria publica, las obras colgadas y marcadas
+ * como publicas. Una galeria privada no expone nada, aunque tenga obras publicas.
+ */
+export function exhibitedItems(gallery: PersonalGallery | null, items: readonly GalleryItem[]): GalleryItem[] {
+  if (gallery?.visibility !== 'PUBLIC') {
+    return [];
+  }
+  const hung = new Set(gallery.artworks.map((artwork) => artwork.lotId));
+  return items.filter((item) => item.visibility === 'PUBLIC' && hung.has(item.lotId));
 }
 
 export function asConfigRecord(config: GalleryConfig): Record<string, unknown> {

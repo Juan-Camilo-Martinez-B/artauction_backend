@@ -23,6 +23,7 @@ model PersonalGallery {
   appliedConfig       Json?                    @map("applied_config")
   configVersion       Int                      @default(1) @map("config_version")
   customizationStatus String                   @default("SIN_PERSONALIZAR") @map("customization_status")
+  visibility          String                   @default("PRIVATE")
   createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   artworks            PersonalGalleryArtwork[]

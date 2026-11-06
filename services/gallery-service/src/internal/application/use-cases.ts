@@ -12,7 +12,7 @@ import type { Locale } from '../domain/gallery-labels';
 import {
   asConfigRecord,
   canExhibit,
-  canViewItem,
+  exhibitedItems,
   hasManualChanges,
   PUBLIC_GALLERY_MAX_PAGE_SIZE,
   PUBLIC_GALLERY_PAGE_SIZE,
@@ -165,6 +165,13 @@ export class PersonalGalleryUseCases {
     return this.galleries.mine(ownerId);
   }
 
+  /** Abre o cierra la sala a los visitantes; repetir el mismo valor no cambia nada. */
+  async setVisibility(ownerId: string, visibility: Visibility): Promise<PersonalGallery> {
+    const gallery = await this.galleries.mine(ownerId);
+    await this.galleries.update(gallery.id, { visibility });
+    return this.galleries.mine(ownerId);
+  }
+
   private async owned(ownerId: string): Promise<PersonalGallery> {
     const gallery = await this.galleries.find(ownerId);
     if (!gallery) {
@@ -185,16 +192,16 @@ export class SocialUseCases {
   ) {}
 
   /**
-   * Ficha guardada de una obra ganada, con la misma visibilidad que la obra en
-   * la galeria de su duena. Una compra anterior a la ficha guardada la recibe
+   * Ficha guardada de una obra ganada: la ve quien puede ver la obra en la
+   * galeria de su duena. Una compra anterior a la ficha guardada la recibe
    * ahora, pedida al catalogo, sin el precio pagado (no se conoce).
    */
   async purchasedSheet(ownerId: string, lotId: string, viewerId: string | null): Promise<PurchasedSheet> {
     assertUuid(ownerId, 'El usuario');
     assertUuid(lotId, 'La obra');
-    const item = await this.social.itemOf(ownerId, lotId);
+    const item = (await this.visibleItems(ownerId, viewerId)).find((candidate) => candidate.lotId === lotId);
     // Una obra ajena o privada responde igual que una inexistente.
-    if (!item || item.source !== 'GANADA' || !canViewItem(item, viewerId)) {
+    if (!item || item.source !== 'GANADA') {
       throw DomainError.notFound('Ficha no encontrada', { code: 'SHEET_NOT_FOUND' });
     }
     let sheet = await this.social.sheetOf(ownerId, lotId);
@@ -211,11 +218,47 @@ export class SocialUseCases {
 
   async items(ownerId: string, viewerId: string | null): Promise<GalleryItem[]> {
     assertUuid(ownerId, 'El usuario');
-    const items = await this.social.itemsOf(ownerId);
-    return this.withPreviews(items.filter((item) => canViewItem(item, viewerId)));
+    return this.withPreviews(await this.visibleItems(ownerId, viewerId));
   }
 
-  /** Galerias para explorar. Quien la ve nunca importa: aqui solo hay obras publicas. */
+  /**
+   * La sala tal como la ve un visitante: solo las obras marcadas como publicas.
+   * Su duena la abre aunque sea privada, para ver como quedaria. A cualquier otra
+   * persona, una galeria privada le responde igual que una inexistente.
+   */
+  async room(ownerId: string, viewerId: string | null): Promise<PersonalGallery> {
+    assertUuid(ownerId, 'El usuario');
+    const isOwner = viewerId === ownerId;
+    const gallery = isOwner ? await this.galleries.mine(ownerId) : await this.galleries.find(ownerId);
+    if (!gallery || (!isOwner && gallery.visibility !== 'PUBLIC')) {
+      throw DomainError.notFound('Galería no encontrada', { code: 'GALLERY_NOT_FOUND' });
+    }
+    const items = await this.social.itemsOf(ownerId);
+    const shown = new Set(items.filter((item) => item.visibility === 'PUBLIC').map((item) => item.lotId));
+    return { ...gallery, artworks: gallery.artworks.filter((artwork) => shown.has(artwork.lotId)) };
+  }
+
+  /** Muestra u oculta una obra ganada. Los proyectos y las obras del catalogo dependen de catalog. */
+  async setItemVisibility(ownerId: string, lotId: string, visibility: Visibility): Promise<GalleryItem> {
+    assertUuid(lotId, 'La obra');
+    const item = await this.social.itemOf(ownerId, lotId);
+    if (!item) {
+      throw DomainError.notFound('La obra no está en tu galería', { code: 'ARTWORK_NOT_IN_GALLERY' });
+    }
+    if (item.source !== 'GANADA') {
+      throw DomainError.precondition('La visibilidad de esta obra no se cambia desde la galería.', { code: 'ITEM_VISIBILITY_LOCKED' });
+    }
+    await this.social.updateItem(ownerId, lotId, { visibility });
+    return { ...item, visibility };
+  }
+
+  /** Su duena ve todo lo suyo; cualquier otra persona, lo que la galeria expone. */
+  private async visibleItems(ownerId: string, viewerId: string | null): Promise<GalleryItem[]> {
+    const items = await this.social.itemsOf(ownerId);
+    return viewerId === ownerId ? items : exhibitedItems(await this.galleries.find(ownerId), items);
+  }
+
+  /** Galerias para explorar. Quien las ve nunca importa: aqui solo hay obras expuestas. */
   async publicGalleries(query: { page: number; pageSize: number; sort: PublicGallerySort; ownerId?: string }): Promise<{ galleries: PublicGallery[]; total: number }> {
     if (query.ownerId) {
       assertUuid(query.ownerId, 'El usuario');

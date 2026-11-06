@@ -7,6 +7,7 @@ export interface GalleryPatch {
   suggestedConfig?: Record<string, unknown>;
   appliedConfig?: Record<string, unknown>;
   customizationStatus?: PersonalGallery['customizationStatus'];
+  visibility?: PersonalGallery['visibility'];
 }
 
 export interface PublicGalleryQuery {

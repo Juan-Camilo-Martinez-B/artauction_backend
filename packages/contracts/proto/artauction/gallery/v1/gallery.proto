@@ -18,10 +18,16 @@ service GalleryService {
   rpc RemoveArtwork(RemoveArtworkRequest) returns (RemoveArtworkResponse);
   rpc PlaceArtwork(PlaceArtworkRequest) returns (PlaceArtworkResponse);
   rpc ListGalleryItems(ListGalleryItemsRequest) returns (ListGalleryItemsResponse);
-  // Ficha guardada de una obra ganada. La ve cualquiera si la obra es publica
+  // Abre o cierra la galeria de quien llama a los visitantes.
+  rpc SetGalleryVisibility(SetGalleryVisibilityRequest) returns (SetGalleryVisibilityResponse);
+  // Muestra u oculta una obra ganada; los proyectos cambian en catalog.
+  rpc SetItemVisibility(SetItemVisibilityRequest) returns (SetItemVisibilityResponse);
+  // La sala tal como la ve un visitante. Si es privada, solo su duena la abre.
+  rpc GetGalleryRoom(GetGalleryRoomRequest) returns (GetGalleryRoomResponse);
+  // Ficha guardada de una obra ganada. La ve cualquiera si la obra se expone
   // en la galeria de su duena; si no, solo ella. El precio pagado, solo ella.
   rpc GetPurchasedSheet(GetPurchasedSheetRequest) returns (GetPurchasedSheetResponse);
-  // Galerias con obras publicas, para explorarlas; con owner_id, solo esa.
+  // Galerias publicas con obras expuestas, para explorarlas; con owner_id, solo esa.
   rpc ListPublicGalleries(ListPublicGalleriesRequest) returns (ListPublicGalleriesResponse);
   rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
   rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse);
@@ -83,6 +89,7 @@ message PersonalGallery {
   optional google.protobuf.Struct suggested_config = 6;
   optional google.protobuf.Struct applied_config = 7;
   repeated GalleryArtwork artworks = 8;
+  artauction.common.v1.Visibility visibility = 9;
 }
 
 message GalleryItem {
@@ -189,6 +196,31 @@ message PlaceArtworkResponse {
 
 message ListGalleryItemsRequest {
   string owner_id = 1;
+}
+
+message SetGalleryVisibilityRequest {
+  artauction.common.v1.Visibility visibility = 1;
+}
+
+message SetGalleryVisibilityResponse {
+  PersonalGallery gallery = 1;
+}
+
+message SetItemVisibilityRequest {
+  string lot_id = 1;
+  artauction.common.v1.Visibility visibility = 2;
+}
+
+message SetItemVisibilityResponse {
+  GalleryItem item = 1;
+}
+
+message GetGalleryRoomRequest {
+  string owner_id = 1;
+}
+
+message GetGalleryRoomResponse {
+  PersonalGallery gallery = 1;
 }
 
 message GetPurchasedSheetRequest {

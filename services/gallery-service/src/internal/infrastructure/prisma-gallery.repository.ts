@@ -1,6 +1,6 @@
 import { recordInbox, sqlExecutorFrom } from '@artauction/platform';
 import { Prisma, type PrismaClient } from '../../generated/prisma';
-import { isSupport, type Artwork, type CustomizationStatus, type PersonalGallery } from '../domain/gallery';
+import { isSupport, type Artwork, type CustomizationStatus, type PersonalGallery, type Visibility } from '../domain/gallery';
 import type { GalleryPatch, GalleryRepository } from '../application/ports';
 
 const GALLERY_SCHEMA = 'gallery';
@@ -17,6 +17,10 @@ function status(value: string): CustomizationStatus {
   return value === 'PERSONALIZADA' || value === 'EDITADA' ? value : 'SIN_PERSONALIZAR';
 }
 
+function visibility(value: string): Visibility {
+  return value === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE';
+}
+
 function toGallery(row: GalleryRow): PersonalGallery {
   return {
     id: row.id,
@@ -26,6 +30,7 @@ function toGallery(row: GalleryRow): PersonalGallery {
     preferences: record(row.preferences) ?? {},
     suggestedConfig: record(row.suggestedConfig),
     appliedConfig: record(row.appliedConfig),
+    visibility: visibility(row.visibility),
     artworks: row.artworks.map(
       (artwork): Artwork => ({
         id: artwork.id,
@@ -80,6 +85,7 @@ export class PrismaGalleryRepository implements GalleryRepository {
         ...(patch.suggestedConfig ? { suggestedConfig: json(patch.suggestedConfig), configVersion: 1 } : {}),
         ...(patch.appliedConfig ? { appliedConfig: json(patch.appliedConfig) } : {}),
         ...(patch.customizationStatus ? { customizationStatus: patch.customizationStatus } : {}),
+        ...(patch.visibility ? { visibility: patch.visibility } : {}),
       },
     });
   }

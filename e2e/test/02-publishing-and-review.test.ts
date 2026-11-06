@@ -185,10 +185,12 @@ describe('publicar, auditar y revisar', () => {
     });
     assert.ok(own.length >= 2);
     const anonymous = await call<Array<{ visibility: string }>>('GET', `/galleries/${seller.userId}`);
-    assert.ok(anonymous.body.every((item) => item.visibility === 'PUBLIC'), 'lo que aun no se publica no se ve');
+    assert.deepEqual(anonymous.body, [], 'una galeria privada no muestra nada');
 
     const published = await call<{ status: string }>('GET', `/lots/${cleanLot}`, { token: seller.token });
     if (published.body.status === 'PUBLICADA') {
+      assert.equal((await call('PATCH', '/me/gallery/visibility', { token: seller.token, body: { visibility: 'PUBLIC' } })).status, 200);
+      assert.equal((await call('POST', '/me/gallery/artworks', { token: seller.token, body: { lotId: cleanLot } })).status, 201);
       await eventually('LotListed lleva la obra publicada a la galeria publica', async () => {
         const items = await call<Array<{ lotId: string | null }>>('GET', `/galleries/${seller.userId}`);
         return items.body.some((item) => item.lotId === cleanLot);

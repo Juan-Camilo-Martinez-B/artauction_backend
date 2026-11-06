@@ -57,6 +57,12 @@ export class PrismaSocialStore implements SocialStore {
 
   async publicGalleries(query: PublicGalleryQuery): Promise<{ galleries: PublicGallery[]; total: number }> {
     const owner = query.ownerId ? Prisma.sql`AND i.owner_id = ${query.ownerId}::uuid` : Prisma.empty;
+    // Se expone lo publico y colgado de una galeria publica: la misma regla de exhibitedItems.
+    const exhibited = Prisma.sql`
+        FROM gallery.items i
+        JOIN gallery.personal_galleries g ON g.owner_id = i.owner_id AND g.visibility = 'PUBLIC'
+        JOIN gallery.personal_gallery_artworks a ON a.gallery_id = g.id AND a.lot_id = i.lot_id
+        WHERE i.visibility = 'PUBLIC' ${owner}`;
     const order = query.sort === 'POPULAR' ? Prisma.sql`"followerCount" DESC, "latestAt" DESC` : Prisma.sql`"latestAt" DESC`;
     const [rows, totals] = await Promise.all([
       this.prisma.$queryRaw<Array<{ ownerId: string; workCount: number; followerCount: number; latestAt: Date }>>`
@@ -64,23 +70,24 @@ export class PrismaSocialStore implements SocialStore {
                count(*)::int AS "workCount",
                max(i.acquired_at) AS "latestAt",
                (SELECT count(*)::int FROM gallery.follows f WHERE f.followee_id = i.owner_id) AS "followerCount"
-        FROM gallery.items i
-        WHERE i.visibility = 'PUBLIC' ${owner}
+        ${exhibited}
         GROUP BY i.owner_id
         ORDER BY ${order}, i.owner_id
         LIMIT ${query.limit} OFFSET ${query.offset}`,
       this.prisma.$queryRaw<Array<{ total: number }>>`
-        SELECT count(DISTINCT i.owner_id)::int AS total FROM gallery.items i WHERE i.visibility = 'PUBLIC' ${owner}`,
+        SELECT count(DISTINCT i.owner_id)::int AS total ${exhibited}`,
     ]);
-    const items = await this.prisma.galleryItem.findMany({
-      where: { ownerId: { in: rows.map((row) => row.ownerId) }, visibility: 'PUBLIC' },
-      orderBy: { acquiredAt: 'desc' },
-    });
+    const ownerIds = rows.map((row) => row.ownerId);
+    const [items, rooms] = await Promise.all([
+      this.prisma.galleryItem.findMany({ where: { ownerId: { in: ownerIds }, visibility: 'PUBLIC' }, orderBy: { acquiredAt: 'desc' } }),
+      this.prisma.personalGallery.findMany({ where: { ownerId: { in: ownerIds } }, select: { ownerId: true, artworks: { select: { lotId: true } } } }),
+    ]);
+    const hung = new Map(rooms.map((room) => [room.ownerId, new Set(room.artworks.map((artwork) => artwork.lotId))]));
     return {
       galleries: rows.map((row) => ({
         ...row,
         previews: items
-          .filter((item) => item.ownerId === row.ownerId)
+          .filter((item) => item.ownerId === row.ownerId && hung.get(row.ownerId)?.has(item.lotId))
           .slice(0, query.previews)
           .map(toItem),
       })),

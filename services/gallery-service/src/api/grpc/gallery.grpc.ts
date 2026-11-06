@@ -54,6 +54,7 @@ function galleryToProto(gallery: PersonalGallery, sheets: ReadonlyMap<string, ca
     preferences: gallery.preferences,
     suggestedConfig: gallery.suggestedConfig ?? undefined,
     appliedConfig: gallery.appliedConfig ?? undefined,
+    visibility: visibility(gallery.visibility),
     artworks: gallery.artworks.map((artwork) => ({
       id: artwork.id,
       lotId: artwork.lotId,
@@ -165,6 +166,16 @@ export function galleryGrpcService(
         support,
       });
       return galleryV1.PlaceArtworkResponse.fromPartial({ gallery: await room(gallery) });
+    }),
+    setGalleryVisibility: unary(logger, 'SetGalleryVisibility', async (request, context) =>
+      galleryV1.SetGalleryVisibilityResponse.fromPartial({ gallery: await room(await personal.setVisibility(owner(context), visibilityFromProto(request.visibility))) }),
+    ),
+    setItemVisibility: unary(logger, 'SetItemVisibility', async (request, context) =>
+      galleryV1.SetItemVisibilityResponse.fromPartial({ item: itemToProto(await social.setItemVisibility(owner(context), request.lotId, visibilityFromProto(request.visibility))) }),
+    ),
+    getGalleryRoom: unary(logger, 'GetGalleryRoom', async (request, context) => {
+      const viewer = callers.optionalUser(context)?.userId ?? null;
+      return galleryV1.GetGalleryRoomResponse.fromPartial({ gallery: await room(await social.room(request.ownerId, viewer)) });
     }),
     listGalleryItems: unary(logger, 'ListGalleryItems', async (request, context) => {
       const viewer = callers.optionalUser(context)?.userId ?? null;
