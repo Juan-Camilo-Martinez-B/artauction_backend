@@ -1,3 +1,4 @@
+import { lotListed } from '../domain/events';
 import type { LotRepository } from './ports';
 
 // Reacciones del catalogo a eventos de otros servicios. Cada una se aplica una
@@ -13,12 +14,15 @@ export class ApplyAuditVerdict {
 
   execute(event: IncomingEvent & { lotId: string; approved: boolean; score: number; priceMin: number; priceMax: number }): Promise<boolean> {
     return this.lots.applyOnce(event.eventId, 'audit.AuditCompleted', async (lots) => {
-      await lots.update(event.lotId, ['PENDIENTE_AUDITORIA'], event.approved ? 'PUBLICADA' : 'REVISION_MANUAL', {
+      const applied = await lots.update(event.lotId, ['PENDIENTE_AUDITORIA'], event.approved ? 'PUBLICADA' : 'REVISION_MANUAL', {
         visibility: event.approved ? 'PUBLIC' : 'PRIVATE',
         authenticityScore: event.score,
         suggestedPriceMin: event.priceMin.toFixed(2),
         suggestedPriceMax: event.priceMax.toFixed(2),
       });
+      if (applied && event.approved) {
+        await lots.emit([lotListed(event.lotId)]);
+      }
     });
   }
 }

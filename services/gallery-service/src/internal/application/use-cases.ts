@@ -14,6 +14,9 @@ import {
   canExhibit,
   canViewItem,
   hasManualChanges,
+  PUBLIC_GALLERY_MAX_PAGE_SIZE,
+  PUBLIC_GALLERY_PAGE_SIZE,
+  PUBLIC_GALLERY_PREVIEWS,
   initialPlacement,
   itemId,
   placeArtwork,
@@ -21,6 +24,8 @@ import {
   type Activity,
   type GalleryItem,
   type PersonalGallery,
+  type PublicGallery,
+  type PublicGallerySort,
   type PublicLot,
   type PurchasedSheet,
   type Visibility,
@@ -207,7 +212,49 @@ export class SocialUseCases {
   async items(ownerId: string, viewerId: string | null): Promise<GalleryItem[]> {
     assertUuid(ownerId, 'El usuario');
     const items = await this.social.itemsOf(ownerId);
-    return items.filter((item) => canViewItem(item, viewerId));
+    return this.withPreviews(items.filter((item) => canViewItem(item, viewerId)));
+  }
+
+  /** Galerias para explorar. Quien la ve nunca importa: aqui solo hay obras publicas. */
+  async publicGalleries(query: { page: number; pageSize: number; sort: PublicGallerySort; ownerId?: string }): Promise<{ galleries: PublicGallery[]; total: number }> {
+    if (query.ownerId) {
+      assertUuid(query.ownerId, 'El usuario');
+    }
+    const page = Math.max(1, Math.trunc(query.page) || 1);
+    const pageSize = Math.min(PUBLIC_GALLERY_MAX_PAGE_SIZE, Math.max(1, Math.trunc(query.pageSize) || PUBLIC_GALLERY_PAGE_SIZE));
+    const { galleries, total } = await this.social.publicGalleries({
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      sort: query.sort,
+      ownerId: query.ownerId ?? null,
+      previews: PUBLIC_GALLERY_PREVIEWS,
+    });
+    return {
+      galleries: await Promise.all(galleries.map(async (gallery) => ({ ...gallery, previews: await this.withPreviews(gallery.previews) }))),
+      total,
+    };
+  }
+
+  /**
+   * Rellena la imagen de las obras publicas que aun no la tienen y la guarda:
+   * asi solo se consulta al catalogo la primera vez. Si no responde, la obra se
+   * muestra sin imagen y se reintenta en la siguiente visita.
+   */
+  private withPreviews(items: GalleryItem[]): Promise<GalleryItem[]> {
+    return Promise.all(
+      items.map(async (item) => {
+        if (item.previewUrl || item.visibility !== 'PUBLIC') {
+          return item;
+        }
+        const lot = await this.catalog.snapshot(item.lotId).catch((): null => null);
+        const previewUrl = lot?.previewUrl ?? null;
+        if (!previewUrl) {
+          return item;
+        }
+        await this.social.updateItem(item.ownerId, item.lotId, { previewUrl });
+        return { ...item, previewUrl };
+      }),
+    );
   }
 
   async follow(followerId: string, followeeId: string): Promise<void> {
@@ -231,6 +278,17 @@ export class SocialUseCases {
       summary: `Siguió a ${name}`,
       createdAt: this.clock.now(),
     });
+  }
+
+  async unfollow(followerId: string, followeeId: string): Promise<void> {
+    assertUuid(followeeId, 'El usuario');
+    if (await this.galleries.unfollow(followerId, followeeId)) {
+      await this.social.removeActivity(`follow:${followerId}:${followeeId}`);
+    }
+  }
+
+  following(followerId: string): Promise<string[]> {
+    return this.galleries.followingOf(followerId);
   }
 
   feed(viewerId: string): Promise<Activity[]> {
@@ -292,6 +350,17 @@ export class GalleryEventHandlers {
       for (const item of await this.social.itemsOfLot(event.lotId)) {
         if (item.source === 'PROYECTO') {
           await this.social.updateItem(item.ownerId, event.lotId, { source: 'PROPIA', visibility: 'PRIVATE' });
+        }
+      }
+    });
+  }
+
+  /** LotListed: lo que ya se ve en el catalogo tambien se ve en la galeria de quien lo publico. */
+  async lotListed(event: { eventId: string; lotId: string }): Promise<void> {
+    await this.once(event.eventId, 'catalog.LotListed', async () => {
+      for (const item of await this.social.itemsOfLot(event.lotId)) {
+        if (item.source === 'PROPIA') {
+          await this.social.updateItem(item.ownerId, event.lotId, { visibility: 'PUBLIC' });
         }
       }
     });

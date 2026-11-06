@@ -187,6 +187,10 @@ class MemoryLots implements LotRepository {
         this.lots.set(id, { ...lot, ...patch, status: to });
         return Promise.resolve(true);
       },
+      emit: (events) => {
+        this.outbox.push(...events);
+        return Promise.resolve();
+      },
     });
     return true;
   }

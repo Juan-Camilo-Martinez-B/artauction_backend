@@ -11,6 +11,7 @@ service GalleryEventHandlerService {
   rpc HandleLotCreated(HandleLotCreatedRequest) returns (HandleLotCreatedResponse);
   rpc HandleAuctionClosed(HandleAuctionClosedRequest) returns (HandleAuctionClosedResponse);
   rpc HandleLotSubmitted(HandleLotSubmittedRequest) returns (HandleLotSubmittedResponse);
+  rpc HandleLotListed(HandleLotListedRequest) returns (HandleLotListedResponse);
   rpc HandleLotVisibilityChanged(HandleLotVisibilityChangedRequest) returns (HandleLotVisibilityChangedResponse);
 }
 
@@ -31,6 +32,12 @@ message HandleLotSubmittedRequest {
 }
 
 message HandleLotSubmittedResponse {}
+
+message HandleLotListedRequest {
+  artauction.catalog.events.v1.LotListed event = 1;
+}
+
+message HandleLotListedResponse {}
 
 message HandleLotVisibilityChangedRequest {
   artauction.catalog.events.v1.LotVisibilityChanged event = 1;

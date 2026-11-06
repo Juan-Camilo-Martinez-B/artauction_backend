@@ -91,6 +91,7 @@ export interface LotRepository {
 export interface LotTransitions {
   findById(lotId: string): Promise<Lot | null>;
   update(lotId: string, from: readonly LotStatus[], to: LotStatus, patch: LotPatch): Promise<boolean>;
+  emit(events: DomainEvent[]): Promise<void>;
 }
 
 export interface SignedUpload {

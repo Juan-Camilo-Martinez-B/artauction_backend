@@ -49,7 +49,24 @@ export interface GalleryItem {
   artistName: string | null;
   imageKeys: string[];
   acquiredAt: Date;
+  /** URL de la primera imagen. Se pide al catalogo la primera vez que la obra se expone. */
+  previewUrl?: string | null;
 }
+
+export type PublicGallerySort = 'RECENT' | 'POPULAR';
+
+/** Una galeria con obras publicas, tal como se muestra al explorar. */
+export interface PublicGallery {
+  ownerId: string;
+  workCount: number;
+  followerCount: number;
+  latestAt: Date;
+  previews: GalleryItem[];
+}
+
+export const PUBLIC_GALLERY_PREVIEWS = 4;
+export const PUBLIC_GALLERY_PAGE_SIZE = 12;
+export const PUBLIC_GALLERY_MAX_PAGE_SIZE = 24;
 
 export interface Activity {
   actorId: string;
@@ -100,6 +117,8 @@ export interface PublicLot {
   imageKeys: string[];
   /** Si la obra tiene modelo 3D validado por catalog. */
   hasModel: boolean;
+  /** URL publica de la primera imagen, si la tiene. */
+  previewUrl?: string | null;
 }
 
 /** Un objeto solo se expone en la sala con su modelo 3D real; una obra plana, siempre. */

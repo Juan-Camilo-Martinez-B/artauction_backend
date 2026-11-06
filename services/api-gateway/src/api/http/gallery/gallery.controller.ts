@@ -1,14 +1,33 @@
-import { BadRequestException, Body, Controller, Delete, Get, Headers, Inject, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Inject, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsIn, IsNumber, IsOptional, IsUUID, Max, Min } from 'class-validator';
-import { catalogV1, galleryV1, notificationV1 } from '@artauction/contracts';
+import { catalogV1, commonV1, galleryV1, identityV1, notificationV1 } from '@artauction/contracts';
 import type { StructuredLogger } from '@artauction/platform';
 import { invoke } from '@artauction/service-kit';
-import { CATALOG_CLIENT, GALLERY_CLIENT, NOTIFICATION_CLIENT } from '../../../clients/grpc-clients';
+import { CATALOG_CLIENT, GALLERY_CLIENT, IDENTITY_CLIENT, NOTIFICATION_CLIENT } from '../../../clients/grpc-clients';
 import type { GatewayConfig } from '../../../config';
 import { RequestLocale, type Locale } from '../locale';
 import { GATEWAY_CONFIG, GATEWAY_LOGGER } from '../tokens';
-import { activityJson, galleryItemJson, galleryJson, notificationJson, purchasedSheetJson, SUPPORT_FROM_JSON } from './gallery.presenter';
+import { activityJson, galleryItemJson, galleryJson, notificationJson, publicGalleryJson, purchasedSheetJson, SUPPORT_FROM_JSON } from './gallery.presenter';
+
+export class ListPublicGalleriesQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(24)
+  pageSize?: number;
+
+  @IsOptional()
+  @IsIn(['recent', 'popular'])
+  sort?: 'recent' | 'popular';
+}
 
 export class GenerateGalleryDto {
   @IsOptional()
@@ -188,8 +207,49 @@ export class PersonalGalleryController {
 export class SocialController {
   constructor(
     @Inject(GALLERY_CLIENT) private readonly gallery: galleryV1.GalleryServiceClient,
+    @Inject(IDENTITY_CLIENT) private readonly identity: identityV1.IdentityServiceClient,
     @Inject(GATEWAY_CONFIG) private readonly config: GatewayConfig,
   ) {}
+
+  /**
+   * Galerias para explorar. Un perfil privado no se lista; como se descarta aqui,
+   * una pagina puede traer menos tarjetas que su tamano.
+   */
+  @Get('galleries')
+  async explore(@Query() query: ListPublicGalleriesQuery) {
+    const response = await invoke(
+      this.gallery.listPublicGalleries.bind(this.gallery),
+      galleryV1.ListPublicGalleriesRequest.fromPartial({
+        page: query.page ?? 1,
+        pageSize: query.pageSize ?? 12,
+        sort: query.sort === 'popular' ? galleryV1.PublicGallerySort.PUBLIC_GALLERY_SORT_POPULAR : galleryV1.PublicGallerySort.PUBLIC_GALLERY_SORT_RECENT,
+      }),
+      this.options(),
+    );
+    const cards = await Promise.all(
+      response.galleries.map(async (gallery) => {
+        const profile = await this.publicProfile(gallery.ownerId);
+        return profile ? publicGalleryJson(gallery, profile) : null;
+      }),
+    );
+    return { items: cards.filter((card) => card !== null), total: response.total, page: query.page ?? 1, pageSize: query.pageSize ?? 12 };
+  }
+
+  /** Cabecera de una galeria. Sin obras publicas responde igual, con cero obras. */
+  @Get('galleries/:ownerId/summary')
+  async summary(@Param('ownerId', ParseUUIDPipe) ownerId: string) {
+    const profile = await this.publicProfile(ownerId);
+    if (!profile) {
+      throw new NotFoundException('Galeria no encontrada');
+    }
+    const response = await invoke(
+      this.gallery.listPublicGalleries.bind(this.gallery),
+      galleryV1.ListPublicGalleriesRequest.fromPartial({ page: 1, pageSize: 1, ownerId }),
+      this.options(),
+    );
+    const gallery = response.galleries[0] ?? galleryV1.PublicGallerySummary.fromPartial({ ownerId });
+    return publicGalleryJson(gallery, profile);
+  }
 
   @Get('galleries/:ownerId')
   async list(@Headers('authorization') authorization: string | undefined, @Param('ownerId', ParseUUIDPipe) ownerId: string) {
@@ -212,6 +272,18 @@ export class SocialController {
     return purchasedSheetJson(response.sheet, locale);
   }
 
+  @Delete('users/:id/follow')
+  async unfollow(@Headers('authorization') authorization: string | undefined, @Param('id', ParseUUIDPipe) id: string) {
+    await invoke(this.gallery.unfollowUser.bind(this.gallery), { followeeId: id }, this.options(authorization));
+    return { status: 'ok' as const };
+  }
+
+  @Get('me/following')
+  async following(@Headers('authorization') authorization: string | undefined) {
+    const response = await invoke(this.gallery.listFollowing.bind(this.gallery), {}, this.options(authorization));
+    return response.followeeIds;
+  }
+
   @Post('users/:id/follow')
   async follow(@Headers('authorization') authorization: string | undefined, @Param('id', ParseUUIDPipe) id: string) {
     await invoke(this.gallery.followUser.bind(this.gallery), { followeeId: id }, this.options(authorization));
@@ -222,6 +294,13 @@ export class SocialController {
   async feed(@Headers('authorization') authorization: string | undefined) {
     const response = await invoke(this.gallery.getFeed.bind(this.gallery), {}, this.options(authorization));
     return response.activities.map(activityJson);
+  }
+
+  /** Perfil publico; null si no existe, es privado o identity no responde. */
+  private async publicProfile(userId: string): Promise<identityV1.PublicProfile | null> {
+    const response = await invoke(this.identity.getPublicProfile.bind(this.identity), { userId }, this.options()).catch((): null => null);
+    const profile = response?.profile;
+    return profile?.visibility === commonV1.Visibility.VISIBILITY_PUBLIC ? profile : null;
   }
 
   private options(authorization?: string) {

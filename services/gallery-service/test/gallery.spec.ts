@@ -2,7 +2,7 @@ import { DomainError } from '@artauction/platform';
 import { designFromPreferences, GALLERY_CONFIG_JSON_SCHEMA, randomPreferences } from '../src/internal/domain/gallery-design';
 import type { Locale } from '../src/internal/domain/gallery-labels';
 import { initialPlacement, placeArtwork, type Activity, type Artwork, type GalleryItem, type PersonalGallery, type PublicLot, type PurchasedSheet } from '../src/internal/domain/gallery';
-import type { CatalogPort, GalleryPatch, GalleryRepository, IdentityPort, SocialStore } from '../src/internal/application/ports';
+import type { CatalogPort, GalleryPatch, GalleryRepository, IdentityPort, PublicGalleryQuery, SocialStore } from '../src/internal/application/ports';
 import { GalleryEventHandlers, PersonalGalleryUseCases, SocialUseCases } from '../src/internal/application/use-cases';
 
 const OWNER = 'a0000000-0000-4000-8000-000000000003';
@@ -68,6 +68,12 @@ class MemoryGalleries implements GalleryRepository {
     }
     return Promise.resolve();
   }
+  unfollow(followerId: string, followeeId: string) {
+    return Promise.resolve(this.follows.delete(`${followerId}>${followeeId}`));
+  }
+  followingOf(followerId: string) {
+    return Promise.resolve([...this.follows].filter((key) => key.startsWith(`${followerId}>`)).map((key) => key.split('>')[1] ?? ''));
+  }
   follow(followerId: string, followeeId: string) {
     const key = `${followerId}>${followeeId}`;
     const fresh = !this.follows.has(key);
@@ -122,6 +128,19 @@ class MemorySocial implements SocialStore {
   upsertActivity(id: string, activity: Activity) {
     if (!this.activity.has(id)) this.activity.set(id, activity);
     return Promise.resolve();
+  }
+  removeActivity(id: string) {
+    this.activity.delete(id);
+    return Promise.resolve();
+  }
+  publicGalleries(query: PublicGalleryQuery) {
+    const visible = [...this.items.values()].filter((item) => item.visibility === 'PUBLIC' && (!query.ownerId || item.ownerId === query.ownerId));
+    const owners = [...new Set(visible.map((item) => item.ownerId))];
+    const galleries = owners.slice(query.offset, query.offset + query.limit).map((ownerId) => {
+      const works = visible.filter((item) => item.ownerId === ownerId);
+      return { ownerId, workCount: works.length, followerCount: 0, latestAt: new Date(0), previews: works.slice(0, query.previews) };
+    });
+    return Promise.resolve({ galleries, total: owners.length });
   }
   feed(viewerId: string) {
     return Promise.resolve([...this.activity.values()].filter((item) => item.visibility === 'PUBLIC' || item.actorId === viewerId));
@@ -248,6 +267,80 @@ describe('galeria personal', () => {
     await personal.mine(OWNER);
     await expectKind(personal.applyManual(OWNER, { schemaVersion: 9 }), 'INVALID_ARGUMENT');
     await expectKind(personal.placeArtwork(OWNER, LOT, { posX: 1 }), 'NOT_FOUND');
+  });
+});
+
+describe('explorar galerias', () => {
+  it('una obra publicada en el catalogo pasa a la galeria publica de quien la publico', async () => {
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial();
+    const handlers = new GalleryEventHandlers(galleries, social, catalog, clock);
+    const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
+    await own(social, OWNER, LOT);
+    expect((await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' })).total).toBe(0);
+    await handlers.lotListed({ eventId: 'e1', lotId: LOT });
+    const { galleries: listed, total } = await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' });
+    expect(total).toBe(1);
+    expect(listed[0]).toMatchObject({ ownerId: OWNER, workCount: 1 });
+  });
+
+  it('un proyecto oculto o en auditoria no aparece, aunque llegue tarde un evento', async () => {
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial();
+    const handlers = new GalleryEventHandlers(galleries, social, catalog, clock);
+    const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
+    await own(social, OWNER, LOT, 'PROYECTO');
+    await handlers.lotListed({ eventId: 'e1', lotId: LOT });
+    expect((await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' })).total).toBe(0);
+  });
+
+  it('pide la imagen al catalogo una sola vez y la guarda', async () => {
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial();
+    const handlers = new GalleryEventHandlers(galleries, social, catalog, clock);
+    let calls = 0;
+    const counting: CatalogPort = {
+      ...catalog,
+      snapshot: (lotId) => {
+        calls += 1;
+        return Promise.resolve({ ...LOTS[lotId]!, previewUrl: 'https://media.test/uno.jpg' });
+      },
+    };
+    const useCases = new SocialUseCases(galleries, social, identity, clock, counting);
+    await own(social, OWNER, LOT);
+    await handlers.lotListed({ eventId: 'e1', lotId: LOT });
+    const first = await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' });
+    expect(first.galleries[0]?.previews[0]?.previewUrl).toBe('https://media.test/uno.jpg');
+    await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' });
+    await useCases.items(OWNER, null);
+    expect(calls).toBe(1);
+  });
+
+  it('sin respuesta del catalogo la galeria sigue saliendo, sin imagen', async () => {
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial();
+    const handlers = new GalleryEventHandlers(galleries, social, catalog, clock);
+    const down: CatalogPort = { ...catalog, snapshot: () => Promise.reject(new Error('caido')) };
+    const useCases = new SocialUseCases(galleries, social, identity, clock, down);
+    await own(social, OWNER, LOT);
+    await handlers.lotListed({ eventId: 'e1', lotId: LOT });
+    const { galleries: listed } = await useCases.publicGalleries({ page: 1, pageSize: 12, sort: 'RECENT' });
+    expect(listed[0]?.previews[0]?.previewUrl ?? null).toBeNull();
+  });
+
+  it('dejar de seguir quita el seguimiento y su actividad, y se puede volver a seguir', async () => {
+    const galleries = new MemoryGalleries();
+    const social = new MemorySocial();
+    const useCases = new SocialUseCases(galleries, social, identity, clock, catalog);
+    await useCases.follow(OWNER, OTHER);
+    expect(await useCases.following(OWNER)).toEqual([OTHER]);
+    await useCases.unfollow(OWNER, OTHER);
+    expect(await useCases.following(OWNER)).toEqual([]);
+    expect(social.activity.size).toBe(0);
+    await useCases.unfollow(OWNER, OTHER);
+    await useCases.follow(OWNER, OTHER);
+    expect(social.activity.size).toBe(1);
+    await expectKind(useCases.unfollow(OWNER, 'no-es-uuid'), 'INVALID_ARGUMENT');
   });
 });
 

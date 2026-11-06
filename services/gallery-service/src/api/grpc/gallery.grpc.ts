@@ -1,7 +1,7 @@
 import { catalogV1, commonV1, galleryHandlersV1, galleryV1 } from '@artauction/contracts';
 import { DomainError, type StructuredLogger } from '@artauction/platform';
 import { unary, type CallerResolver } from '@artauction/service-kit';
-import type { Activity, GalleryItem, PersonalGallery, PurchasedSheet, Support } from '../../internal/domain/gallery';
+import type { Activity, GalleryItem, PersonalGallery, PublicGallery, PurchasedSheet, Support } from '../../internal/domain/gallery';
 import { localeOf } from '../../internal/domain/gallery-labels';
 import type { GalleryEventHandlers, PersonalGalleryUseCases, SocialUseCases } from '../../internal/application/use-cases';
 
@@ -78,6 +78,17 @@ function itemToProto(item: GalleryItem): galleryV1.GalleryItem {
     artistName: item.artistName ?? undefined,
     imageKeys: item.imageKeys,
     acquiredAt: item.acquiredAt,
+    previewUrl: item.previewUrl ?? undefined,
+  });
+}
+
+function publicGalleryToProto(gallery: PublicGallery): galleryV1.PublicGallerySummary {
+  return galleryV1.PublicGallerySummary.fromPartial({
+    ownerId: gallery.ownerId,
+    workCount: gallery.workCount,
+    followerCount: gallery.followerCount,
+    latestAt: gallery.latestAt,
+    previews: gallery.previews.map(itemToProto),
   });
 }
 
@@ -164,6 +175,22 @@ export function galleryGrpcService(
       const sheet = await social.purchasedSheet(request.ownerId, request.lotId, viewer);
       return galleryV1.GetPurchasedSheetResponse.fromPartial({ sheet: sheetToProto(request.ownerId, sheet) });
     }),
+    listPublicGalleries: unary(logger, 'ListPublicGalleries', async (request) => {
+      const { galleries, total } = await social.publicGalleries({
+        page: request.page,
+        pageSize: request.pageSize,
+        sort: request.sort === galleryV1.PublicGallerySort.PUBLIC_GALLERY_SORT_POPULAR ? 'POPULAR' : 'RECENT',
+        ownerId: request.ownerId,
+      });
+      return galleryV1.ListPublicGalleriesResponse.fromPartial({ galleries: galleries.map(publicGalleryToProto), total });
+    }),
+    unfollowUser: unary(logger, 'UnfollowUser', async (request, context) => {
+      await social.unfollow(owner(context), request.followeeId);
+      return galleryV1.UnfollowUserResponse.fromPartial({});
+    }),
+    listFollowing: unary(logger, 'ListFollowing', async (_request, context) =>
+      galleryV1.ListFollowingResponse.fromPartial({ followeeIds: await social.following(owner(context)) }),
+    ),
     followUser: unary(logger, 'FollowUser', async (request, context) => {
       await social.follow(owner(context), request.followeeId);
       return galleryV1.FollowUserResponse.fromPartial({});
@@ -204,6 +231,14 @@ export function galleryEventsGrpcService(
         await handlers.lotSubmitted({ eventId: event.metadata?.eventId ?? '', lotId: event.lotId });
       }
       return galleryHandlersV1.HandleLotSubmittedResponse.fromPartial({});
+    }),
+    handleLotListed: unary(logger, 'HandleLotListed', async (request, context) => {
+      callers.service(context, ['catalog-service']);
+      const event = request.event;
+      if (event) {
+        await handlers.lotListed({ eventId: event.metadata?.eventId ?? '', lotId: event.lotId });
+      }
+      return galleryHandlersV1.HandleLotListedResponse.fromPartial({});
     }),
     handleLotVisibilityChanged: unary(logger, 'HandleLotVisibilityChanged', async (request, context) => {
       callers.service(context, ['catalog-service']);

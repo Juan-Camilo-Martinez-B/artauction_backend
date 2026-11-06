@@ -7,6 +7,7 @@ import type { Lot } from './lot';
 export const CATALOG_EVENTS = {
   lotCreated: 'catalog.LotCreated',
   lotSubmitted: 'catalog.LotSubmitted',
+  lotListed: 'catalog.LotListed',
   lotPublished: 'catalog.LotPublished',
   lotReturnedToDraft: 'catalog.LotReturnedToDraft',
   lotVisibilityChanged: 'catalog.LotVisibilityChanged',
@@ -39,6 +40,11 @@ export function lotVisibilityChanged(lot: Pick<Lot, 'id' | 'sellerId' | 'visibil
 
 export function lotSubmitted(lotId: string): DomainEvent {
   return { type: CATALOG_EVENTS.lotSubmitted, aggregateId: lotId, payload: { lotId } };
+}
+
+/** La obra entro al catalogo publico: desde ahora se ve en la galeria de quien la publico. */
+export function lotListed(lotId: string): DomainEvent {
+  return { type: CATALOG_EVENTS.lotListed, aggregateId: lotId, payload: { lotId } };
 }
 
 /** Aprobacion manual. Lleva lo que auction necesita para fijar los terminos de la venta. */

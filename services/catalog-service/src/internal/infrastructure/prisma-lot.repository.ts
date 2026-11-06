@@ -330,6 +330,9 @@ function transitionsIn(tx: Tx): LotTransitions {
       const changed = await tx.lot.updateMany({ where: { id: lotId, status: { in: [...from] } }, data: { ...patch, status: to } });
       return changed.count === 1;
     },
+    async emit(events: DomainEvent[]): Promise<void> {
+      await appendToOutbox(sqlExecutor(tx), CATALOG_SCHEMA, events);
+    },
   };
 }
 

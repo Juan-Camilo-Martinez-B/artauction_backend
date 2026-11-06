@@ -1,12 +1,21 @@
 import type { GalleryConfig, GalleryPreferences } from '../domain/gallery-design';
 import type { Locale } from '../domain/gallery-labels';
-import type { Activity, Artwork, GalleryItem, PersonalGallery, PublicLot, PurchasedSheet } from '../domain/gallery';
+import type { Activity, Artwork, GalleryItem, PersonalGallery, PublicGallery, PublicGallerySort, PublicLot, PurchasedSheet } from '../domain/gallery';
 
 export interface GalleryPatch {
   preferences?: Record<string, unknown>;
   suggestedConfig?: Record<string, unknown>;
   appliedConfig?: Record<string, unknown>;
   customizationStatus?: PersonalGallery['customizationStatus'];
+}
+
+export interface PublicGalleryQuery {
+  limit: number;
+  offset: number;
+  sort: PublicGallerySort;
+  /** Solo la galeria de esta persona. */
+  ownerId: string | null;
+  previews: number;
 }
 
 export interface GalleryRepository {
@@ -20,6 +29,9 @@ export interface GalleryRepository {
   moveArtwork(artworkId: string, placement: Omit<Artwork, 'id' | 'lotId'>): Promise<void>;
   /** Devuelve false si ya lo seguia. */
   follow(followerId: string, followeeId: string): Promise<boolean>;
+  /** Devuelve false si no lo seguia. */
+  unfollow(followerId: string, followeeId: string): Promise<boolean>;
+  followingOf(followerId: string): Promise<string[]>;
   /** Registra un evento entrante; false si ya se habia procesado. */
   seen(eventId: string): Promise<boolean>;
   recordEvent(eventId: string, eventType: string): Promise<void>;
@@ -36,12 +48,15 @@ export interface SocialStore {
   itemOf(ownerId: string, lotId: string): Promise<GalleryItem | null>;
   /** Quienes tienen una obra (a lo sumo su autor o quien la gano). */
   itemsOfLot(lotId: string): Promise<GalleryItem[]>;
-  updateItem(ownerId: string, lotId: string, patch: Partial<Pick<GalleryItem, 'source' | 'visibility'>>): Promise<void>;
+  updateItem(ownerId: string, lotId: string, patch: Partial<Pick<GalleryItem, 'source' | 'visibility' | 'previewUrl'>>): Promise<void>;
   removeItem(ownerId: string, lotId: string): Promise<void>;
   /** Ficha guardada de una obra ganada; null si todavia no se guardo. */
   sheetOf(ownerId: string, lotId: string): Promise<PurchasedSheet | null>;
   saveSheet(ownerId: string, lotId: string, sheet: PurchasedSheet): Promise<void>;
   upsertActivity(id: string, activity: Activity): Promise<void>;
+  removeActivity(id: string): Promise<void>;
+  /** Galerias con obras publicas y el total, sin contar las que ya no tienen ninguna. */
+  publicGalleries(query: PublicGalleryQuery): Promise<{ galleries: PublicGallery[]; total: number }>;
   feed(viewerId: string, limit: number): Promise<Activity[]>;
 }
 

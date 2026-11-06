@@ -25,6 +25,13 @@ message LotSubmitted {
   string lot_id = 2;
 }
 
+// Una obra entro al catalogo publico, por la auditoria o por un administrador.
+// Solo le interesa a la galeria: LotPublished ademas fija los terminos de la venta.
+message LotListed {
+  artauction.common.v1.EventMetadata metadata = 1;
+  string lot_id = 2;
+}
+
 // Un administrador aprobo una obra en revision manual.
 message LotPublished {
   artauction.common.v1.EventMetadata metadata = 1;

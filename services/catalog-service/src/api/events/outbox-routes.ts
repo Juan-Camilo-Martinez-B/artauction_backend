@@ -62,6 +62,14 @@ export function catalogOutboxRoutes(
     });
   };
 
+  const listedToGallery: OutboxDelivery = async (message) => {
+    const event = catalogEventsV1.LotListed.fromPartial({ metadata: metadata(message), lotId: text(message.payload, 'lotId') });
+    await invoke(gallery.handleLotListed.bind(gallery), { event }, {
+      deadlineMs: DEADLINE_MS,
+      authorization: await tokens.authorization(),
+    });
+  };
+
   // Un proyecto propio que pasa al catalogo deja de ser PROYECTO en la galeria.
   const submittedToGallery: OutboxDelivery = async (message) => {
     const event = catalogEventsV1.LotSubmitted.fromPartial({ metadata: metadata(message), lotId: text(message.payload, 'lotId') });
@@ -129,6 +137,7 @@ export function catalogOutboxRoutes(
     routes: new Map([
       [CATALOG_EVENTS.lotCreated, [toGallery]],
       [CATALOG_EVENTS.lotSubmitted, [toAudit, submittedToGallery]],
+      [CATALOG_EVENTS.lotListed, [listedToGallery]],
       [CATALOG_EVENTS.lotPublished, [toAuction]],
       [CATALOG_EVENTS.lotReturnedToDraft, [toNotification]],
       [CATALOG_EVENTS.lotVisibilityChanged, [visibilityToGallery]],
