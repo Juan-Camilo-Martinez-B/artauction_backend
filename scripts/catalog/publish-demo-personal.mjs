@@ -21,8 +21,13 @@ for (const key of new Set(works.map((work) => work.seller))) {
   for (const work of works.filter((candidate) => candidate.seller === key)) {
     try {
       const kind = KINDS[work.kind];
+      const existing = mine.find((item) => item.title === work.title);
+      // Una obra del catalogo con el mismo titulo no es esta: se vende y no contaria como propia.
+      if (existing && existing.status !== 'PERSONAL') {
+        throw new Error(`el titulo ya lo usa una obra del catalogo (${String(existing.status)})`);
+      }
       const lot =
-        mine.find((item) => item.title === work.title) ??
+        existing ??
         (await api('POST', '/lots', {
           token,
           body: { title: work.title, description: work.description, materials: work.materials, destination: 'PERSONAL', visibility: 'PUBLIC', ...kind.fields(work) },

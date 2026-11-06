@@ -521,6 +521,10 @@
     "Color del plano complejo": [
       "Color of the Complex Plane",
       "A complex function drawn only with color: the hue gives the angle and the bands of light the magnitude. The swirls mark its zeros and poles."
+    ],
+    "Seba: barqueros bajo la luna": [
+      "Seba: Boatmen under the Moon",
+      "Two boatmen pole their barges through reeds and leaning willows, under a full moon showing between the branches. It is the Seba station from the Kisokaido series."
     ]
   }
 }
