@@ -303,7 +303,8 @@ describe('explorar galerias', () => {
       ...catalog,
       snapshot: (lotId) => {
         calls += 1;
-        return Promise.resolve({ ...LOTS[lotId]!, previewUrl: 'https://media.test/uno.jpg' });
+        const lot = LOTS[lotId];
+        return Promise.resolve(lot ? { ...lot, previewUrl: 'https://media.test/uno.jpg' } : null);
       },
     };
     const useCases = new SocialUseCases(galleries, social, identity, clock, counting);
