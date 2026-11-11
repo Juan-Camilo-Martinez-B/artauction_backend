@@ -15,15 +15,25 @@ export function grpcWatchSource(client: auctionV1.AuctionServiceClient): WatchSo
     watch(auctionId, onNotice, onEnd) {
       const call = client.watchAuction({ auctionId });
       let cancelled = false;
+      // grpc-js puede emitir 'error' y 'end' en el mismo corte; sin esta guarda
+      // cada corte programaba dos reintentos y los streams se duplicaban.
+      let ended = false;
+      const finish = (error?: Error) => {
+        if (ended) {
+          return;
+        }
+        ended = true;
+        onEnd(error);
+      };
       call.on('data', onNotice);
       call.on('error', (error: ServiceError) => {
         if (!cancelled || error.code !== status.CANCELLED) {
-          onEnd(error);
+          finish(error);
         }
       });
       call.on('end', () => {
         if (!cancelled) {
-          onEnd();
+          finish();
         }
       });
       return () => {

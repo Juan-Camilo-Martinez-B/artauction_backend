@@ -1,9 +1,11 @@
+import { EventEmitter } from 'node:events';
 import type { AddressInfo } from 'node:net';
+import { status } from '@grpc/grpc-js';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { auctionV1 } from '@artauction/contracts';
 import { DomainError, loadConfig, StructuredLogger } from '@artauction/platform';
 import { startGrpcServer, unary, type RunningServer } from '@artauction/service-kit';
-import { RoomStreams, type RoomNotice, type WatchSource } from '../src/api/live/room-streams';
+import { grpcWatchSource, RoomStreams, type RoomNotice, type WatchSource } from '../src/api/live/room-streams';
 import { createGateway } from '../src/app';
 import { GatewayConfig } from '../src/config';
 
@@ -81,6 +83,43 @@ describe('RoomStreams', () => {
       streams.release(AUCTION_ID);
       jest.advanceTimersByTime(10_000);
       expect(opened).toHaveLength(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('grpcWatchSource', () => {
+  it('avisa el fin una sola vez aunque el stream emita error y end', () => {
+    const call = new EventEmitter() as EventEmitter & { cancel: () => void };
+    call.cancel = () => undefined;
+    const client = { watchAuction: () => call } as unknown as auctionV1.AuctionServiceClient;
+    const ends: Array<Error | undefined> = [];
+    grpcWatchSource(client).watch(AUCTION_ID, () => undefined, (error) => ends.push(error));
+    call.emit('error', Object.assign(new Error('14 UNAVAILABLE: stream timeout'), { code: status.UNAVAILABLE }));
+    call.emit('end');
+    expect(ends).toHaveLength(1);
+    expect(ends[0]?.message).toContain('UNAVAILABLE');
+  });
+
+  it('con error y end seguidos la sala reabre un solo stream', () => {
+    jest.useFakeTimers();
+    try {
+      const calls: Array<EventEmitter & { cancel: () => void }> = [];
+      const client = {
+        watchAuction: () => {
+          const call = Object.assign(new EventEmitter(), { cancel: () => undefined });
+          calls.push(call);
+          return call;
+        },
+      } as unknown as auctionV1.AuctionServiceClient;
+      const streams = new RoomStreams(grpcWatchSource(client), () => undefined, logger, { baseRetryMs: 100 });
+      streams.acquire(AUCTION_ID);
+      calls[0]?.emit('error', Object.assign(new Error('UNAVAILABLE'), { code: status.UNAVAILABLE }));
+      calls[0]?.emit('end');
+      jest.advanceTimersByTime(1_000);
+      expect(calls).toHaveLength(2);
+      streams.closeAll();
     } finally {
       jest.useRealTimers();
     }
